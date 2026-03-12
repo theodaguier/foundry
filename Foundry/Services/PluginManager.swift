@@ -44,6 +44,36 @@ enum PluginManager {
         save(plugins)
     }
 
+    // MARK: - Uninstall
+
+    static func uninstallPlugin(_ plugin: Plugin) throws {
+        var commands: [String] = []
+        if let au = plugin.installPaths.au {
+            commands.append("rm -rf '\(au)'")
+        }
+        if let vst3 = plugin.installPaths.vst3 {
+            commands.append("rm -rf '\(vst3)'")
+        }
+        guard !commands.isEmpty else { return }
+
+        let script = commands.joined(separator: " && ")
+        let escapedScript = script
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+        let appleScript = "do shell script \"\(escapedScript)\" with administrator privileges"
+
+        var error: NSDictionary?
+        let scriptObj = NSAppleScript(source: appleScript)
+        scriptObj?.executeAndReturnError(&error)
+
+        if let error {
+            let message = error[NSAppleScript.errorMessage] as? String ?? "Unknown error"
+            throw NSError(domain: "Foundry", code: 3, userInfo: [
+                NSLocalizedDescriptionKey: message
+            ])
+        }
+    }
+
     // MARK: - Install
 
     static func installPlugin(
@@ -56,32 +86,28 @@ enum PluginManager {
 
         var paths = Plugin.InstallPaths()
 
-        // Install to /Library (system-level, visible in Finder, scanned by all DAWs)
+        // Install to /Library (system-level, visible by all DAWs)
         let auDir = "/Library/Audio/Plug-Ins/Components"
         let vst3Dir = "/Library/Audio/Plug-Ins/VST3"
 
-        // Ad-hoc code sign the bundles so macOS/DAWs accept them
-        if let src = auSource {
-            codesign(src)
-        }
-        if let src = vst3Source {
-            codesign(src)
-        }
-
-        // Build shell commands for privileged copy
+        // Build shell commands for privileged copy, xattr clear, and codesign
         var commands: [String] = []
 
         if formats.contains(.au), let src = auSource {
             let dest = "\(auDir)/\(src.lastPathComponent)"
             commands.append("rm -rf '\(dest)'")
-            commands.append("cp -R '\(src.path)' '\(dest)'")
+            commands.append("ditto '\(src.path)' '\(dest)'")
+            commands.append("xattr -cr '\(dest)'")
+            commands.append("codesign --force --deep --sign - '\(dest)'")
             paths.au = dest
         }
 
         if formats.contains(.vst3), let src = vst3Source {
             let dest = "\(vst3Dir)/\(src.lastPathComponent)"
             commands.append("rm -rf '\(dest)'")
-            commands.append("cp -R '\(src.path)' '\(dest)'")
+            commands.append("ditto '\(src.path)' '\(dest)'")
+            commands.append("xattr -cr '\(dest)'")
+            commands.append("codesign --force --deep --sign - '\(dest)'")
             paths.vst3 = dest
         }
 
@@ -91,10 +117,7 @@ enum PluginManager {
             ])
         }
 
-        // Run with admin privileges via osascript
-        // Use single quotes in the shell script to avoid AppleScript string escaping issues
         let script = commands.joined(separator: " && ")
-        // Escape backslashes and double quotes for AppleScript string literal
         let escapedScript = script
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
@@ -112,17 +135,6 @@ enum PluginManager {
         }
 
         return paths
-    }
-
-    /// Ad-hoc codesign a plugin bundle so macOS and DAWs load it
-    private static func codesign(_ bundleURL: URL) {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
-        process.arguments = ["--force", "--deep", "--sign", "-", bundleURL.path]
-        process.standardOutput = FileHandle.nullDevice
-        process.standardError = FileHandle.nullDevice
-        try? process.run()
-        process.waitUntilExit()
     }
 
     // MARK: - Helpers
