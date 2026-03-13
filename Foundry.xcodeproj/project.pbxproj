@@ -22,10 +22,14 @@
 		9BABB46CC5D63214A68CDB54 /* ErrorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 412BC7CF60DC740C3DE4DFB1 /* ErrorView.swift */; };
 		A1265A86DB463593D54DE32F /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87DAC6800229A279E461E577 /* AppState.swift */; };
 		A944A4D0305412243F43C75B /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 782AB7F195D49E942815B984 /* ContentView.swift */; };
+		B145C61D1DCEEA2C44C13A8F /* PluginBundleInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = B145C61C1DCEEA2C44C13A8F /* PluginBundleInspector.swift */; };
 		C20595A79857CCEA7F4B232B /* PluginManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 719F23E3AE94C69D68B3847B /* PluginManager.swift */; };
 		D3CFF3BB8CB2AA0D1C23CAFA /* QuickOptionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD63B0B69B661DD62739C874 /* QuickOptionsView.swift */; };
 		F5792873BBD9760CE5F175CD /* BuildRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38B4DABF3C7AF6853CB160E3 /* BuildRunner.swift */; };
 		FF2CD908198CBA2E80A3013D /* GenerationProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AABD14C81BD24623C0607BB /* GenerationProgressView.swift */; };
+		A7B3C4D5E6F7890123456789 /* PluginDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8C4D5E6F7890123456789AB /* PluginDetailView.swift */; };
+		C1A2B3C4D5E6F70123456701 /* RefineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2B3C4D5E6F70123456701AB /* RefineView.swift */; };
+		C1A2B3C4D5E6F70123456702 /* RefineProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2B3C4D5E6F70123456702AB /* RefineProgressView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -43,12 +47,16 @@
 		87DAC6800229A279E461E577 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		9861DA9A7D015E767E7908D5 /* PluginLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginLibraryView.swift; sourceTree = "<group>"; };
 		B69E79AA8740BF14CDC02F3E /* DependencyChecker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DependencyChecker.swift; sourceTree = "<group>"; };
+		B145C61C1DCEEA2C44C13A8F /* PluginBundleInspector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginBundleInspector.swift; sourceTree = "<group>"; };
 		BAA4AA1400D0A8005F16FC9D /* ClaudeCodeService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeCodeService.swift; sourceTree = "<group>"; };
 		BB4CE5638194D3E319878858 /* ResultView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultView.swift; sourceTree = "<group>"; };
 		BB69D6CB5EE2903F1755F2BD /* PromptView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptView.swift; sourceTree = "<group>"; };
 		C3FB52A3FEB7D539EBDFF7FD /* ProjectAssembler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectAssembler.swift; sourceTree = "<group>"; };
 		C806DCDABFBFF5C60F776E68 /* Plugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Plugin.swift; sourceTree = "<group>"; };
 		DD63B0B69B661DD62739C874 /* QuickOptionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickOptionsView.swift; sourceTree = "<group>"; };
+		B8C4D5E6F7890123456789AB /* PluginDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginDetailView.swift; sourceTree = "<group>"; };
+		D2B3C4D5E6F70123456701AB /* RefineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefineView.swift; sourceTree = "<group>"; };
+		D2B3C4D5E6F70123456702AB /* RefineProgressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefineProgressView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -73,9 +81,12 @@
 			children = (
 				412BC7CF60DC740C3DE4DFB1 /* ErrorView.swift */,
 				3AABD14C81BD24623C0607BB /* GenerationProgressView.swift */,
+				B8C4D5E6F7890123456789AB /* PluginDetailView.swift */,
 				9861DA9A7D015E767E7908D5 /* PluginLibraryView.swift */,
 				BB69D6CB5EE2903F1755F2BD /* PromptView.swift */,
 				DD63B0B69B661DD62739C874 /* QuickOptionsView.swift */,
+				D2B3C4D5E6F70123456702AB /* RefineProgressView.swift */,
+				D2B3C4D5E6F70123456701AB /* RefineView.swift */,
 				BB4CE5638194D3E319878858 /* ResultView.swift */,
 				11F0B8ACE372F6DC5016FB8C /* SetupView.swift */,
 			);
@@ -111,6 +122,7 @@
 				BAA4AA1400D0A8005F16FC9D /* ClaudeCodeService.swift */,
 				B69E79AA8740BF14CDC02F3E /* DependencyChecker.swift */,
 				7C1774C2EE1F0C15BF39B1E7 /* GenerationPipeline.swift */,
+				B145C61C1DCEEA2C44C13A8F /* PluginBundleInspector.swift */,
 				719F23E3AE94C69D68B3847B /* PluginManager.swift */,
 				C3FB52A3FEB7D539EBDFF7FD /* ProjectAssembler.swift */,
 			);
@@ -212,11 +224,15 @@
 				FF2CD908198CBA2E80A3013D /* GenerationProgressView.swift in Sources */,
 				8F62055B3F66E39E34698C84 /* Plugin.swift in Sources */,
 				393A7A9567D8321B5D64581D /* PluginCard.swift in Sources */,
+				B145C61D1DCEEA2C44C13A8F /* PluginBundleInspector.swift in Sources */,
+				A7B3C4D5E6F7890123456789 /* PluginDetailView.swift in Sources */,
 				3AE99668365C08959FB76B1F /* PluginLibraryView.swift in Sources */,
 				C20595A79857CCEA7F4B232B /* PluginManager.swift in Sources */,
 				301815F14418B44F12D68E6E /* ProjectAssembler.swift in Sources */,
 				86DC86F9E65EB121BAAA6E4B /* PromptView.swift in Sources */,
 				D3CFF3BB8CB2AA0D1C23CAFA /* QuickOptionsView.swift in Sources */,
+				C1A2B3C4D5E6F70123456702 /* RefineProgressView.swift in Sources */,
+				C1A2B3C4D5E6F70123456701 /* RefineView.swift in Sources */,
 				8502215EAB71ADC5A00BED70 /* ResultView.swift in Sources */,
 				46F97EDD013A980C36506FC2 /* SetupView.swift in Sources */,
 			);

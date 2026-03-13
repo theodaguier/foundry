@@ -11,7 +11,7 @@ struct DependencyStatus: Identifiable {
         case checking
         case installed
         case missing
-        case installing(Double) // progress 0–1, or -1 for indeterminate
+        case installing(Double)
     }
 }
 
@@ -29,13 +29,21 @@ struct SetupView: View {
     @State private var allReady = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            Text("Checking required dependencies.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 24) {
+            // Header
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Setup")
+                    .font(.title3)
+                    .fontWeight(.medium)
 
+                Text("Checking required dependencies.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
+            // Dependency list
             GlassEffectContainer(spacing: 1) {
-                VStack(alignment: .leading, spacing: 1) {
+                VStack(spacing: 1) {
                     ForEach(Array(dependencies.enumerated()), id: \.element.id) { index, dep in
                         HStack(spacing: 10) {
                             statusIcon(dep.state)
@@ -83,7 +91,7 @@ struct SetupView: View {
             }
 
             if dependencies.contains(where: { if case .missing = $0.state { return true }; return false }) {
-                Text("Install missing dependencies and relaunch Foundry.")
+                Label("Install missing dependencies and relaunch Foundry.", systemImage: "exclamationmark.triangle")
                     .font(.caption)
                     .foregroundStyle(.orange)
             }
@@ -103,7 +111,7 @@ struct SetupView: View {
             }
         }
         .padding(24)
-        .frame(width: 460, height: 340)
+        .frame(width: 460, height: 360)
         .onAppear {
             runChecks()
         }

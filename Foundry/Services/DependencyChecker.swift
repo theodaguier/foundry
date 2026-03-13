@@ -27,7 +27,7 @@ enum DependencyChecker {
         case .juce:
             return FileManager.default.fileExists(atPath: jucePath)
         case .claudeCode:
-            return await runShell("claude --version")
+            return resolveCommandPath("claude") != nil
         }
     }
 
@@ -38,17 +38,83 @@ enum DependencyChecker {
 
     // MARK: - Shell environment
 
-    /// Resolved full PATH from the user's login shell. Cached after first call.
-    /// A macOS .app doesn't inherit the user's shell PATH, so we must resolve it ourselves.
+    /// Resolved full PATH from the user's login shell.
+    /// A macOS .app doesn't inherit the user's shell PATH, so we must resolve it ourselves each time.
     static var shellEnvironment: [String: String] {
         var env = ProcessInfo.processInfo.environment
-        env["PATH"] = resolvedPATH
+        env["PATH"] = mergedPath(preferred: resolvePATH(), fallback: defaultSearchPaths())
         env.removeValue(forKey: "CLAUDECODE")
         return env
     }
 
-    /// Cached resolved PATH from user's login shell
-    private static let resolvedPATH: String = {
+    static func resolveCommandPath(_ command: String) -> String? {
+        if let directMatch = directCommandPath(command) {
+            return directMatch
+        }
+
+        if let shellMatch = shellResolvedCommandPath(command) {
+            return shellMatch
+        }
+
+        return nil
+    }
+
+    private static func directCommandPath(_ command: String) -> String? {
+        if command.hasPrefix("/") {
+            return FileManager.default.isExecutableFile(atPath: command) ? command : nil
+        }
+
+        for candidate in candidateCommandPaths(command) {
+            if FileManager.default.isExecutableFile(atPath: candidate) {
+                return candidate
+            }
+        }
+
+        return nil
+    }
+
+    private static func shellResolvedCommandPath(_ command: String) -> String? {
+        let shell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: shell)
+        process.arguments = ["-l", "-c", "command -v \(command)"]
+        process.standardInput = FileHandle.nullDevice
+
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+
+        do {
+            try process.run()
+            process.waitUntilExit()
+            guard process.terminationStatus == 0 else { return nil }
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            let output = String(data: data, encoding: .utf8)?
+                .components(separatedBy: .newlines)
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .first(where: { $0.hasPrefix("/") && !$0.isEmpty })
+            if let output, FileManager.default.isExecutableFile(atPath: output) {
+                return output
+            }
+        } catch {
+        }
+
+        return nil
+    }
+
+    private static func candidateCommandPaths(_ command: String) -> [String] {
+        let envPaths = mergedPath(
+            preferred: ProcessInfo.processInfo.environment["PATH"] ?? "",
+            fallback: defaultSearchPaths()
+        )
+            .split(separator: ":")
+            .map(String.init)
+
+        let searchPaths = Array(NSOrderedSet(array: envPaths)) as? [String] ?? envPaths
+        return searchPaths.map { ($0 as NSString).appendingPathComponent(command) }
+    }
+
+    private static func resolvePATH() -> String {
         // Ask the user's default shell for its PATH
         let shell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
         let process = Process()
@@ -70,21 +136,41 @@ enum DependencyChecker {
         } catch {}
 
         // Fallback: common paths
+        return defaultSearchPaths()
+    }
+
+    private static func defaultSearchPaths() -> String {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         return [
             "\(home)/.local/bin",
             "\(home)/.bun/bin",
             "\(home)/.npm-global/bin",
             "\(home)/.cargo/bin",
+            "\(home)/bin",
+            "\(home)/Library/pnpm",
             "/opt/homebrew/bin",
             "/opt/homebrew/sbin",
             "/usr/local/bin",
+            "/usr/local/sbin",
             "/usr/bin",
             "/bin",
             "/usr/sbin",
             "/sbin",
+            "/Applications/Codex.app/Contents/Resources",
         ].joined(separator: ":")
-    }()
+    }
+
+    private static func mergedPath(preferred: String, fallback: String) -> String {
+        let preferredParts = preferred
+            .split(separator: ":")
+            .map(String.init)
+        let fallbackParts = fallback
+            .split(separator: ":")
+            .map(String.init)
+
+        let merged = Array(NSOrderedSet(array: preferredParts + fallbackParts)) as? [String] ?? (preferredParts + fallbackParts)
+        return merged.joined(separator: ":")
+    }
 
     // MARK: - Shell execution
 

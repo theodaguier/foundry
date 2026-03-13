@@ -1,61 +1,35 @@
 import SwiftUI
 
-enum GenerationStep: Int, CaseIterable {
-    case preparingProject = 0
-    case generatingDSP
-    case generatingUI
-    case compiling
-    case installing
-
-    var label: String {
-        switch self {
-        case .preparingProject: "Preparing project"
-        case .generatingDSP: "Generating DSP"
-        case .generatingUI: "Generating UI"
-        case .compiling: "Compiling"
-        case .installing: "Installing"
-        }
-    }
-
-    var icon: String {
-        switch self {
-        case .preparingProject: "folder"
-        case .generatingDSP: "waveform"
-        case .generatingUI: "slider.horizontal.3"
-        case .compiling: "hammer"
-        case .installing: "arrow.down.to.line"
-        }
-    }
-}
-
-struct GenerationProgressView: View {
+struct RefineProgressView: View {
     @Environment(AppState.self) private var appState
-    let config: GenerationConfig
+    let config: RefineConfig
 
     @State private var pipeline = GenerationPipeline()
     @State private var elapsedSeconds: Int = 0
     @State private var timer: Timer?
     @State private var completedSteps: Set<Int> = []
 
+    private var refineSteps: [GenerationStep] {
+        [.generatingDSP, .generatingUI, .compiling, .installing]
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             Spacer()
 
             VStack(alignment: .leading, spacing: 24) {
-                // Current step headline
                 VStack(alignment: .leading, spacing: 6) {
                     Text(pipeline.currentStep.label)
                         .font(.title2)
                         .fontWeight(.medium)
                         .contentTransition(.numericText())
 
-                    Text(config.prompt)
+                    Text(config.modification)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
                 }
 
-                // Progress bar
                 VStack(alignment: .leading, spacing: 8) {
                     ProgressView(value: progress)
                         .tint(.accentColor)
@@ -69,16 +43,15 @@ struct GenerationProgressView: View {
 
                         Spacer()
 
-                        Text("Step \(pipeline.currentStep.rawValue + 1) of \(GenerationStep.allCases.count)")
+                        Text("Step \(currentStepIndex + 1) of \(refineSteps.count)")
                             .font(.caption)
                             .foregroundStyle(.tertiary)
                     }
                 }
 
-                // Step list
                 GlassEffectContainer(spacing: 1) {
                     VStack(spacing: 1) {
-                        ForEach(GenerationStep.allCases, id: \.self) { step in
+                        ForEach(refineSteps, id: \.self) { step in
                             HStack(spacing: 10) {
                                 stepIndicator(for: step)
                                     .frame(width: 16)
@@ -112,7 +85,7 @@ struct GenerationProgressView: View {
             Spacer()
         }
         .padding(24)
-        .navigationTitle("Building")
+        .navigationTitle("Refining")
         .navigationBarBackButtonHidden()
         .toolbar {
             ToolbarItem(placement: .automatic) {
@@ -131,7 +104,7 @@ struct GenerationProgressView: View {
         }
         .onAppear {
             startTimer()
-            pipeline.run(config: config, appState: appState)
+            pipeline.refine(config: config, appState: appState)
         }
         .onDisappear {
             timer?.invalidate()
@@ -173,8 +146,12 @@ struct GenerationProgressView: View {
         }
     }
 
+    private var currentStepIndex: Int {
+        refineSteps.firstIndex(of: pipeline.currentStep) ?? 0
+    }
+
     private var progress: Double {
-        Double(pipeline.currentStep.rawValue) / Double(GenerationStep.allCases.count)
+        Double(currentStepIndex) / Double(refineSteps.count)
     }
 
     private var formattedTime: String {
@@ -194,7 +171,10 @@ struct GenerationProgressView: View {
 
 #Preview {
     NavigationStack {
-        GenerationProgressView(config: GenerationConfig(prompt: "A warm analog synth"))
+        RefineProgressView(config: RefineConfig(
+            plugin: Plugin.samplePlugins[0],
+            modification: "Add a low-pass filter with resonance"
+        ))
     }
     .environment(AppState())
     .preferredColorScheme(.dark)

@@ -6,6 +6,8 @@ enum Route: Hashable {
     case prompt
     case quickOptions(prompt: String)
     case generation(config: GenerationConfig)
+    case refinement(config: RefineConfig)
+    case refine(plugin: Plugin)
     case result(plugin: Plugin)
     case error(message: String, config: GenerationConfig)
 }
@@ -17,6 +19,11 @@ struct GenerationConfig: Hashable {
     var format: FormatOption = .both
     var channelLayout: ChannelLayout = .stereo
     var presetCount: PresetCount = .five
+}
+
+struct RefineConfig: Hashable {
+    var plugin: Plugin
+    var modification: String
 }
 
 enum FormatOption: String, CaseIterable, Hashable {
@@ -49,6 +56,7 @@ enum PresetCount: Int, CaseIterable, Hashable {
 // MARK: - App state
 
 @Observable
+@MainActor
 final class AppState {
     var path = NavigationPath()
     var plugins: [Plugin] = []
@@ -65,6 +73,25 @@ final class AppState {
     func loadPlugins() {
         plugins = PluginManager.loadPlugins()
     }
+
+    func refreshSetupState() async {
+        let requiredDependencies: [DependencyChecker.Dependency] = [
+            .xcodeTools,
+            .cmake,
+            .juce,
+            .claudeCode,
+        ]
+
+        for dependency in requiredDependencies {
+            let isInstalled = await DependencyChecker.check(dependency)
+            if !isInstalled {
+                showSetup = true
+                return
+            }
+        }
+
+        showSetup = false
+    }
 }
 
 // MARK: - Sample data
@@ -74,7 +101,7 @@ extension Plugin {
         Plugin(
             id: UUID(),
             name: "DrakeVox Synth",
-            type: .synth,
+            type: .instrument,
             prompt: "An RnB synth with Drake-style presets",
             createdAt: Date().addingTimeInterval(-86400),
             formats: [.au, .vst3],
@@ -101,13 +128,13 @@ extension Plugin {
         ),
         Plugin(
             id: UUID(),
-            name: "Crystal Reverb",
-            type: .effect,
-            prompt: "Shimmering reverb with pitch shifting",
+            name: "Phase Scope",
+            type: .utility,
+            prompt: "A stereo utility with width control, polarity flip, and a vectorscope-style meter",
             createdAt: Date(),
             formats: [.vst3],
-            installPaths: InstallPaths(vst3: "~/Library/Audio/Plug-Ins/VST3/CrystalReverb.vst3"),
-            iconColor: "#4A9EFF",
+            installPaths: InstallPaths(vst3: "~/Library/Audio/Plug-Ins/VST3/PhaseScope.vst3"),
+            iconColor: "#8FB6FF",
             status: .installed
         ),
     ]

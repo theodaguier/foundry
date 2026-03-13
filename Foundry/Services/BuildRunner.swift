@@ -10,27 +10,29 @@ enum BuildRunner {
 
     // MARK: - Build
 
-    static func build(projectDir: URL, timeoutSeconds: Int = 360) async throws -> BuildResult {
-        // 1. Configure with CMake
-        let configResult = await runProcess(
-            "/usr/bin/env", args: ["cmake", "-B", "build",
-                                    "-DCMAKE_BUILD_TYPE=Release",
-                                    "-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64"],
-            workingDirectory: projectDir,
-            timeout: timeoutSeconds
-        )
-
-        guard configResult.exitCode == 0 else {
-            return BuildResult(
-                success: false,
-                output: configResult.stdout,
-                errors: "CMake configuration failed:\n\(configResult.stderr)"
+    static func build(projectDir: URL, skipConfigure: Bool = false, timeoutSeconds: Int = 360) async throws -> BuildResult {
+        // 1. Configure with CMake (skip on retries — CMakeLists.txt is never modified)
+        if !skipConfigure {
+            let configResult = await runProcess(
+                "/usr/bin/env", args: ["cmake", "-B", "build",
+                                        "-DCMAKE_BUILD_TYPE=Release",
+                                        "-DCMAKE_OSX_ARCHITECTURES=x86_64;arm64"],
+                workingDirectory: projectDir,
+                timeout: timeoutSeconds
             )
+
+            guard configResult.exitCode == 0 else {
+                return BuildResult(
+                    success: false,
+                    output: configResult.stdout,
+                    errors: "CMake configuration failed:\n\(configResult.stderr)"
+                )
+            }
         }
 
-        // 2. Build with cmake
+        // 2. Build with cmake (parallel for faster compilation)
         let buildResult = await runProcess(
-            "/usr/bin/env", args: ["cmake", "--build", "build", "--config", "Release"],
+            "/usr/bin/env", args: ["cmake", "--build", "build", "--config", "Release", "--parallel"],
             workingDirectory: projectDir,
             timeout: timeoutSeconds
         )
@@ -45,30 +47,10 @@ enum BuildRunner {
     // MARK: - Smoke test
 
     static func smokeTest(projectDir: URL) async -> Bool {
-        // Check that the built plugin bundles exist and have valid structure
-        let fm = FileManager.default
         let buildDir = projectDir.appendingPathComponent("build")
-
-        guard fm.fileExists(atPath: buildDir.path) else { return false }
-
-        // Look for .component or .vst3 bundles
-        let hasAU = findBundle(in: buildDir, ext: "component")
-        let hasVST3 = findBundle(in: buildDir, ext: "vst3")
-
-        guard hasAU || hasVST3 else { return false }
-
-        // Run auval validation if AU was built (quick check)
-        if hasAU {
-            let result = await runProcess(
-                "/usr/bin/auval", args: ["-a"],
-                workingDirectory: projectDir,
-                timeout: 30
-            )
-            // auval -a just lists AU components — if it runs, the AU subsystem is healthy
-            return result.exitCode == 0
-        }
-
-        return true
+        guard FileManager.default.fileExists(atPath: buildDir.path) else { return false }
+        return PluginBundleInspector.locateBestBundle(in: buildDir, format: .au) != nil
+            || PluginBundleInspector.locateBestBundle(in: buildDir, format: .vst3) != nil
     }
 
     // MARK: - Error parsing
@@ -87,19 +69,6 @@ enum BuildRunner {
         }
 
         return errorLines.joined(separator: "\n")
-    }
-
-    private static func findBundle(in dir: URL, ext: String) -> Bool {
-        guard let enumerator = FileManager.default.enumerator(
-            at: dir,
-            includingPropertiesForKeys: nil,
-            options: [.skipsHiddenFiles]
-        ) else { return false }
-
-        for case let url as URL in enumerator where url.pathExtension == ext {
-            return true
-        }
-        return false
     }
 
     // MARK: - Process runner

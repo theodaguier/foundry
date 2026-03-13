@@ -5,34 +5,83 @@ struct ErrorView: View {
     let message: String
     let config: GenerationConfig
 
+    private var failureTitle: String {
+        if message.localizedCaseInsensitiveContains("template") {
+            return "Generation too generic"
+        }
+        if message.localizedCaseInsensitiveContains("timed out") {
+            return "Generation timed out"
+        }
+        if message.localizedCaseInsensitiveContains("compile") || message.localizedCaseInsensitiveContains("error:") {
+            return "Build failed"
+        }
+        return "Generation failed"
+    }
+
+    private var failureSubtitle: String {
+        switch failureTitle {
+        case "Generation too generic":
+            return "Foundry blocked installation because the output still looked like a starter template."
+        case "Generation timed out":
+            return "The code generator did not finish within the allowed time."
+        case "Build failed":
+            return "Foundry could not compile the plugin after 3 attempts."
+        default:
+            return "Foundry could not finish a usable plugin from this brief."
+        }
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(spacing: 0) {
             Spacer()
 
-            Text("Could not compile the plugin after 3 attempts.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+            VStack(spacing: 24) {
+                // Error icon
+                ZStack {
+                    Circle()
+                        .fill(.red.opacity(0.1))
+                        .frame(width: 64, height: 64)
 
-            GroupBox {
-                ScrollView {
-                    Text(message)
-                        .font(.system(.caption, design: .monospaced))
-                        .foregroundStyle(.red.opacity(0.85))
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .textSelection(.enabled)
+                    Image(systemName: "xmark")
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundStyle(.red)
                 }
-                .frame(maxHeight: 120)
-            } label: {
-                Text("Compiler output")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
+
+                // Message
+                VStack(spacing: 8) {
+                    Text(failureTitle)
+                        .font(.title2)
+                        .fontWeight(.semibold)
+
+                    Text(failureSubtitle)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+
+                // Details
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Details")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+
+                    ScrollView {
+                        Text(message)
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundStyle(.red.opacity(0.85))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .textSelection(.enabled)
+                    }
+                    .frame(maxHeight: 120)
+                    .padding(12)
+                    .glassEffect(.regular, in: .rect(cornerRadius: 8))
+                }
+                .frame(maxWidth: 480)
             }
-            .frame(maxWidth: 520)
 
             Spacer()
         }
-        .padding(20)
-        .navigationTitle("Build failed")
+        .padding(24)
+        .navigationTitle(failureTitle)
         .navigationBarBackButtonHidden()
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
