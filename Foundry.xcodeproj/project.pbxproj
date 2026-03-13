@@ -22,6 +22,7 @@
 		9BABB46CC5D63214A68CDB54 /* ErrorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 412BC7CF60DC740C3DE4DFB1 /* ErrorView.swift */; };
 		A1265A86DB463593D54DE32F /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87DAC6800229A279E461E577 /* AppState.swift */; };
 		A944A4D0305412243F43C75B /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 782AB7F195D49E942815B984 /* ContentView.swift */; };
+		B145C61D1DCEEA2C44C13A8F /* PluginBundleInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = B145C61C1DCEEA2C44C13A8F /* PluginBundleInspector.swift */; };
 		C20595A79857CCEA7F4B232B /* PluginManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 719F23E3AE94C69D68B3847B /* PluginManager.swift */; };
 		D3CFF3BB8CB2AA0D1C23CAFA /* QuickOptionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD63B0B69B661DD62739C874 /* QuickOptionsView.swift */; };
 		F5792873BBD9760CE5F175CD /* BuildRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38B4DABF3C7AF6853CB160E3 /* BuildRunner.swift */; };
@@ -46,6 +47,7 @@
 		87DAC6800229A279E461E577 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		9861DA9A7D015E767E7908D5 /* PluginLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginLibraryView.swift; sourceTree = "<group>"; };
 		B69E79AA8740BF14CDC02F3E /* DependencyChecker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DependencyChecker.swift; sourceTree = "<group>"; };
+		B145C61C1DCEEA2C44C13A8F /* PluginBundleInspector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginBundleInspector.swift; sourceTree = "<group>"; };
 		BAA4AA1400D0A8005F16FC9D /* ClaudeCodeService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeCodeService.swift; sourceTree = "<group>"; };
 		BB4CE5638194D3E319878858 /* ResultView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultView.swift; sourceTree = "<group>"; };
 		BB69D6CB5EE2903F1755F2BD /* PromptView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptView.swift; sourceTree = "<group>"; };
@@ -120,6 +122,7 @@
 				BAA4AA1400D0A8005F16FC9D /* ClaudeCodeService.swift */,
 				B69E79AA8740BF14CDC02F3E /* DependencyChecker.swift */,
 				7C1774C2EE1F0C15BF39B1E7 /* GenerationPipeline.swift */,
+				B145C61C1DCEEA2C44C13A8F /* PluginBundleInspector.swift */,
 				719F23E3AE94C69D68B3847B /* PluginManager.swift */,
 				C3FB52A3FEB7D539EBDFF7FD /* ProjectAssembler.swift */,
 			);
@@ -221,6 +224,7 @@
 				FF2CD908198CBA2E80A3013D /* GenerationProgressView.swift in Sources */,
 				8F62055B3F66E39E34698C84 /* Plugin.swift in Sources */,
 				393A7A9567D8321B5D64581D /* PluginCard.swift in Sources */,
+				B145C61D1DCEEA2C44C13A8F /* PluginBundleInspector.swift in Sources */,
 				A7B3C4D5E6F7890123456789 /* PluginDetailView.swift in Sources */,
 				3AE99668365C08959FB76B1F /* PluginLibraryView.swift in Sources */,
 				C20595A79857CCEA7F4B232B /* PluginManager.swift in Sources */,

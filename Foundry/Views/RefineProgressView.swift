@@ -112,7 +112,7 @@ struct RefineProgressView: View {
         .onChange(of: pipeline.currentStep) { oldValue, newValue in
             if newValue.rawValue > oldValue.rawValue {
                 withAnimation(.easeInOut(duration: 0.2)) {
-                    completedSteps.insert(oldValue.rawValue)
+                    _ = completedSteps.insert(oldValue.rawValue)
                 }
             }
         }
@@ -162,7 +162,9 @@ struct RefineProgressView: View {
 
     private func startTimer() {
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
-            elapsedSeconds += 1
+            Task { @MainActor in
+                elapsedSeconds += 1
+            }
         }
     }
 }

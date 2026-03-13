@@ -18,9 +18,58 @@ struct Plugin: Identifiable, Codable, Hashable {
     }
 }
 
-enum PluginType: String, Codable, Hashable {
-    case synth
+enum PluginType: Codable, Hashable {
+    case instrument
     case effect
+    case utility
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let value = try container.decode(String.self)
+
+        switch value {
+        case "instrument", "synth":
+            self = .instrument
+        case "effect":
+            self = .effect
+        case "utility":
+            self = .utility
+        default:
+            throw DecodingError.dataCorruptedError(
+                in: container,
+                debugDescription: "Unknown plugin type: \(value)"
+            )
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
+
+    var rawValue: String {
+        switch self {
+        case .instrument: "instrument"
+        case .effect: "effect"
+        case .utility: "utility"
+        }
+    }
+
+    var displayName: String {
+        switch self {
+        case .instrument: "Instrument"
+        case .effect: "Effect"
+        case .utility: "Utility"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .instrument: "pianokeys"
+        case .effect: "waveform"
+        case .utility: "dial.low"
+        }
+    }
 }
 
 enum PluginFormat: String, Codable, Hashable {

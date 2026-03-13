@@ -9,11 +9,21 @@ enum GenerationStep: Int, CaseIterable {
 
     var label: String {
         switch self {
-        case .preparingProject: "Preparing project..."
-        case .generatingDSP: "Generating DSP..."
-        case .generatingUI: "Generating UI..."
-        case .compiling: "Compiling..."
-        case .installing: "Installing..."
+        case .preparingProject: "Preparing project"
+        case .generatingDSP: "Generating DSP"
+        case .generatingUI: "Generating UI"
+        case .compiling: "Compiling"
+        case .installing: "Installing"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .preparingProject: "folder"
+        case .generatingDSP: "waveform"
+        case .generatingUI: "slider.horizontal.3"
+        case .compiling: "hammer"
+        case .installing: "arrow.down.to.line"
         }
     }
 }
@@ -26,60 +36,82 @@ struct GenerationProgressView: View {
     @State private var elapsedSeconds: Int = 0
     @State private var timer: Timer?
     @State private var completedSteps: Set<Int> = []
-    @State private var previousStep: GenerationStep = .preparingProject
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(spacing: 0) {
             Spacer()
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text(pipeline.currentStep.label)
-                    .font(.title3)
-                    .fontWeight(.medium)
+            VStack(alignment: .leading, spacing: 24) {
+                // Current step headline
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(pipeline.currentStep.label)
+                        .font(.title2)
+                        .fontWeight(.medium)
+                        .contentTransition(.numericText())
 
-                Text(config.prompt)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-
-                if pipeline.buildAttempt > 1 {
-                    Text("Build attempt \(pipeline.buildAttempt)/3")
-                        .font(.caption)
-                        .foregroundStyle(.orange)
+                    Text(config.prompt)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
                 }
-            }
-            .frame(maxWidth: 480)
 
-            ProgressView(value: progress)
-                .tint(.accentColor)
-                .frame(maxWidth: 480)
+                // Progress bar
+                VStack(alignment: .leading, spacing: 8) {
+                    ProgressView(value: progress)
+                        .tint(.accentColor)
 
-            VStack(alignment: .leading, spacing: 2) {
-                ForEach(GenerationStep.allCases, id: \.self) { step in
-                    if step.rawValue <= pipeline.currentStep.rawValue {
-                        HStack(spacing: 6) {
-                            if completedSteps.contains(step.rawValue) {
-                                Image(systemName: "checkmark")
-                                    .font(.system(size: 9, weight: .bold))
-                                    .foregroundStyle(.green)
-                                    .frame(width: 12)
-                            } else {
-                                ProgressView()
-                                    .controlSize(.mini)
-                                    .frame(width: 12)
-                            }
-
-                            Text(step.label.replacingOccurrences(of: "...", with: ""))
+                    HStack {
+                        if pipeline.buildAttempt > 1 {
+                            Text("Build attempt \(pipeline.buildAttempt)/3")
                                 .font(.caption)
-                                .foregroundStyle(step == pipeline.currentStep ? .primary : .tertiary)
+                                .foregroundStyle(.orange)
+                        }
+
+                        Spacer()
+
+                        Text("Step \(pipeline.currentStep.rawValue + 1) of \(GenerationStep.allCases.count)")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+
+                // Step list
+                GlassEffectContainer(spacing: 1) {
+                    VStack(spacing: 1) {
+                        ForEach(GenerationStep.allCases, id: \.self) { step in
+                            HStack(spacing: 10) {
+                                stepIndicator(for: step)
+                                    .frame(width: 16)
+
+                                Image(systemName: step.icon)
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(stepColor(for: step))
+                                    .frame(width: 16)
+
+                                Text(step.label)
+                                    .font(.subheadline)
+                                    .foregroundStyle(stepColor(for: step))
+
+                                Spacer()
+
+                                if completedSteps.contains(step.rawValue) {
+                                    Text("Done")
+                                        .font(.caption2)
+                                        .foregroundStyle(.tertiary)
+                                }
+                            }
+                            .padding(.vertical, 8)
+                            .padding(.horizontal, 12)
+                            .glassEffect(.regular, in: .rect(cornerRadius: 6))
                         }
                     }
                 }
             }
+            .frame(maxWidth: 440)
 
             Spacer()
         }
-        .padding(20)
+        .padding(24)
         .navigationTitle("Building")
         .navigationBarBackButtonHidden()
         .toolbar {
@@ -105,12 +137,39 @@ struct GenerationProgressView: View {
             timer?.invalidate()
         }
         .onChange(of: pipeline.currentStep) { oldValue, newValue in
-            // Mark old step as completed when we advance
             if newValue.rawValue > oldValue.rawValue {
                 withAnimation(.easeInOut(duration: 0.2)) {
-                    completedSteps.insert(oldValue.rawValue)
+                    _ = completedSteps.insert(oldValue.rawValue)
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private func stepIndicator(for step: GenerationStep) -> some View {
+        if completedSteps.contains(step.rawValue) {
+            Image(systemName: "checkmark")
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(.green)
+        } else if step == pipeline.currentStep {
+            ProgressView()
+                .controlSize(.mini)
+        } else if step.rawValue > pipeline.currentStep.rawValue {
+            Circle()
+                .fill(.quaternary)
+                .frame(width: 6, height: 6)
+        } else {
+            EmptyView()
+        }
+    }
+
+    private func stepColor(for step: GenerationStep) -> some ShapeStyle {
+        if completedSteps.contains(step.rawValue) {
+            return .tertiary
+        } else if step == pipeline.currentStep {
+            return .primary
+        } else {
+            return .quaternary
         }
     }
 
@@ -126,7 +185,9 @@ struct GenerationProgressView: View {
 
     private func startTimer() {
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
-            elapsedSeconds += 1
+            Task { @MainActor in
+                elapsedSeconds += 1
+            }
         }
     }
 }

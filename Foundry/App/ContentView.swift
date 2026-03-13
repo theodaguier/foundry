@@ -40,6 +40,9 @@ struct ContentView: View {
         .onAppear {
             appState.loadPlugins()
         }
+        .task {
+            await appState.refreshSetupState()
+        }
     }
 }
 

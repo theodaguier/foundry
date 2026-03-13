@@ -23,14 +23,25 @@ enum ClaudeCodeService {
         timeoutSeconds: Int = 600,
         onEvent: @escaping @Sendable (ClaudeEvent) -> Void
     ) async -> RunResult {
-        // Build command — run through login shell to get user's full PATH
-        let escapedPrompt = prompt.replacingOccurrences(of: "'", with: "'\\''")
-        let claudeCmd = "claude -p '\(escapedPrompt)' --dangerously-skip-permissions --output-format stream-json --verbose --max-turns 30"
+        guard let claudePath = DependencyChecker.resolveCommandPath("claude") else {
+            let message = """
+            Claude Code CLI is not available in Foundry's runtime environment.
+            Open Setup and make sure `claude` is installed, then retry.
+            """
+            onEvent(.error(message))
+            return RunResult(success: false, output: "", error: message)
+        }
 
-        let shell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: shell)
-        process.arguments = ["-l", "-c", claudeCmd]
+        process.executableURL = URL(fileURLWithPath: claudePath)
+        process.arguments = [
+            "-p",
+            prompt,
+            "--dangerously-skip-permissions",
+            "--output-format", "stream-json",
+            "--verbose",
+            "--max-turns", "30",
+        ]
         process.currentDirectoryURL = projectDir
         process.environment = DependencyChecker.shellEnvironment
         process.standardInput = FileHandle.nullDevice
@@ -111,6 +122,11 @@ enum ClaudeCodeService {
         let allOutput = outputCollector.result
         let stderrOutput = errorCollector.result
 
+        // Diagnostic: save raw output to project dir
+        let logFile = projectDir.appendingPathComponent("claude-output.log")
+        let logContent = "EXIT CODE: \(exitCode)\n\n--- STDOUT ---\n\(allOutput)\n\n--- STDERR ---\n\(stderrOutput)"
+        try? logContent.write(to: logFile, atomically: true, encoding: .utf8)
+
         if timedOut {
             onEvent(.error("Generation timed out after \(timeoutSeconds / 60) minutes"))
         }
@@ -134,23 +150,16 @@ enum ClaudeCodeService {
         attempt: Int,
         onEvent: @escaping @Sendable (ClaudeEvent) -> Void
     ) async -> RunResult {
-        // Read current file contents so Claude has full context for the fix
-        let sourceDir = projectDir.appendingPathComponent("Source")
-        let fileContext = readSourceFiles(sourceDir: sourceDir)
-
         let prompt = """
         The JUCE plugin build failed (attempt \(attempt)/3). Fix ALL errors.
+        Read the source files in Source/ to understand the current state, then fix.
 
         ## Compiler errors:
         \(errors)
 
-        ## Current source files:
-        \(fileContext)
-
         ## CRITICAL RULES:
-        - ONLY edit files in Source/: PluginProcessor.h, PluginProcessor.cpp, PluginEditor.h, PluginEditor.cpp
+        - ONLY edit files in Source/: PluginProcessor.h, PluginProcessor.cpp, PluginEditor.h, PluginEditor.cpp, FoundryLookAndFeel.h
         - ABSOLUTELY DO NOT touch CMakeLists.txt — it is correct and must not be modified
-        - ABSOLUTELY DO NOT touch FoundryLookAndFeel.h — it is correct and must not be modified
         - Use only JUCE built-in classes, no external dependencies
         - C++17 standard
         - Fully qualify all JUCE types with juce:: namespace
@@ -168,30 +177,20 @@ enum ClaudeCodeService {
         )
     }
 
-    /// Read all source files to provide context for error fixing
-    private static func readSourceFiles(sourceDir: URL) -> String {
-        var result = ""
-        let files = ["PluginProcessor.h", "PluginProcessor.cpp", "PluginEditor.h", "PluginEditor.cpp"]
-        for file in files {
-            let url = sourceDir.appendingPathComponent(file)
-            if let content = try? String(contentsOf: url, encoding: .utf8) {
-                result += "\n### \(file):\n```cpp\n\(content)\n```\n"
-            }
-        }
-        return result
-    }
-
     // MARK: - Line parser
 
     private static func parseLine(_ line: String) -> ClaudeEvent? {
-        guard !line.isEmpty,
-              let data = line.data(using: .utf8),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+        guard !line.isEmpty else {
             return nil
         }
 
+        guard let data = line.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return inferFileActivity(from: line)
+        }
+
         if let toolName = extractToolName(from: json) {
-            let filePath = extractFilePath(from: json)
+            let filePath = extractFilePath(from: json) ?? inferFilePath(from: line)
             return .toolUse(tool: toolName, filePath: filePath)
         }
 
@@ -228,18 +227,41 @@ enum ClaudeCodeService {
            let content = message["content"] as? [[String: Any]] {
             for block in content {
                 if let input = block["input"] as? [String: Any],
-                   let path = input["file_path"] as? String {
+                   let path = extractPath(from: input) {
                     return path
                 }
             }
         }
         if let input = json["input"] as? [String: Any] {
-            return input["file_path"] as? String
+            return extractPath(from: input)
         }
         if let block = json["content_block"] as? [String: Any],
            let input = block["input"] as? [String: Any] {
-            return input["file_path"] as? String
+            return extractPath(from: input)
         }
+        return nil
+    }
+
+    private static func extractPath(from input: [String: Any]) -> String? {
+        if let path = input["file_path"] as? String { return path }
+        if let path = input["target_file"] as? String { return path }
+        if let path = input["path"] as? String { return path }
+        if let path = input["file"] as? String { return path }
+        if let path = input["filename"] as? String { return path }
+        return nil
+    }
+
+    private static func inferFileActivity(from line: String) -> ClaudeEvent? {
+        guard let path = inferFilePath(from: line) else { return nil }
+        return .toolUse(tool: "inferred_file_activity", filePath: path)
+    }
+
+    private static func inferFilePath(from line: String) -> String? {
+        if line.contains("PluginEditor.cpp") { return "PluginEditor.cpp" }
+        if line.contains("PluginEditor.h") { return "PluginEditor.h" }
+        if line.contains("PluginProcessor.cpp") { return "PluginProcessor.cpp" }
+        if line.contains("PluginProcessor.h") { return "PluginProcessor.h" }
+        if line.contains("FoundryLookAndFeel.h") { return "FoundryLookAndFeel.h" }
         return nil
     }
 }

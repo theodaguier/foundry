@@ -15,7 +15,7 @@ enum BuildRunner {
         if !skipConfigure {
             let configResult = await runProcess(
                 "/usr/bin/env", args: ["cmake", "-B", "build",
-                                        "-DCMAKE_BUILD_TYPE=Debug",
+                                        "-DCMAKE_BUILD_TYPE=Release",
                                         "-DCMAKE_OSX_ARCHITECTURES=x86_64;arm64"],
                 workingDirectory: projectDir,
                 timeout: timeoutSeconds
@@ -32,7 +32,7 @@ enum BuildRunner {
 
         // 2. Build with cmake (parallel for faster compilation)
         let buildResult = await runProcess(
-            "/usr/bin/env", args: ["cmake", "--build", "build", "--config", "Debug", "--parallel"],
+            "/usr/bin/env", args: ["cmake", "--build", "build", "--config", "Release", "--parallel"],
             workingDirectory: projectDir,
             timeout: timeoutSeconds
         )
@@ -49,7 +49,8 @@ enum BuildRunner {
     static func smokeTest(projectDir: URL) async -> Bool {
         let buildDir = projectDir.appendingPathComponent("build")
         guard FileManager.default.fileExists(atPath: buildDir.path) else { return false }
-        return findBundle(in: buildDir, ext: "component") || findBundle(in: buildDir, ext: "vst3")
+        return PluginBundleInspector.locateBestBundle(in: buildDir, format: .au) != nil
+            || PluginBundleInspector.locateBestBundle(in: buildDir, format: .vst3) != nil
     }
 
     // MARK: - Error parsing
@@ -68,19 +69,6 @@ enum BuildRunner {
         }
 
         return errorLines.joined(separator: "\n")
-    }
-
-    private static func findBundle(in dir: URL, ext: String) -> Bool {
-        guard let enumerator = FileManager.default.enumerator(
-            at: dir,
-            includingPropertiesForKeys: nil,
-            options: [.skipsHiddenFiles]
-        ) else { return false }
-
-        for case let url as URL in enumerator where url.pathExtension == ext {
-            return true
-        }
-        return false
     }
 
     // MARK: - Process runner

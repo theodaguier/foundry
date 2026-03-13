@@ -26,6 +26,13 @@ struct ResultView: View {
                         .font(.title2)
                         .fontWeight(.semibold)
 
+                    Text(plugin.type.displayName)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.tertiary)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .glassEffect(.regular, in: .capsule)
+
                     Text("Installed and ready to use")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
