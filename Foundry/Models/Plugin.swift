@@ -10,6 +10,7 @@ struct Plugin: Identifiable, Codable, Hashable {
     var installPaths: InstallPaths
     var iconColor: String
     var status: PluginStatus
+    var buildDirectory: String?
 
     struct InstallPaths: Codable, Hashable {
         var au: String?

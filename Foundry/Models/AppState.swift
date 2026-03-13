@@ -6,6 +6,8 @@ enum Route: Hashable {
     case prompt
     case quickOptions(prompt: String)
     case generation(config: GenerationConfig)
+    case refinement(config: RefineConfig)
+    case refine(plugin: Plugin)
     case result(plugin: Plugin)
     case error(message: String, config: GenerationConfig)
 }
@@ -17,6 +19,11 @@ struct GenerationConfig: Hashable {
     var format: FormatOption = .both
     var channelLayout: ChannelLayout = .stereo
     var presetCount: PresetCount = .five
+}
+
+struct RefineConfig: Hashable {
+    var plugin: Plugin
+    var modification: String
 }
 
 enum FormatOption: String, CaseIterable, Hashable {

@@ -19,6 +19,12 @@ struct ContentView: View {
                     case .generation(let config):
                         GenerationProgressView(config: config)
 
+                    case .refinement(let config):
+                        RefineProgressView(config: config)
+
+                    case .refine(let plugin):
+                        RefineView(plugin: plugin)
+
                     case .result(let plugin):
                         ResultView(plugin: plugin)
 
