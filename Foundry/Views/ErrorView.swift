@@ -56,10 +56,12 @@ struct ErrorView: View {
                     Text(failureSubtitle)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: 400)
                 }
 
                 // Details
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: 8) {
                     Text("Details")
                         .font(.caption)
                         .foregroundStyle(.tertiary)
@@ -73,7 +75,7 @@ struct ErrorView: View {
                     }
                     .frame(maxHeight: 120)
                     .padding(12)
-                    .glassEffect(.regular, in: .rect(cornerRadius: 8))
+                    .background(Color(.controlBackgroundColor).opacity(0.3), in: .rect(cornerRadius: 8))
                 }
                 .frame(maxWidth: 480)
             }
@@ -82,22 +84,25 @@ struct ErrorView: View {
         }
         .padding(24)
         .navigationTitle(failureTitle)
-        .navigationBarBackButtonHidden()
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
-                Button("Edit prompt") {
+                Button("Back to Library", systemImage: "chevron.left") {
+                    appState.popToRoot()
+                }
+            }
+            ToolbarItem(placement: .automatic) {
+                Button("Edit Prompt") {
                     appState.popToRoot()
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                         appState.push(.prompt)
                     }
                 }
-                .buttonStyle(.glass)
             }
             ToolbarItem(placement: .primaryAction) {
                 Button("Retry") {
                     appState.push(.generation(config: config))
                 }
-                .buttonStyle(.glassProminent)
+                .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.return, modifiers: .command)
             }
         }

@@ -26,14 +26,9 @@ struct PluginLibraryView: View {
     @State private var renameText = ""
     @State private var deleteError: String?
 
-    private let columns = [
-        GridItem(.adaptive(minimum: 200, maximum: 250), spacing: 12)
-    ]
-
     private var filteredPlugins: [Plugin] {
         var result = appState.plugins
 
-        // Search
         if !searchText.isEmpty {
             let query = searchText.lowercased()
             result = result.filter {
@@ -42,7 +37,6 @@ struct PluginLibraryView: View {
             }
         }
 
-        // Type filter
         switch filter {
         case .all: break
         case .instruments: result = result.filter { $0.type == .instrument }
@@ -50,7 +44,6 @@ struct PluginLibraryView: View {
         case .utilities: result = result.filter { $0.type == .utility }
         }
 
-        // Sort
         switch sort {
         case .newest: result.sort { $0.createdAt > $1.createdAt }
         case .oldest: result.sort { $0.createdAt < $1.createdAt }
@@ -60,62 +53,88 @@ struct PluginLibraryView: View {
         return result
     }
 
+    /// Split into 3 columns, filling left-to-right per row
+    private var columns: [[Plugin]] {
+        var col0: [Plugin] = []
+        var col1: [Plugin] = []
+        var col2: [Plugin] = []
+        for (i, plugin) in filteredPlugins.enumerated() {
+            switch i % 3 {
+            case 0: col0.append(plugin)
+            case 1: col1.append(plugin)
+            default: col2.append(plugin)
+            }
+        }
+        return [col0, col1, col2]
+    }
+
     var body: some View {
         Group {
             if appState.plugins.isEmpty {
                 emptyState
+            } else if filteredPlugins.isEmpty {
+                noResultsState
             } else {
-                VStack(spacing: 0) {
-                    // Toolbar: search + filters
-                    filterBar
-                        .padding(.horizontal, 20)
-                        .padding(.top, 12)
-                        .padding(.bottom, 8)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 28) {
+                        // Recently created — large cards
+                        if searchText.isEmpty && filter == .all {
+                            recentSection
+                        }
 
-                    if filteredPlugins.isEmpty {
-                        noResultsState
-                    } else {
-                        ScrollView {
-                            // Count
-                            HStack {
-                                Text("\(filteredPlugins.count) plugin\(filteredPlugins.count == 1 ? "" : "s")")
-                                    .font(.caption)
-                                    .foregroundStyle(.tertiary)
+                        // All plugins — App Store grid
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack(alignment: .firstTextBaseline) {
+                                Text("All Plugins")
+                                    .font(.title3.weight(.semibold))
                                 Spacer()
+                                Text("\(filteredPlugins.count)")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
                             }
-                            .padding(.horizontal, 20)
-                            .padding(.bottom, 4)
 
-                            LazyVGrid(columns: columns, spacing: 12) {
-                                ForEach(filteredPlugins) { plugin in
-                                    PluginCard(plugin: plugin) {
-                                        selectedPlugin = plugin
-                                    } onDelete: {
-                                        pluginToDelete = plugin
-                                    } onShowInFinder: {
-                                        showInFinder(plugin)
-                                    } onRename: {
-                                        pluginToRename = plugin
-                                        renameText = plugin.name
-                                    } onRegenerate: {
-                                        appState.push(.quickOptions(prompt: plugin.prompt))
-                                    }
-                                }
-                            }
-                            .padding(.horizontal, 20)
-                            .padding(.bottom, 20)
+                            appStoreGrid
                         }
                     }
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 16)
                 }
             }
         }
         .navigationTitle("Foundry")
+        .searchable(text: $searchText, prompt: "Search plugins...")
         .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button("New Plugin", systemImage: "plus") {
-                    appState.push(.prompt)
+            ToolbarItemGroup(placement: .automatic) {
+                Picker("Filter", selection: $filter) {
+                    ForEach(PluginFilter.allCases, id: \.self) { f in
+                        Text(f.rawValue).tag(f)
+                    }
                 }
-                .buttonStyle(.glassProminent)
+                .pickerStyle(.segmented)
+
+                Menu {
+                    ForEach(PluginSort.allCases, id: \.self) { s in
+                        Button {
+                            sort = s
+                        } label: {
+                            if sort == s {
+                                Label(s.rawValue, systemImage: "checkmark")
+                            } else {
+                                Text(s.rawValue)
+                            }
+                        }
+                    }
+                } label: {
+                    Label("Sort", systemImage: "arrow.up.arrow.down")
+                }
+            }
+
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    appState.push(.prompt)
+                } label: {
+                    Image(systemName: "plus")
+                }
             }
         }
         .sheet(item: $selectedPlugin) { plugin in
@@ -123,25 +142,19 @@ struct PluginLibraryView: View {
                 handleDetailAction(action, for: plugin)
             }
         }
-        // Delete confirmation
         .alert("Delete \(pluginToDelete?.name ?? "plugin")?",
                isPresented: Binding(
                    get: { pluginToDelete != nil },
                    set: { if !$0 { pluginToDelete = nil } }
                )
         ) {
-            Button("Cancel", role: .cancel) {
-                pluginToDelete = nil
-            }
+            Button("Cancel", role: .cancel) { pluginToDelete = nil }
             Button("Delete", role: .destructive) {
-                if let plugin = pluginToDelete {
-                    deletePlugin(plugin)
-                }
+                if let plugin = pluginToDelete { deletePlugin(plugin) }
             }
         } message: {
             Text("This will uninstall the AU/VST3 files from your system. This cannot be undone.")
         }
-        // Rename
         .alert("Rename Plugin",
                isPresented: Binding(
                    get: { pluginToRename != nil },
@@ -149,16 +162,11 @@ struct PluginLibraryView: View {
                )
         ) {
             TextField("Plugin name", text: $renameText)
-            Button("Cancel", role: .cancel) {
-                pluginToRename = nil
-            }
+            Button("Cancel", role: .cancel) { pluginToRename = nil }
             Button("Rename") {
-                if let plugin = pluginToRename {
-                    renamePlugin(plugin, to: renameText)
-                }
+                if let plugin = pluginToRename { renamePlugin(plugin, to: renameText) }
             }
         }
-        // Error
         .alert("Could not delete plugin", isPresented: Binding(
             get: { deleteError != nil },
             set: { if !$0 { deleteError = nil } }
@@ -169,112 +177,166 @@ struct PluginLibraryView: View {
         }
     }
 
-    // MARK: - Filter bar
+    // MARK: - Recent Section
 
-    private var filterBar: some View {
-        HStack(spacing: 12) {
-            // Search
-            HStack(spacing: 6) {
-                Image(systemName: "magnifyingglass")
-                    .foregroundStyle(.tertiary)
-                    .font(.subheadline)
-                TextField("Search plugins...", text: $searchText)
-                    .textFieldStyle(.plain)
-                    .font(.subheadline)
-                if !searchText.isEmpty {
-                    Button {
-                        searchText = ""
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.tertiary)
-                            .font(.caption)
-                    }
-                    .buttonStyle(.plain)
+    private var recentPlugins: [Plugin] {
+        Array(
+            appState.plugins
+                .sorted { $0.createdAt > $1.createdAt }
+                .prefix(2)
+        )
+    }
+
+    private var recentSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Recently Created")
+                .font(.title3.weight(.semibold))
+
+            HStack(spacing: 14) {
+                ForEach(recentPlugins) { plugin in
+                    largePluginCard(plugin)
                 }
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .glassEffect(.regular, in: .capsule)
-            .frame(maxWidth: 240)
+        }
+    }
 
-            // Type filter
-            Picker("Type", selection: $filter) {
-                ForEach(PluginFilter.allCases, id: \.self) { f in
-                    Text(f.rawValue).tag(f)
+    private func largePluginCard(_ plugin: Plugin) -> some View {
+        Button {
+            selectedPlugin = plugin
+        } label: {
+            HStack(spacing: 0) {
+                // Text content — left side
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(plugin.type.displayName)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.secondary)
+
+                    Text(plugin.name)
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+
+                    Text(plugin.prompt)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
                 }
+                .padding(20)
+
+                Spacer(minLength: 0)
+
+                // Circle icon — right side
+                ZStack {
+                    Circle()
+                        .fill(pluginColor(plugin).opacity(0.12))
+                        .frame(width: 80, height: 80)
+
+                    Image(systemName: plugin.type.systemImage)
+                        .font(.system(size: 30, weight: .medium))
+                        .foregroundStyle(pluginColor(plugin))
+                }
+                .padding(.trailing, 20)
             }
-            .pickerStyle(.segmented)
-            .frame(width: 200)
+            .frame(maxWidth: .infinity, minHeight: 120, alignment: .leading)
+            .background(Color(.controlBackgroundColor).opacity(0.5), in: .rect(cornerRadius: 14))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
 
-            Spacer()
+    private func pluginColor(_ plugin: Plugin) -> Color {
+        guard plugin.iconColor.hasPrefix("#"),
+              let hex = UInt(plugin.iconColor.dropFirst(), radix: 16) else {
+            return .accentColor
+        }
+        return Color(
+            .sRGB,
+            red: Double((hex >> 16) & 0xFF) / 255.0,
+            green: Double((hex >> 8) & 0xFF) / 255.0,
+            blue: Double(hex & 0xFF) / 255.0
+        )
+    }
 
-            // Sort
-            Menu {
-                ForEach(PluginSort.allCases, id: \.self) { s in
-                    Button {
-                        sort = s
-                    } label: {
-                        HStack {
-                            Text(s.rawValue)
-                            if sort == s {
-                                Image(systemName: "checkmark")
-                            }
+    // MARK: - App Store Grid
+
+    private var appStoreGrid: some View {
+        HStack(alignment: .top, spacing: 24) {
+            ForEach(0..<3, id: \.self) { colIndex in
+                VStack(spacing: 0) {
+                    let items = columns[colIndex]
+                    ForEach(Array(items.enumerated()), id: \.element.id) { rowIndex, plugin in
+                        if rowIndex > 0 {
+                            Divider()
+                                .padding(.leading, 46)
                         }
+
+                        pluginCardView(for: plugin)
                     }
                 }
-            } label: {
-                Label(sort.rawValue, systemImage: "arrow.up.arrow.down")
-                    .font(.subheadline)
+                .frame(maxWidth: .infinity)
             }
-            .menuStyle(.borderlessButton)
-            .fixedSize()
+        }
+    }
+
+    private func pluginCardView(for plugin: Plugin) -> some View {
+        PluginCard(plugin: plugin) {
+            selectedPlugin = plugin
+        } onDelete: {
+            pluginToDelete = plugin
+        } onShowInFinder: {
+            showInFinder(plugin)
+        } onRename: {
+            pluginToRename = plugin
+            renameText = plugin.name
+        } onRegenerate: {
+            appState.push(.quickOptions(prompt: plugin.prompt))
         }
     }
 
     // MARK: - States
 
     private var emptyState: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 20) {
             Image(systemName: "waveform")
-                .font(.system(size: 40, weight: .thin))
-                .foregroundStyle(.tertiary)
+                .font(.system(size: 48, weight: .thin))
+                .foregroundStyle(.quaternary)
 
-            VStack(spacing: 6) {
+            VStack(spacing: 8) {
                 Text("No plugins yet")
-                    .font(.title3)
+                    .font(.title2)
                     .fontWeight(.medium)
 
                 Text("Create your first audio plugin from a description.")
-                    .font(.subheadline)
+                    .font(.body)
                     .foregroundStyle(.secondary)
             }
 
             Button("New Plugin", systemImage: "plus") {
                 appState.push(.prompt)
             }
-            .buttonStyle(.glassProminent)
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
             .padding(.top, 4)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var noResultsState: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 16) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 32, weight: .thin))
-                .foregroundStyle(.tertiary)
+                .font(.system(size: 36, weight: .thin))
+                .foregroundStyle(.quaternary)
 
             Text("No matching plugins")
-                .font(.subheadline)
+                .font(.body)
                 .foregroundStyle(.secondary)
 
             Button("Clear Filters") {
                 searchText = ""
                 filter = .all
             }
-            .font(.subheadline)
-            .buttonStyle(.plain)
-            .foregroundStyle(.tint)
+            .buttonStyle(.bordered)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
