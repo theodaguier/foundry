@@ -36,7 +36,7 @@ struct PromptView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 28) {
+            VStack(alignment: .leading, spacing: 24) {
                 // Header
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Describe your plugin")
@@ -47,7 +47,7 @@ struct PromptView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                // Text editor with placeholder
+                // Text editor
                 ZStack(alignment: .topLeading) {
                     TextEditor(text: $prompt)
                         .font(.body)
@@ -65,24 +65,26 @@ struct PromptView: View {
                 }
                 .frame(height: 100)
                 .padding(10)
-                .glassEffect(.regular, in: .rect(cornerRadius: 10))
+                .background(Color(.controlBackgroundColor).opacity(0.3), in: .rect(cornerRadius: 10))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .strokeBorder(.quaternary, lineWidth: 1)
+                )
+
+                // Tip
+                HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: "sparkles")
+                        .foregroundStyle(.secondary)
+                        .font(.subheadline)
+                    Text("State whether it is an instrument, effect, or utility. Mention the source material, the primary controls, and whether you want a focused or dense interface.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(14)
+                .background(Color(.controlBackgroundColor).opacity(0.3), in: .rect(cornerRadius: 10))
 
                 // Examples
                 VStack(alignment: .leading, spacing: 20) {
-                    GlassEffectContainer(spacing: 1) {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Label("What helps Foundry generate better plugins", systemImage: "sparkles")
-                                .font(.subheadline.weight(.medium))
-                                .foregroundStyle(.secondary)
-
-                            Text("State whether it is an instrument, effect, or utility. Mention the source material or performance context, the primary controls, and whether you want a focused or dense interface.")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                        }
-                        .padding(14)
-                        .glassEffect(.regular, in: .rect(cornerRadius: 10))
-                    }
-
                     exampleSection("Instruments", icon: "pianokeys", examples: instrumentExamples)
                     exampleSection("Effects", icon: "waveform", examples: effectExamples)
                     exampleSection("Utilities", icon: "dial.low", examples: utilityExamples)
@@ -97,7 +99,7 @@ struct PromptView: View {
                 Button("Continue") {
                     appState.push(.quickOptions(prompt: prompt))
                 }
-                .buttonStyle(.glassProminent)
+                .buttonStyle(.borderedProminent)
                 .disabled(prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 .keyboardShortcut(.return, modifiers: .command)
             }
@@ -113,25 +115,26 @@ struct PromptView: View {
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(.tertiary)
 
-            GlassEffectContainer(spacing: 4) {
-                VStack(alignment: .leading, spacing: 4) {
-                    ForEach(examples, id: \.self) { example in
-                        Button {
-                            withAnimation(.easeOut(duration: 0.15)) {
-                                prompt = example
-                            }
-                        } label: {
-                            Text(example)
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.vertical, 6)
-                                .padding(.horizontal, 10)
+            VStack(alignment: .leading, spacing: 2) {
+                ForEach(examples, id: \.self) { example in
+                    Button {
+                        withAnimation(.easeOut(duration: 0.15)) {
+                            prompt = example
                         }
-                        .buttonStyle(.glass)
+                    } label: {
+                        Text(example)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.vertical, 7)
+                            .padding(.horizontal, 10)
+                            .contentShape(Rectangle())
                     }
+                    .buttonStyle(.plain)
                 }
             }
+            .padding(4)
+            .background(Color(.controlBackgroundColor).opacity(0.2), in: .rect(cornerRadius: 8))
         }
     }
 }

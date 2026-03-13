@@ -8,7 +8,7 @@ struct ResultView: View {
         VStack(spacing: 0) {
             Spacer()
 
-            VStack(spacing: 24) {
+            VStack(spacing: 28) {
                 // Success icon
                 ZStack {
                     Circle()
@@ -21,19 +21,19 @@ struct ResultView: View {
                 }
 
                 // Plugin info
-                VStack(spacing: 8) {
+                VStack(spacing: 10) {
                     Text(plugin.name)
                         .font(.title2)
                         .fontWeight(.semibold)
 
                     Text(plugin.type.displayName)
                         .font(.caption.weight(.medium))
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(.secondary)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 4)
-                        .glassEffect(.regular, in: .capsule)
+                        .background(.quaternary.opacity(0.5), in: .capsule)
 
-                    Text("Installed and ready to use")
+                    Text("Installed and ready to use in your DAW")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
@@ -43,15 +43,15 @@ struct ResultView: View {
                     ForEach(plugin.formats, id: \.self) { format in
                         Label(format.rawValue, systemImage: "checkmark.circle.fill")
                             .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.green)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 6)
-                            .glassEffect(.regular, in: .capsule)
+                            .background(.green.opacity(0.1), in: .capsule)
                     }
                 }
 
                 // Prompt recap
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: 8) {
                     Text("Prompt")
                         .font(.caption)
                         .foregroundStyle(.tertiary)
@@ -61,7 +61,7 @@ struct ResultView: View {
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(12)
-                        .glassEffect(.regular, in: .rect(cornerRadius: 8))
+                        .background(Color(.controlBackgroundColor).opacity(0.3), in: .rect(cornerRadius: 8))
                 }
                 .frame(maxWidth: 420)
             }
@@ -70,26 +70,28 @@ struct ResultView: View {
         }
         .padding(24)
         .navigationTitle(plugin.name)
-        .navigationBarBackButtonHidden()
         .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Back to Library", systemImage: "chevron.left") {
+                    appState.popToRoot()
+                }
+            }
             ToolbarItem(placement: .automatic) {
                 Button("Show in Finder", systemImage: "folder") {
                     openPluginFolder()
                 }
-                .buttonStyle(.glass)
             }
             ToolbarItem(placement: .automatic) {
                 Button("Refine", systemImage: "slider.horizontal.below.rectangle") {
                     appState.push(.refine(plugin: plugin))
                 }
-                .buttonStyle(.glass)
                 .disabled(plugin.buildDirectory == nil)
             }
             ToolbarItem(placement: .primaryAction) {
                 Button("Done") {
                     appState.popToRoot()
                 }
-                .buttonStyle(.glassProminent)
+                .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.return, modifiers: .command)
             }
         }

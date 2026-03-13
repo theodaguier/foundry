@@ -49,36 +49,41 @@ struct RefineProgressView: View {
                     }
                 }
 
-                GlassEffectContainer(spacing: 1) {
-                    VStack(spacing: 1) {
-                        ForEach(refineSteps, id: \.self) { step in
-                            HStack(spacing: 10) {
-                                stepIndicator(for: step)
-                                    .frame(width: 16)
+                VStack(spacing: 2) {
+                    ForEach(refineSteps, id: \.self) { step in
+                        HStack(spacing: 10) {
+                            stepIndicator(for: step)
+                                .frame(width: 16)
 
-                                Image(systemName: step.icon)
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(stepColor(for: step))
-                                    .frame(width: 16)
+                            Image(systemName: step.icon)
+                                .font(.system(size: 11))
+                                .foregroundStyle(stepColor(for: step))
+                                .frame(width: 16)
 
-                                Text(step.label)
-                                    .font(.subheadline)
-                                    .foregroundStyle(stepColor(for: step))
+                            Text(step.label)
+                                .font(.subheadline)
+                                .foregroundStyle(stepColor(for: step))
 
-                                Spacer()
+                            Spacer()
 
-                                if completedSteps.contains(step.rawValue) {
-                                    Text("Done")
-                                        .font(.caption2)
-                                        .foregroundStyle(.tertiary)
-                                }
+                            if completedSteps.contains(step.rawValue) {
+                                Text("Done")
+                                    .font(.caption2)
+                                    .foregroundStyle(.tertiary)
                             }
-                            .padding(.vertical, 8)
-                            .padding(.horizontal, 12)
-                            .glassEffect(.regular, in: .rect(cornerRadius: 6))
                         }
+                        .padding(.vertical, 8)
+                        .padding(.horizontal, 12)
+                        .background(
+                            step == pipeline.currentStep
+                                ? Color.accentColor.opacity(0.06)
+                                : Color.clear,
+                            in: .rect(cornerRadius: 6)
+                        )
                     }
                 }
+                .padding(4)
+                .background(Color(.controlBackgroundColor).opacity(0.3), in: .rect(cornerRadius: 10))
             }
             .frame(maxWidth: 440)
 
@@ -86,7 +91,6 @@ struct RefineProgressView: View {
         }
         .padding(24)
         .navigationTitle("Refining")
-        .navigationBarBackButtonHidden()
         .toolbar {
             ToolbarItem(placement: .automatic) {
                 Text(formattedTime)
@@ -94,12 +98,11 @@ struct RefineProgressView: View {
                     .foregroundStyle(.tertiary)
             }
             ToolbarItem(placement: .cancellationAction) {
-                Button("Cancel", role: .cancel) {
+                Button("Cancel") {
                     pipeline.cancel()
                     timer?.invalidate()
                     appState.popToRoot()
                 }
-                .buttonStyle(.glass)
             }
         }
         .onAppear {

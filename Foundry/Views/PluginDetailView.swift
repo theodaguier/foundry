@@ -14,67 +14,81 @@ struct PluginDetailView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
-            HStack {
-                Spacer()
-                Button {
-                    dismiss()
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 28, height: 28)
-                        .glassEffect(.regular, in: .circle)
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(.horizontal, 24)
-            .padding(.top, 20)
+            // Colored header
+            ZStack {
+                LinearGradient(
+                    colors: [iconColor.opacity(0.2), iconColor.opacity(0.05)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: 120)
 
-            // Content
-            VStack(spacing: 24) {
-                // Icon + name
-                VStack(spacing: 12) {
+                VStack(spacing: 10) {
                     ZStack {
                         Circle()
-                            .fill(iconColor.opacity(0.15))
-                            .frame(width: 56, height: 56)
+                            .fill(iconColor.opacity(0.25))
+                            .frame(width: 52, height: 52)
 
                         Image(systemName: plugin.type.systemImage)
-                            .font(.system(size: 22, weight: .medium))
+                            .font(.system(size: 20, weight: .semibold))
                             .foregroundStyle(iconColor)
                     }
 
                     Text(plugin.name)
                         .font(.title2)
                         .fontWeight(.semibold)
+                }
+            }
 
+            // Content
+            VStack(spacing: 20) {
+                // Type + status
+                HStack(spacing: 8) {
                     Text(plugin.type.displayName)
                         .font(.caption.weight(.medium))
                         .foregroundStyle(.secondary)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .glassEffect(.regular, in: .capsule)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(.quaternary.opacity(0.5), in: .capsule)
+
+                    if plugin.status == .failed {
+                        Text("Failed")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(.orange)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .background(.orange.opacity(0.1), in: .capsule)
+                    } else {
+                        Text("Installed")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(.green)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .background(.green.opacity(0.1), in: .capsule)
+                    }
                 }
 
                 // Info rows
-                VStack(spacing: 1) {
+                VStack(spacing: 0) {
                     infoRow("Prompt", value: plugin.prompt)
+                    Divider().padding(.leading, 80)
                     infoRow("Formats", value: plugin.formats.map(\.rawValue).joined(separator: ", "))
+                    Divider().padding(.leading, 80)
                     infoRow("Created", value: plugin.createdAt.formatted(date: .long, time: .shortened))
-                    infoRow("Status", value: plugin.status.rawValue.capitalized)
 
                     if let au = plugin.installPaths.au {
+                        Divider().padding(.leading, 80)
                         infoRow("AU Path", value: au)
                     }
                     if let vst3 = plugin.installPaths.vst3 {
+                        Divider().padding(.leading, 80)
                         infoRow("VST3 Path", value: vst3)
                     }
                 }
-                .clipShape(.rect(cornerRadius: 8))
+                .background(Color(.controlBackgroundColor).opacity(0.3), in: .rect(cornerRadius: 8))
 
                 // Actions
-                HStack(spacing: 10) {
+                HStack(spacing: 8) {
                     actionButton("Finder", icon: "folder") {
                         onAction?(.showInFinder)
                     }
@@ -92,12 +106,18 @@ struct PluginDetailView: View {
                     }
                 }
             }
-            .padding(.horizontal, 24)
-            .padding(.top, 8)
+            .padding(24)
 
-            Spacer()
+            Spacer(minLength: 0)
         }
         .frame(width: 460, height: 520)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Done") {
+                    dismiss()
+                }
+            }
+        }
     }
 
     // MARK: - Components
@@ -117,7 +137,6 @@ struct PluginDetailView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .background(.quaternary.opacity(0.3))
     }
 
     private func actionButton(
@@ -129,7 +148,7 @@ struct PluginDetailView: View {
         Button(role: role) {
             action()
         } label: {
-            VStack(spacing: 4) {
+            VStack(spacing: 6) {
                 Image(systemName: icon)
                     .font(.body)
                 Text(title)
@@ -139,9 +158,8 @@ struct PluginDetailView: View {
             .frame(height: 52)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
-        .foregroundStyle(role == .destructive ? .red : .primary)
-        .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 8))
+        .buttonStyle(.bordered)
+        .tint(role == .destructive ? .red : nil)
     }
 
     private var iconColor: Color {

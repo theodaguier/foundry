@@ -13,75 +13,55 @@ struct PluginCard: View {
         Button {
             onTap?()
         } label: {
-            VStack(alignment: .leading, spacing: 0) {
-                // Icon header
-                HStack(spacing: 8) {
-                    ZStack {
-                        Circle()
-                            .fill(iconColor.opacity(0.15))
-                            .frame(width: 32, height: 32)
+            HStack(spacing: 10) {
+                // Rounded rect icon — App Store style
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [iconColor, iconColor.opacity(0.6)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 36, height: 36)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .strokeBorder(.white.opacity(0.15), lineWidth: 0.5)
+                        )
 
-                        Image(systemName: plugin.type.systemImage)
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(iconColor)
-                    }
+                    Image(systemName: plugin.type.systemImage)
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(.white)
+                }
 
-                    Spacer()
-
-                    // Status indicator
-                    if plugin.status == .failed {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.caption)
-                            .foregroundStyle(.orange)
-                    }
+                // Name + subtitle
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(plugin.name)
+                        .font(.system(size: 13, weight: .regular))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
 
                     Text(plugin.type.displayName)
-                        .font(.caption2.weight(.medium))
-                        .foregroundStyle(.tertiary)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .glassEffect(.regular, in: .capsule)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
-                .padding(.bottom, 12)
 
-                // Name and description
-                Text(plugin.name)
-                    .font(.headline)
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                    .padding(.bottom, 4)
+                Spacer(minLength: 4)
 
-                Text(plugin.prompt)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.leading)
-
-                Spacer(minLength: 0)
-
-                // Footer: formats + date
-                HStack(spacing: 6) {
-                    ForEach(plugin.formats, id: \.self) { format in
-                        Text(format.rawValue)
-                            .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                            .foregroundStyle(.tertiary)
-                    }
-
-                    Spacer()
-
-                    Text(plugin.createdAt, style: .date)
-                        .font(.caption2)
-                        .foregroundStyle(.quaternary)
-                }
+                // Action badge — App Store "Get" style
+                Text(plugin.formats.map(\.rawValue).joined(separator: " · "))
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .foregroundStyle(Color.accentColor)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(Color.accentColor.opacity(0.12), in: .capsule)
             }
-            .padding(14)
-            .frame(height: 170)
+            .padding(.vertical, 8)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 12))
-        .scaleEffect(isHovered ? 1.02 : 1.0)
-        .animation(.easeOut(duration: 0.15), value: isHovered)
         .onHover { hovering in
             isHovered = hovering
         }
@@ -121,15 +101,15 @@ struct PluginCard: View {
 }
 
 #Preview {
-    HStack(spacing: 12) {
+    VStack(spacing: 0) {
         PluginCard(plugin: Plugin.samplePlugins[0])
-            .frame(width: 220)
+        Divider().padding(.leading, 46)
         PluginCard(plugin: Plugin.samplePlugins[1])
-            .frame(width: 220)
+        Divider().padding(.leading, 46)
         PluginCard(plugin: Plugin.samplePlugins[2])
-            .frame(width: 220)
     }
-    .padding(24)
+    .padding(.horizontal, 12)
+    .frame(width: 260)
     .background(.background)
     .preferredColorScheme(.dark)
 }

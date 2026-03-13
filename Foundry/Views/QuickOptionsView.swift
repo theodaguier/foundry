@@ -24,45 +24,49 @@ struct QuickOptionsView: View {
                 }
 
                 // Options
-                GlassEffectContainer(spacing: 1) {
-                    VStack(spacing: 1) {
-                        optionRow("Format", icon: "square.stack.3d.up") {
-                            Picker("Format", selection: $format) {
-                                ForEach(FormatOption.allCases, id: \.self) { option in
-                                    Text(option.rawValue).tag(option)
-                                }
+                VStack(spacing: 0) {
+                    optionRow("Format", icon: "square.stack.3d.up") {
+                        Picker("Format", selection: $format) {
+                            ForEach(FormatOption.allCases, id: \.self) { option in
+                                Text(option.rawValue).tag(option)
                             }
-                            .pickerStyle(.segmented)
-                            .frame(width: 200)
-                        } detail: {
-                            Text("Choose which plugin formats Foundry should build and install.")
                         }
+                        .pickerStyle(.segmented)
+                        .frame(width: 200)
+                    } detail: {
+                        Text("Choose which plugin formats Foundry should build and install.")
+                    }
 
-                        optionRow("Channels", icon: "speaker.wave.2") {
-                            Picker("Channels", selection: $channelLayout) {
-                                ForEach(ChannelLayout.allCases, id: \.self) { option in
-                                    Text(option.rawValue).tag(option)
-                                }
-                            }
-                            .pickerStyle(.segmented)
-                            .frame(width: 160)
-                        } detail: {
-                            Text("Mono keeps the graph simple. Stereo unlocks width and spatial processing.")
-                        }
+                    Divider().padding(.leading, 44)
 
-                        optionRow("Presets", icon: "slider.horizontal.3") {
-                            Picker("Presets", selection: $presetCount) {
-                                ForEach(PresetCount.allCases, id: \.self) { option in
-                                    Text(option.label).tag(option)
-                                }
+                    optionRow("Channels", icon: "speaker.wave.2") {
+                        Picker("Channels", selection: $channelLayout) {
+                            ForEach(ChannelLayout.allCases, id: \.self) { option in
+                                Text(option.rawValue).tag(option)
                             }
-                            .pickerStyle(.segmented)
-                            .frame(width: 200)
-                        } detail: {
-                            Text("Presets push the generator toward more intentional, reusable results.")
                         }
+                        .pickerStyle(.segmented)
+                        .frame(width: 160)
+                    } detail: {
+                        Text("Mono keeps the graph simple. Stereo unlocks width and spatial processing.")
+                    }
+
+                    Divider().padding(.leading, 44)
+
+                    optionRow("Presets", icon: "slider.horizontal.3") {
+                        Picker("Presets", selection: $presetCount) {
+                            ForEach(PresetCount.allCases, id: \.self) { option in
+                                Text(option.label).tag(option)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .frame(width: 200)
+                    } detail: {
+                        Text("Presets push the generator toward more intentional, reusable results.")
                     }
                 }
+                .padding(4)
+                .background(Color(.controlBackgroundColor).opacity(0.3), in: .rect(cornerRadius: 10))
             }
             .padding(24)
             .frame(maxWidth: 520, alignment: .leading)
@@ -73,13 +77,12 @@ struct QuickOptionsView: View {
                 Button("Skip") {
                     startGeneration()
                 }
-                .buttonStyle(.glass)
             }
             ToolbarItem(placement: .primaryAction) {
                 Button("Generate") {
                     startGeneration()
                 }
-                .buttonStyle(.glassProminent)
+                .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.return, modifiers: .command)
             }
         }
@@ -109,7 +112,6 @@ struct QuickOptionsView: View {
         }
         .padding(.vertical, 10)
         .padding(.horizontal, 14)
-        .glassEffect(.regular, in: .rect(cornerRadius: 8))
     }
 
     private func startGeneration() {
