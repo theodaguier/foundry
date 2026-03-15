@@ -32,8 +32,7 @@ enum DependencyChecker {
     }
 
     static var jucePath: String {
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        return appSupport.appendingPathComponent("Foundry/JUCE").path
+        FoundryPaths.juceDirectory.path
     }
 
     // MARK: - Shell environment

@@ -3,8 +3,7 @@ import Foundation
 enum PluginManager {
 
     private static var storageURL: URL {
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        return appSupport.appendingPathComponent("Foundry/plugins.json")
+        FoundryPaths.pluginsFile
     }
 
     // MARK: - Read
@@ -44,6 +43,9 @@ enum PluginManager {
     }
 
     static func remove(id: UUID, from plugins: inout [Plugin]) {
+        if let plugin = plugins.first(where: { $0.id == id }) {
+            removeLogoAssets(for: plugin)
+        }
         plugins.removeAll { $0.id == id }
         save(plugins)
     }
@@ -200,6 +202,11 @@ enum PluginManager {
     }
 
     // MARK: - Helpers
+
+    private static func removeLogoAssets(for plugin: Plugin) {
+        let logoDirectory = FoundryPaths.pluginLogoDirectory(for: plugin.id)
+        try? FileManager.default.removeItem(at: logoDirectory)
+    }
 
 }
 

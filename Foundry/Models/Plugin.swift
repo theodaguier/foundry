@@ -9,6 +9,7 @@ struct Plugin: Identifiable, Codable, Hashable {
     var formats: [PluginFormat]
     var installPaths: InstallPaths
     var iconColor: String
+    var logoAssetPath: String?
     var status: PluginStatus
     var buildDirectory: String?
 

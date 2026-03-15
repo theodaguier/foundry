@@ -226,16 +226,12 @@ struct PluginLibraryView: View {
 
                 Spacer(minLength: 0)
 
-                // Circle icon — right side
-                ZStack {
-                    Circle()
-                        .fill(pluginColor(plugin).opacity(0.12))
-                        .frame(width: 80, height: 80)
-
-                    Image(systemName: plugin.type.systemImage)
-                        .font(.system(size: 30, weight: .medium))
-                        .foregroundStyle(pluginColor(plugin))
-                }
+                PluginArtworkView(
+                    plugin: plugin,
+                    size: 80,
+                    cornerRadius: 22,
+                    symbolSize: 30
+                )
                 .padding(.trailing, 20)
             }
             .frame(maxWidth: .infinity, minHeight: 120, alignment: .leading)
@@ -243,19 +239,6 @@ struct PluginLibraryView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-    }
-
-    private func pluginColor(_ plugin: Plugin) -> Color {
-        guard plugin.iconColor.hasPrefix("#"),
-              let hex = UInt(plugin.iconColor.dropFirst(), radix: 16) else {
-            return .accentColor
-        }
-        return Color(
-            .sRGB,
-            red: Double((hex >> 16) & 0xFF) / 255.0,
-            green: Double((hex >> 8) & 0xFF) / 255.0,
-            blue: Double(hex & 0xFF) / 255.0
-        )
     }
 
     // MARK: - App Store Grid
