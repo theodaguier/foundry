@@ -26,18 +26,6 @@ struct PluginLibraryView: View {
     @State private var renameText = ""
     @State private var deleteError: String?
 
-    private var showDeleteAlert: Binding<Bool> {
-        Binding(get: { pluginToDelete != nil }, set: { if !$0 { pluginToDelete = nil } })
-    }
-
-    private var showRenameAlert: Binding<Bool> {
-        Binding(get: { pluginToRename != nil }, set: { if !$0 { pluginToRename = nil } })
-    }
-
-    private var showDeleteError: Binding<Bool> {
-        Binding(get: { deleteError != nil }, set: { if !$0 { deleteError = nil } })
-    }
-
     private var filteredPlugins: [Plugin] {
         var result = appState.plugins
 
@@ -155,7 +143,10 @@ struct PluginLibraryView: View {
             }
         }
         .alert("Delete \(pluginToDelete?.name ?? "plugin")?",
-               isPresented: showDeleteAlert
+               isPresented: Binding(
+                   get: { pluginToDelete != nil },
+                   set: { if !$0 { pluginToDelete = nil } }
+               )
         ) {
             Button("Cancel", role: .cancel) { pluginToDelete = nil }
             Button("Delete", role: .destructive) {
@@ -165,7 +156,10 @@ struct PluginLibraryView: View {
             Text("This will uninstall the AU/VST3 files from your system. This cannot be undone.")
         }
         .alert("Rename Plugin",
-               isPresented: showRenameAlert
+               isPresented: Binding(
+                   get: { pluginToRename != nil },
+                   set: { if !$0 { pluginToRename = nil } }
+               )
         ) {
             TextField("Plugin name", text: $renameText)
             Button("Cancel", role: .cancel) { pluginToRename = nil }
@@ -173,9 +167,10 @@ struct PluginLibraryView: View {
                 if let plugin = pluginToRename { renamePlugin(plugin, to: renameText) }
             }
         }
-        .alert("Could not delete plugin",
-               isPresented: showDeleteError
-        ) {
+        .alert("Could not delete plugin", isPresented: Binding(
+            get: { deleteError != nil },
+            set: { if !$0 { deleteError = nil } }
+        )) {
             Button("OK") { deleteError = nil }
         } message: {
             Text(deleteError ?? "")
@@ -231,16 +226,12 @@ struct PluginLibraryView: View {
 
                 Spacer(minLength: 0)
 
-                // Circle icon — right side
-                ZStack {
-                    Circle()
-                        .fill(plugin.color.opacity(0.12))
-                        .frame(width: 80, height: 80)
-
-                    Image(systemName: plugin.type.systemImage)
-                        .font(.system(size: 30, weight: .medium))
-                        .foregroundStyle(plugin.color)
-                }
+                PluginArtworkView(
+                    plugin: plugin,
+                    size: 80,
+                    cornerRadius: 22,
+                    symbolSize: 30
+                )
                 .padding(.trailing, 20)
             }
             .frame(maxWidth: .infinity, minHeight: 120, alignment: .leading)

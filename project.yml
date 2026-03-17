@@ -11,12 +11,20 @@ settings:
     SWIFT_VERSION: "6.2"
     MACOSX_DEPLOYMENT_TARGET: "26.0"
 
+packages:
+  StableDiffusion:
+    url: https://github.com/apple/ml-stable-diffusion.git
+    revision: e12202c1f6405b83918b58a5d097cd61e3e1f702
+
 targets:
   Foundry:
     type: application
     platform: macOS
     sources:
       - Foundry
+    dependencies:
+      - package: StableDiffusion
+        product: StableDiffusion
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.foundry.app

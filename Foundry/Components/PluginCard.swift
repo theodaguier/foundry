@@ -14,26 +14,12 @@ struct PluginCard: View {
             onTap?()
         } label: {
             HStack(spacing: 10) {
-                // Rounded rect icon — App Store style
-                ZStack {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(
-                            LinearGradient(
-                                colors: [plugin.color, plugin.color.opacity(0.6)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .frame(width: 36, height: 36)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .strokeBorder(.white.opacity(0.15), lineWidth: 0.5)
-                        )
-
-                    Image(systemName: plugin.type.systemImage)
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(.white)
-                }
+                PluginArtworkView(
+                    plugin: plugin,
+                    size: 36,
+                    cornerRadius: 10,
+                    symbolSize: 15
+                )
 
                 // Name + subtitle
                 VStack(alignment: .leading, spacing: 1) {
@@ -85,7 +71,6 @@ struct PluginCard: View {
             }
         }
     }
-
 }
 
 #Preview {
