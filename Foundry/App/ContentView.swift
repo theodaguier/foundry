@@ -33,7 +33,6 @@ struct ContentView: View {
                     }
                 }
         }
-        .frame(width: 900, height: 620)
         .sheet(isPresented: $state.showSetup) {
             SetupView()
         }

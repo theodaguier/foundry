@@ -3,12 +3,7 @@ import SwiftUI
 struct SettingsView: View {
     @AppStorage("appearance") private var appearance: String = AppAppearance.system.rawValue
 
-    @State private var dependencies: [DependencyStatus] = [
-        DependencyStatus(name: "Xcode CLI Tools", detail: "Compiler toolchain", state: .checking, dependency: .xcodeTools),
-        DependencyStatus(name: "CMake", detail: "Build system", state: .checking, dependency: .cmake),
-        DependencyStatus(name: "JUCE SDK", detail: "Audio framework (~200 MB)", state: .checking, dependency: .juce),
-        DependencyStatus(name: "Claude Code CLI", detail: "npm i -g @anthropic-ai/claude-code", state: .checking, dependency: .claudeCode),
-    ]
+    @State private var model = DependencyListModel()
 
     private let pluginPaths = [
         ("AU Components", "~/Library/Audio/Plug-Ins/Components/"),
@@ -85,9 +80,9 @@ struct SettingsView: View {
     private var dependenciesTab: some View {
         Form {
             Section {
-                ForEach(Array(dependencies.enumerated()), id: \.element.id) { index, dep in
+                ForEach(Array(model.dependencies.enumerated()), id: \.element.id) { index, dep in
                     HStack {
-                        statusIcon(dep.state)
+                        DependencyStatusIcon(state: dep.state, style: .filled)
                             .frame(width: 16)
 
                         VStack(alignment: .leading, spacing: 1) {
@@ -113,7 +108,7 @@ struct SettingsView: View {
                         case .missing:
                             if dep.dependency == .juce {
                                 Button("Install") {
-                                    installJUCE(index: index)
+                                    model.installJUCE(index: index)
                                 }
                                 .controlSize(.small)
                             } else {
@@ -133,7 +128,7 @@ struct SettingsView: View {
             } header: {
                 Text("Required")
             } footer: {
-                if dependencies.contains(where: { if case .missing = $0.state { return true }; return false }) {
+                if model.hasMissing {
                     Text("Install missing dependencies to use Foundry.")
                         .foregroundStyle(.orange)
                 }
@@ -141,65 +136,13 @@ struct SettingsView: View {
 
             Section {
                 Button("Recheck All") {
-                    runChecks()
+                    model.runChecks()
                 }
             }
         }
         .formStyle(.grouped)
         .onAppear {
-            runChecks()
-        }
-    }
-
-    // MARK: - Helpers
-
-    @ViewBuilder
-    private func statusIcon(_ state: DependencyStatus.CheckState) -> some View {
-        switch state {
-        case .checking, .installing:
-            ProgressView()
-                .controlSize(.mini)
-        case .installed:
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 14))
-                .foregroundStyle(.green)
-        case .missing:
-            Image(systemName: "xmark.circle.fill")
-                .font(.system(size: 14))
-                .foregroundStyle(.orange)
-        }
-    }
-
-    private func runChecks() {
-        for (index, dep) in dependencies.enumerated() {
-            dependencies[index].state = .checking
-            Task {
-                try? await Task.sleep(for: .milliseconds(index * 150 + 100))
-                let ok = await DependencyChecker.check(dep.dependency)
-                withAnimation(.easeOut(duration: 0.15)) {
-                    dependencies[index].state = ok ? .installed : .missing
-                }
-            }
-        }
-    }
-
-    private func installJUCE(index: Int) {
-        dependencies[index].state = .installing(0)
-        Task {
-            do {
-                try await DependencyChecker.installJUCE { progress in
-                    Task { @MainActor in
-                        dependencies[index].state = .installing(progress)
-                    }
-                }
-                withAnimation(.easeOut(duration: 0.15)) {
-                    dependencies[index].state = .installed
-                }
-            } catch {
-                withAnimation(.easeOut(duration: 0.15)) {
-                    dependencies[index].state = .missing
-                }
-            }
+            model.runChecks()
         }
     }
 }

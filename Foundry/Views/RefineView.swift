@@ -46,7 +46,6 @@ struct RefineView: View {
         }
         .padding(24)
         .navigationTitle("Refine")
-        .navigationBarBackButtonHidden(false)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button("Apply") {
