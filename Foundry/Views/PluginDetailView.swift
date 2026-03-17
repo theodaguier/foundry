@@ -17,7 +17,7 @@ struct PluginDetailView: View {
             // Colored header
             ZStack {
                 LinearGradient(
-                    colors: [iconColor.opacity(0.2), iconColor.opacity(0.05)],
+                    colors: [plugin.color.opacity(0.2), plugin.color.opacity(0.05)],
                     startPoint: .top,
                     endPoint: .bottom
                 )
@@ -26,12 +26,12 @@ struct PluginDetailView: View {
                 VStack(spacing: 10) {
                     ZStack {
                         Circle()
-                            .fill(iconColor.opacity(0.25))
+                            .fill(plugin.color.opacity(0.25))
                             .frame(width: 52, height: 52)
 
                         Image(systemName: plugin.type.systemImage)
                             .font(.system(size: 20, weight: .semibold))
-                            .foregroundStyle(iconColor)
+                            .foregroundStyle(plugin.color)
                     }
 
                     Text(plugin.name)
@@ -162,18 +162,6 @@ struct PluginDetailView: View {
         .tint(role == .destructive ? .red : nil)
     }
 
-    private var iconColor: Color {
-        guard plugin.iconColor.hasPrefix("#"),
-              let hex = UInt(plugin.iconColor.dropFirst(), radix: 16) else {
-            return .accentColor
-        }
-        return Color(
-            .sRGB,
-            red: Double((hex >> 16) & 0xFF) / 255.0,
-            green: Double((hex >> 8) & 0xFF) / 255.0,
-            blue: Double(hex & 0xFF) / 255.0
-        )
-    }
 }
 
 #Preview {

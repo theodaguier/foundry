@@ -19,7 +19,7 @@ struct PluginCard: View {
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
                         .fill(
                             LinearGradient(
-                                colors: [iconColor, iconColor.opacity(0.6)],
+                                colors: [plugin.color, plugin.color.opacity(0.6)],
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             )
@@ -86,18 +86,6 @@ struct PluginCard: View {
         }
     }
 
-    private var iconColor: Color {
-        guard plugin.iconColor.hasPrefix("#"),
-              let hex = UInt(plugin.iconColor.dropFirst(), radix: 16) else {
-            return .accentColor
-        }
-        return Color(
-            .sRGB,
-            red: Double((hex >> 16) & 0xFF) / 255.0,
-            green: Double((hex >> 8) & 0xFF) / 255.0,
-            blue: Double(hex & 0xFF) / 255.0
-        )
-    }
 }
 
 #Preview {

@@ -6,12 +6,9 @@ struct RefineProgressView: View {
 
     @State private var pipeline = GenerationPipeline()
     @State private var elapsedSeconds: Int = 0
-    @State private var timer: Timer?
     @State private var completedSteps: Set<Int> = []
 
-    private var refineSteps: [GenerationStep] {
-        [.generatingDSP, .generatingUI, .compiling, .installing]
-    }
+    private let refineSteps: [GenerationStep] = [.generatingDSP, .generatingUI, .compiling, .installing]
 
     var body: some View {
         VStack(spacing: 0) {
@@ -49,41 +46,12 @@ struct RefineProgressView: View {
                     }
                 }
 
-                VStack(spacing: 2) {
-                    ForEach(refineSteps, id: \.self) { step in
-                        HStack(spacing: 10) {
-                            stepIndicator(for: step)
-                                .frame(width: 16)
-
-                            Image(systemName: step.icon)
-                                .font(.system(size: 11))
-                                .foregroundStyle(stepColor(for: step))
-                                .frame(width: 16)
-
-                            Text(step.label)
-                                .font(.subheadline)
-                                .foregroundStyle(stepColor(for: step))
-
-                            Spacer()
-
-                            if completedSteps.contains(step.rawValue) {
-                                Text("Done")
-                                    .font(.caption2)
-                                    .foregroundStyle(.tertiary)
-                            }
-                        }
-                        .padding(.vertical, 8)
-                        .padding(.horizontal, 12)
-                        .background(
-                            step == pipeline.currentStep
-                                ? Color.accentColor.opacity(0.06)
-                                : Color.clear,
-                            in: .rect(cornerRadius: 6)
-                        )
-                    }
-                }
-                .padding(4)
-                .background(Color(.controlBackgroundColor).opacity(0.3), in: .rect(cornerRadius: 10))
+                StepListView(
+                    steps: refineSteps,
+                    currentStep: pipeline.currentStep,
+                    completedSteps: completedSteps,
+                    buildAttempt: pipeline.buildAttempt
+                )
             }
             .frame(maxWidth: 440)
 
@@ -100,17 +68,18 @@ struct RefineProgressView: View {
             ToolbarItem(placement: .cancellationAction) {
                 Button("Cancel") {
                     pipeline.cancel()
-                    timer?.invalidate()
                     appState.popToRoot()
                 }
             }
         }
         .onAppear {
-            startTimer()
             pipeline.refine(config: config, appState: appState)
         }
-        .onDisappear {
-            timer?.invalidate()
+        .task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1))
+                elapsedSeconds += 1
+            }
         }
         .onChange(of: pipeline.currentStep) { oldValue, newValue in
             if newValue.rawValue > oldValue.rawValue {
@@ -118,34 +87,6 @@ struct RefineProgressView: View {
                     _ = completedSteps.insert(oldValue.rawValue)
                 }
             }
-        }
-    }
-
-    @ViewBuilder
-    private func stepIndicator(for step: GenerationStep) -> some View {
-        if completedSteps.contains(step.rawValue) {
-            Image(systemName: "checkmark")
-                .font(.system(size: 9, weight: .bold))
-                .foregroundStyle(.green)
-        } else if step == pipeline.currentStep {
-            ProgressView()
-                .controlSize(.mini)
-        } else if step.rawValue > pipeline.currentStep.rawValue {
-            Circle()
-                .fill(.quaternary)
-                .frame(width: 6, height: 6)
-        } else {
-            EmptyView()
-        }
-    }
-
-    private func stepColor(for step: GenerationStep) -> some ShapeStyle {
-        if completedSteps.contains(step.rawValue) {
-            return .tertiary
-        } else if step == pipeline.currentStep {
-            return .primary
-        } else {
-            return .quaternary
         }
     }
 
@@ -161,14 +102,6 @@ struct RefineProgressView: View {
         let minutes = elapsedSeconds / 60
         let seconds = elapsedSeconds % 60
         return String(format: "%d:%02d", minutes, seconds)
-    }
-
-    private func startTimer() {
-        timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
-            Task { @MainActor in
-                elapsedSeconds += 1
-            }
-        }
     }
 }
 

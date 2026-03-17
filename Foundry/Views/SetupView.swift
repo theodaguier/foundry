@@ -1,32 +1,10 @@
 import SwiftUI
 
-struct DependencyStatus: Identifiable {
-    let id = UUID()
-    let name: String
-    let detail: String
-    var state: CheckState
-    let dependency: DependencyChecker.Dependency
-
-    enum CheckState {
-        case checking
-        case installed
-        case missing
-        case installing(Double)
-    }
-}
-
 struct SetupView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
 
-    @State private var dependencies: [DependencyStatus] = [
-        DependencyStatus(name: "Xcode CLI Tools", detail: "Compiler toolchain", state: .checking, dependency: .xcodeTools),
-        DependencyStatus(name: "CMake", detail: "Build system", state: .checking, dependency: .cmake),
-        DependencyStatus(name: "JUCE SDK", detail: "Audio framework (~200 MB)", state: .checking, dependency: .juce),
-        DependencyStatus(name: "Claude Code CLI", detail: "npm i -g @anthropic-ai/claude-code", state: .checking, dependency: .claudeCode),
-    ]
-
-    @State private var allReady = false
+    @State private var model = DependencyListModel()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
@@ -44,9 +22,9 @@ struct SetupView: View {
             // Dependency list
             GlassEffectContainer(spacing: 1) {
                 VStack(spacing: 1) {
-                    ForEach(Array(dependencies.enumerated()), id: \.element.id) { index, dep in
+                    ForEach(Array(model.dependencies.enumerated()), id: \.element.id) { index, dep in
                         HStack(spacing: 10) {
-                            statusIcon(dep.state)
+                            DependencyStatusIcon(state: dep.state)
                                 .frame(width: 16)
 
                             Text(dep.name)
@@ -68,7 +46,7 @@ struct SetupView: View {
                             case .missing:
                                 if dep.dependency == .juce {
                                     Button("Install") {
-                                        installJUCE(index: index)
+                                        model.installJUCE(index: index)
                                     }
                                     .buttonStyle(.glass)
                                     .controlSize(.small)
@@ -90,7 +68,7 @@ struct SetupView: View {
                 }
             }
 
-            if dependencies.contains(where: { if case .missing = $0.state { return true }; return false }) {
+            if model.hasMissing {
                 Label("Install missing dependencies and relaunch Foundry.", systemImage: "exclamationmark.triangle")
                     .font(.caption)
                     .foregroundStyle(.orange)
@@ -98,7 +76,7 @@ struct SetupView: View {
 
             Spacer()
 
-            if allReady {
+            if model.allReady {
                 HStack {
                     Spacer()
                     Button("Get started") {
@@ -113,70 +91,7 @@ struct SetupView: View {
         .padding(24)
         .frame(width: 460, height: 360)
         .onAppear {
-            runChecks()
-        }
-    }
-
-    @ViewBuilder
-    private func statusIcon(_ state: DependencyStatus.CheckState) -> some View {
-        switch state {
-        case .checking, .installing:
-            ProgressView()
-                .controlSize(.mini)
-        case .installed:
-            Image(systemName: "checkmark")
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(.green)
-        case .missing:
-            Image(systemName: "xmark")
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(.orange)
-        }
-    }
-
-    private func runChecks() {
-        for (index, dep) in dependencies.enumerated() {
-            Task {
-                try? await Task.sleep(for: .milliseconds(index * 200 + 100))
-                let ok = await DependencyChecker.check(dep.dependency)
-                withAnimation(.easeOut(duration: 0.15)) {
-                    dependencies[index].state = ok ? .installed : .missing
-                }
-                checkAllDone()
-            }
-        }
-    }
-
-    private func installJUCE(index: Int) {
-        dependencies[index].state = .installing(0)
-        Task {
-            do {
-                try await DependencyChecker.installJUCE { progress in
-                    Task { @MainActor in
-                        dependencies[index].state = .installing(progress)
-                    }
-                }
-                withAnimation(.easeOut(duration: 0.15)) {
-                    dependencies[index].state = .installed
-                }
-                checkAllDone()
-            } catch {
-                withAnimation(.easeOut(duration: 0.15)) {
-                    dependencies[index].state = .missing
-                }
-            }
-        }
-    }
-
-    private func checkAllDone() {
-        let allInstalled = dependencies.allSatisfy {
-            if case .installed = $0.state { return true }
-            return false
-        }
-        if allInstalled {
-            withAnimation(.easeOut(duration: 0.15).delay(0.2)) {
-                allReady = true
-            }
+            model.runChecks()
         }
     }
 }

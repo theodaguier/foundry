@@ -26,6 +26,18 @@ struct PluginLibraryView: View {
     @State private var renameText = ""
     @State private var deleteError: String?
 
+    private var showDeleteAlert: Binding<Bool> {
+        Binding(get: { pluginToDelete != nil }, set: { if !$0 { pluginToDelete = nil } })
+    }
+
+    private var showRenameAlert: Binding<Bool> {
+        Binding(get: { pluginToRename != nil }, set: { if !$0 { pluginToRename = nil } })
+    }
+
+    private var showDeleteError: Binding<Bool> {
+        Binding(get: { deleteError != nil }, set: { if !$0 { deleteError = nil } })
+    }
+
     private var filteredPlugins: [Plugin] {
         var result = appState.plugins
 
@@ -143,10 +155,7 @@ struct PluginLibraryView: View {
             }
         }
         .alert("Delete \(pluginToDelete?.name ?? "plugin")?",
-               isPresented: Binding(
-                   get: { pluginToDelete != nil },
-                   set: { if !$0 { pluginToDelete = nil } }
-               )
+               isPresented: showDeleteAlert
         ) {
             Button("Cancel", role: .cancel) { pluginToDelete = nil }
             Button("Delete", role: .destructive) {
@@ -156,10 +165,7 @@ struct PluginLibraryView: View {
             Text("This will uninstall the AU/VST3 files from your system. This cannot be undone.")
         }
         .alert("Rename Plugin",
-               isPresented: Binding(
-                   get: { pluginToRename != nil },
-                   set: { if !$0 { pluginToRename = nil } }
-               )
+               isPresented: showRenameAlert
         ) {
             TextField("Plugin name", text: $renameText)
             Button("Cancel", role: .cancel) { pluginToRename = nil }
@@ -167,10 +173,9 @@ struct PluginLibraryView: View {
                 if let plugin = pluginToRename { renamePlugin(plugin, to: renameText) }
             }
         }
-        .alert("Could not delete plugin", isPresented: Binding(
-            get: { deleteError != nil },
-            set: { if !$0 { deleteError = nil } }
-        )) {
+        .alert("Could not delete plugin",
+               isPresented: showDeleteError
+        ) {
             Button("OK") { deleteError = nil }
         } message: {
             Text(deleteError ?? "")
@@ -229,12 +234,12 @@ struct PluginLibraryView: View {
                 // Circle icon — right side
                 ZStack {
                     Circle()
-                        .fill(pluginColor(plugin).opacity(0.12))
+                        .fill(plugin.color.opacity(0.12))
                         .frame(width: 80, height: 80)
 
                     Image(systemName: plugin.type.systemImage)
                         .font(.system(size: 30, weight: .medium))
-                        .foregroundStyle(pluginColor(plugin))
+                        .foregroundStyle(plugin.color)
                 }
                 .padding(.trailing, 20)
             }
@@ -243,19 +248,6 @@ struct PluginLibraryView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-    }
-
-    private func pluginColor(_ plugin: Plugin) -> Color {
-        guard plugin.iconColor.hasPrefix("#"),
-              let hex = UInt(plugin.iconColor.dropFirst(), radix: 16) else {
-            return .accentColor
-        }
-        return Color(
-            .sRGB,
-            red: Double((hex >> 16) & 0xFF) / 255.0,
-            green: Double((hex >> 8) & 0xFF) / 255.0,
-            blue: Double(hex & 0xFF) / 255.0
-        )
     }
 
     // MARK: - App Store Grid

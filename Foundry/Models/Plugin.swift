@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 struct Plugin: Identifiable, Codable, Hashable {
     let id: UUID
@@ -18,7 +19,7 @@ struct Plugin: Identifiable, Codable, Hashable {
     }
 }
 
-enum PluginType: Codable, Hashable {
+enum PluginType: String, Codable, Hashable {
     case instrument
     case effect
     case utility
@@ -39,19 +40,6 @@ enum PluginType: Codable, Hashable {
                 in: container,
                 debugDescription: "Unknown plugin type: \(value)"
             )
-        }
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.singleValueContainer()
-        try container.encode(rawValue)
-    }
-
-    var rawValue: String {
-        switch self {
-        case .instrument: "instrument"
-        case .effect: "effect"
-        case .utility: "utility"
         }
     }
 
@@ -81,4 +69,21 @@ enum PluginStatus: String, Codable, Hashable {
     case installed
     case failed
     case building
+}
+
+// MARK: - Hex color
+
+extension Plugin {
+    var color: Color {
+        guard iconColor.hasPrefix("#"),
+              let hex = UInt(iconColor.dropFirst(), radix: 16) else {
+            return .accentColor
+        }
+        return Color(
+            .sRGB,
+            red: Double((hex >> 16) & 0xFF) / 255.0,
+            green: Double((hex >> 8) & 0xFF) / 255.0,
+            blue: Double(hex & 0xFF) / 255.0
+        )
+    }
 }
