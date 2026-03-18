@@ -2,20 +2,17 @@ name: Foundry
 options:
   bundleIdPrefix: com.foundry
   deploymentTarget:
-    macOS: "26.0"
-  xcodeVersion: "26.0"
+    macOS: '26.0'
+  xcodeVersion: '26.0'
   createIntermediateGroups: true
-
 settings:
   base:
-    SWIFT_VERSION: "6.2"
-    MACOSX_DEPLOYMENT_TARGET: "26.0"
-
+    SWIFT_VERSION: '6.2'
+    MACOSX_DEPLOYMENT_TARGET: '26.0'
 packages:
   StableDiffusion:
     url: https://github.com/apple/ml-stable-diffusion.git
     revision: e12202c1f6405b83918b58a5d097cd61e3e1f702
-
 targets:
   Foundry:
     type: application
@@ -31,10 +28,10 @@ targets:
         PRODUCT_NAME: Foundry
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.music
         INFOPLIST_KEY_CFBundleDisplayName: Foundry
-        GENERATE_INFOPLIST_FILE: YES
-        MARKETING_VERSION: "0.1.0"
+        GENERATE_INFOPLIST_FILE: 'YES'
+        MARKETING_VERSION: 1.0.1
         CURRENT_PROJECT_VERSION: 1
-        SWIFT_EMIT_LOC_STRINGS: YES
+        SWIFT_EMIT_LOC_STRINGS: 'YES'
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
-        ENABLE_PREVIEWS: YES
+        ENABLE_PREVIEWS: 'YES'
