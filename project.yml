@@ -29,12 +29,12 @@ targets:
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.music
         INFOPLIST_KEY_CFBundleDisplayName: Foundry
         GENERATE_INFOPLIST_FILE: 'YES'
-        MARKETING_VERSION: 1.0.1
+        MARKETING_VERSION: 1.1.0
         CURRENT_PROJECT_VERSION: 1
         SWIFT_EMIT_LOC_STRINGS: 'YES'
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
-        ENABLE_PREVIEWS: YES
+        ENABLE_PREVIEWS: 'YES'
   FoundryTests:
     type: bundle.unit-test
     platform: macOS
@@ -44,4 +44,4 @@ targets:
       - target: Foundry
     settings:
       base:
-        GENERATE_INFOPLIST_FILE: YES
+        GENERATE_INFOPLIST_FILE: 'YES'

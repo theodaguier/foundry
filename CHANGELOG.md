@@ -3,6 +3,18 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.1.0](https://github.com/theodaguier/foundry/compare/v1.0.1...v1.1.0) (2026-03-18)
+
+
+### Features
+
+* **pipeline:** agent-expert architecture, closes [#17](https://github.com/theodaguier/foundry/issues/17) ([#18](https://github.com/theodaguier/foundry/issues/18)) ([41d2a5e](https://github.com/theodaguier/foundry/commit/41d2a5e4bb5914244ed6f270f8708d7e8a8c1683))
+
+
+### Bug Fixes
+
+* move checkout step before release-please action ([#20](https://github.com/theodaguier/foundry/issues/20)) ([67d4898](https://github.com/theodaguier/foundry/commit/67d48985d942f9ba5258972986d6257d8ff0351c))
+
 ## [1.0.1](https://github.com/theodaguier/foundry/compare/v1.0.0...v1.0.1) (2026-03-18)
 
 
