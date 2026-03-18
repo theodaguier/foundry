@@ -38,3 +38,13 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         ENABLE_PREVIEWS: YES
+  FoundryTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - FoundryTests
+    dependencies:
+      - target: Foundry
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES

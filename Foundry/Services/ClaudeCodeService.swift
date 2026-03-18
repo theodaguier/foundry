@@ -2,14 +2,14 @@ import Foundation
 
 enum ClaudeCodeService {
 
-    enum ClaudeEvent {
+    enum ClaudeEvent: Sendable {
         case toolUse(tool: String, filePath: String?)
         case text(String)
         case result(success: Bool)
         case error(String)
     }
 
-    struct RunResult {
+    struct RunResult: Sendable {
         var success: Bool
         var output: String
         var error: String?

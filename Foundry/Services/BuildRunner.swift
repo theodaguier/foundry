@@ -2,7 +2,7 @@ import Foundation
 
 enum BuildRunner {
 
-    struct BuildResult {
+    struct BuildResult: Sendable {
         var success: Bool
         var output: String
         var errors: String
@@ -73,7 +73,7 @@ enum BuildRunner {
 
     // MARK: - Process runner
 
-    struct ProcessResult {
+    struct ProcessResult: Sendable {
         var exitCode: Int32
         var stdout: String
         var stderr: String
