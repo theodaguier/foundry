@@ -129,17 +129,34 @@ flowchart TD
     ACCOUNT -->|Logout| LOGIN
     ACCOUNT -->|Delete account| LOGIN
 
-    PROMPT -->|Generate\n↳ options inline| GEN
+    PROMPT -->|Generate\n↳ options inline| JOB_START
 
-    GEN --> BUILD_OK
-    BUILD_OK -->|yes| RESULT
+    subgraph JOBS ["⚙️ Job queue — AppState"]
+        JOB_START[Job created\nid · state · config]
+        JOB_RUN[GenerationPipeline\nruns in background]
+        JOB_START --> JOB_RUN
+    end
+
+    JOB_RUN -->|user navigates back| LIBRARY
+    JOB_RUN -->|user stays| GEN
+
+    GEN[GenerationView\nprogression + timer\noptional — rouvrable]
+    GEN -->|Cancel job| LIBRARY
+
+    JOB_RUN --> BUILD_OK
+    BUILD_OK -->|yes| NOTIF_OK[macOS notification\n✅ Plugin ready]
     BUILD_OK -->|no| RETRY
-    RETRY -->|3× failed| ERROR_INLINE
+    RETRY -->|3× failed| NOTIF_FAIL[macOS notification\n❌ Build failed]
+
+    NOTIF_OK -->|click| RESULT
+    NOTIF_FAIL -->|click| ERROR_INLINE
+
+    LIBRARY -->|Job indicator badge\nin toolbar| GEN
+
     ERROR_INLINE -->|View log| BUILD_LOG
-    ERROR_INLINE -->|Retry| GEN
+    ERROR_INLINE -->|Retry| JOB_START
     ERROR_INLINE -->|Back| LIBRARY
     BUILD_LOG -->|Back| ERROR_INLINE
-    GEN -->|Cancel| LIBRARY
 
     RESULT -->|Done| LIBRARY
     RESULT -->|Refine| REFINE
@@ -165,4 +182,8 @@ flowchart TD
 | Build log | ❌ absent | ✅ BuildLogView accessible depuis l'erreur |
 | Account | ❌ absent | ✅ AccountView (plan · usage · danger zone) |
 | Logout | ❌ absent | ✅ via AccountView |
+| Generation bloquante | ✅ l'utilisateur est bloqué | ✅ background — retour library possible |
+| Job indicator | ❌ absent | ✅ badge toolbar → rouvre GenerationView |
+| Notifications | ❌ absentes | ✅ macOS native (succès + échec) |
+| Multi-génération | ❌ impossible | ✅ job queue dans AppState |
 | Nombre d'écrans | 9 vues | 7 vues core + 4 auth (future) |
