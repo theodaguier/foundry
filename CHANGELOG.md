@@ -3,6 +3,20 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.0.1](https://github.com/theodaguier/foundry/compare/v1.0.0...v1.0.1) (2026-03-18)
+
+
+### Bug Fixes
+
+* **ci:** improve release-please workflow with config files and auto-merge ([#15](https://github.com/theodaguier/foundry/issues/15)) ([a13e91b](https://github.com/theodaguier/foundry/commit/a13e91b9ca7402985e8dd340775c928fbe93c37f))
+* **pipeline:** clean up temp build directories, closes [#9](https://github.com/theodaguier/foundry/issues/9) ([#13](https://github.com/theodaguier/foundry/issues/13)) ([6d48075](https://github.com/theodaguier/foundry/commit/6d48075ae53f92c6e3537ddbfb4b687ff9cd699e))
+* **pipeline:** split build timeout into configure (60s) and build (120s), closes [#10](https://github.com/theodaguier/foundry/issues/10) ([#14](https://github.com/theodaguier/foundry/issues/14)) ([d0d7461](https://github.com/theodaguier/foundry/commit/d0d7461aa8eb1d063af9d6e5b75cf80754b29dd3))
+
+
+### Reverts
+
+* restore GenerationPipeline.swift to pre-refactor state ([f8acc8d](https://github.com/theodaguier/foundry/commit/f8acc8d44a2f76aba3de5be68b12e4134a266d9b))
+
 ## 1.0.0 (2026-03-17)
 
 
