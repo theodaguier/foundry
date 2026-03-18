@@ -227,11 +227,7 @@ final class GenerationPipeline {
             buildDirectory: project.directory.path
         )
 
-        // Keep temp dir for debugging - can inspect what Claude generated
-        // TODO: re-enable cleanup once generation is stable
-        // Task.detached {
-        //     try? FileManager.default.removeItem(at: project.directory)
-        // }
+        BuildDirectoryCleaner.cleanAfterInstall(project.directory)
 
         return plugin
     }

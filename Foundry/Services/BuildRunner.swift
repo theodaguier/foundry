@@ -10,7 +10,12 @@ enum BuildRunner {
 
     // MARK: - Build
 
-    static func build(projectDir: URL, skipConfigure: Bool = false, timeoutSeconds: Int = 360) async throws -> BuildResult {
+    static func build(
+        projectDir: URL,
+        skipConfigure: Bool = false,
+        configureTimeout: Int = 60,
+        buildTimeout: Int = 120
+    ) async throws -> BuildResult {
         // 1. Configure with CMake (skip on retries — CMakeLists.txt is never modified)
         if !skipConfigure {
             let configResult = await runProcess(
@@ -18,7 +23,7 @@ enum BuildRunner {
                                         "-DCMAKE_BUILD_TYPE=Release",
                                         "-DCMAKE_OSX_ARCHITECTURES=x86_64;arm64"],
                 workingDirectory: projectDir,
-                timeout: timeoutSeconds
+                timeout: configureTimeout
             )
 
             guard configResult.exitCode == 0 else {
@@ -34,7 +39,7 @@ enum BuildRunner {
         let buildResult = await runProcess(
             "/usr/bin/env", args: ["cmake", "--build", "build", "--config", "Release", "--parallel"],
             workingDirectory: projectDir,
-            timeout: timeoutSeconds
+            timeout: buildTimeout
         )
 
         return BuildResult(

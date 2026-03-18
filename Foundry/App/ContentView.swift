@@ -38,6 +38,7 @@ struct ContentView: View {
         }
         .onAppear {
             appState.loadPlugins()
+            BuildDirectoryCleaner.sweepStaleDirectories()
         }
         .task {
             await appState.refreshSetupState()
