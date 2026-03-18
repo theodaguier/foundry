@@ -1,43 +1,57 @@
 # Foundry — Design Spec
 
-> **Last updated:** 2026-03-18
-> **Status:** Reflects current implementation. See changelog at the bottom for revisions.
+> **Last updated:** 2026-03-18 (v2)
+> **Status:** Reflects current implementation exactly.
 
 ## Vision
 
 Foundry is a macOS app that lets music producers and sound designers create custom audio plugins (AU/VST3) by describing them in natural language. The app generates a real, compilable JUCE plugin locally using Claude Code as an autonomous audio developer. No coding required.
 
-**Positioning:** "Glaze for audio plugins" — local-first, private, conversational plugin creation.
+**Positioning:** "Glaze for audio plugins" — local-first, private, plugin creation from a sentence.
+
+---
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────┐
-│           Foundry.app (SwiftUI)             │
-│                                             │
-│  ┌─────────┐  ┌──────────┐  ┌───────────┐  │
-│  │ Prompt  │→ │ Project  │→ │  Claude   │  │
-│  │  View   │  │ Assembler│  │  Code CLI │  │
-│  └─────────┘  └──────────┘  └─────┬─────┘  │
-│                                   │         │
-│  ┌─────────┐  ┌──────────┐  ┌────▼──────┐  │
-│  │ Plugin  │← │  Build   │← │  Code     │  │
-│  │ Library │  │  Runner  │  │  Output   │  │
-│  └─────────┘  └──────────┘  └───────────┘  │
-└─────────────────────────────────────────────┘
-         │                          │
-         ▼                          ▼
-   /Library/Audio/           Programmatic JUCE
-   Plug-Ins/{AU,VST3}        templates (in Swift)
+┌────────────────────────────────────────────────────┐
+│                Foundry.app (SwiftUI)               │
+│                                                    │
+│  ┌──────────┐  ┌───────────┐  ┌─────────────────┐ │
+│  │  Prompt  │→ │  Project  │→ │  ClaudeCode     │ │
+│  │   View   │  │ Assembler │  │  Service (CLI)  │ │
+│  └──────────┘  └───────────┘  └────────┬────────┘ │
+│                                        │           │
+│  ┌──────────┐  ┌───────────┐  ┌────────▼────────┐ │
+│  │  Plugin  │← │  Plugin   │← │   BuildLoop     │ │
+│  │ Library  │  │  Manager  │  │  + Quality      │ │
+│  └──────────┘  └───────────┘  │    Enforcer     │ │
+│                                └─────────────────┘ │
+└────────────────────────────────────────────────────┘
+         │                              │
+         ▼                              ▼
+  /Library/Audio/               /tmp/foundry-build-*/
+  Plug-Ins/{AU,VST3}            (cleaned after install)
 ```
 
-### Modules
+### Service layer — actual files
 
-1. **Prompt View** — Text input + quick options (hardcoded: format, stereo/mono, preset count).
-2. **Project Assembler** — Writes JUCE project files programmatically to a temp dir. No bundle assets — templates are generated in Swift at runtime and written to `/tmp/foundry-build-<uuid>/`.
-3. **Claude Code CLI** — Subprocess running `claude` in non-interactive mode (`-p`, `--output-format stream-json`, `--max-turns 30`). The system prompt is delivered via a `CLAUDE.md` file written into the project dir, not via `--system-prompt`.
-4. **Build Runner** — Runs CMake + Xcode build. On failure, parses errors and sends them back to Claude Code for correction (max 3 retries).
-5. **Plugin Library** — Grid view of all generated plugins with metadata, logo, and quick actions.
+| File | Role |
+|---|---|
+| `GenerationPipeline.swift` | Orchestrator — runs generate and refine flows end-to-end |
+| `ProjectAssembler.swift` | Writes all JUCE project files to a temp dir at generation time |
+| `ClaudeCodeService.swift` | Launches and communicates with the Claude Code CLI subprocess |
+| `BuildLoop.swift` | CMake build with up to N retries and Claude fix passes |
+| `BuildRunner.swift` | Low-level CMake process runner + smoke test |
+| `GenerationQualityEnforcer.swift` | Validates generated code quality; triggers rewrite pass if needed |
+| `BuildDirectoryCleaner.swift` | Cleans `/tmp/foundry-build-*` after install and on launch |
+| `PluginManager.swift` | Persists and loads `plugins.json`; handles install and uninstall |
+| `PluginLogoService.swift` | Local Stable Diffusion logo generation (Apple CoreML) |
+| `DependencyChecker.swift` | Checks Xcode CLI Tools, CMake, JUCE SDK, Claude Code CLI |
+| `FoundryPaths.swift` | Canonical paths for Application Support, logos, models |
+| `PluginBundleInspector.swift` | Locates and validates AU/VST3 bundles in build output |
+
+---
 
 ## User Flow
 
@@ -46,41 +60,36 @@ Home (Plugin Library)
   │
   ▼ [+ Create]
 Prompt Screen
-  │  "Describe the plugin you want to create..."
+  │  "Describe the plugin you want..."
   ▼ Submit
 Quick Options
-  │  3 questions with sensible defaults:
-  │  1. Format: AU / VST3 / Both (default: Both)
-  │  2. Stereo / Mono (default: Stereo)
-  │  3. Number of presets: 0 / 3 / 5 / 10 (default: 5)
-  │  User can skip (defaults apply)
-  ▼ Confirm (or skip)
+  │  Format: AU / VST3 / Both  (default: Both)
+  │  Layout: Stereo / Mono     (default: Stereo)
+  │  Presets: 0 / 3 / 5 / 10  (default: 5)
+  ▼ Confirm (or skip → defaults apply)
 Generation Progress
-  │  1. Preparing project     ✓
-  │  2. Generating DSP...     ⟳
+  │  1. Preparing project   ✓
+  │  2. Generating DSP...   ⟳
   │  3. Generating UI
   │  4. Compiling
   │  5. Installing
-  ▼ Done / Error
-Result Screen (success)          Error Screen (failure)
-  │  Plugin type icon              │  "Generation failed"
-  │  "Open in DAW" button          │  Error summary
-  │  "Regenerate" button           │  "Retry" / "Modify prompt"
-  ▼                                ▼
-Back to Home                     Back to Prompt Screen
+  ▼
+Result Screen               Error Screen
+  │  "Open in DAW"            │  Error summary
+  │  "Regenerate"             │  Retry / Modify prompt
+  ▼                           ▼
+Back to Home               Back to Prompt
 
-─── Refine Flow (from Plugin Library) ─────────────────────
-Plugin Detail → [Refine] → RefineView → RefineProgressView → Result
+─── Refine Flow ────────────────────────────────────
+Plugin Library → [Refine] → RefineView
+  → enter modification text
+  → RefineProgressView (same steps, no Preparing)
+  → Result / Error
 ```
 
-- The generate flow is linear: 3 screens max between idea and result.
-- "Regenerate" relaunches the same prompt with variations, not a chat.
-- **Refine** is a separate flow that modifies an existing plugin using its preserved `buildDirectory`.
-- On failure (after 3 build retries or timeout), the user sees an error screen with the option to retry or modify their prompt.
+---
 
 ## Plugin Types
-
-Three archetypes are supported:
 
 | Type | Keyword detection | Template base |
 |---|---|---|
@@ -88,44 +97,52 @@ Three archetypes are supported:
 | `effect` | reverb, delay, distortion, filter, chorus… | Stereo/mono processor with gain + mix |
 | `utility` | analyzer, meter, width, gain staging, tool… | Pass-through with input/output gain + stereo width |
 
-Type is inferred from the user prompt by `ProjectAssembler.inferPluginType()`. The inference is keyword-based and intentionally conservative (defaults to `effect`).
+Inferred by `ProjectAssembler.inferPluginType()` from the user prompt. Defaults to `effect`.
+
+A secondary inference — `InterfaceStyle` (`Focused` / `Balanced` / `Exploratory`) — affects the CLAUDE.md UI direction hint.
+
+---
 
 ## Template System
 
-### How it works (implementation)
+Templates are **not bundle assets**. `ProjectAssembler` writes all project files programmatically in Swift to `/tmp/foundry-build-<uuid>/` at generation time.
 
-Templates are **not** bundle assets. `ProjectAssembler.swift` writes all files programmatically in Swift:
+### Files written per generation
 
-- `CMakeLists.txt` — pre-configured for AU + VST3, correct for all three archetypes
-- `Source/PluginProcessor.h/.cpp` — working skeleton with `AudioProcessorValueTreeState`, starter parameters marked with `FOUNDRY_TEMPLATE_PLACEHOLDER`
-- `Source/PluginEditor.h/.cpp` — working UI skeleton with starter knobs, also marked
-- `Source/FoundryLookAndFeel.h` — full design system (dark, knobs, sliders, labels)
-- `CLAUDE.md` — system prompt for this specific generation (prompt, archetype, interface style, rules, DSP snippets)
+```
+/tmp/foundry-build-<uuid>/
+├── CLAUDE.md                  # System prompt for this generation
+├── CMakeLists.txt             # Pre-configured for AU + VST3
+└── Source/
+    ├── PluginProcessor.h      # Working skeleton + FOUNDRY_TEMPLATE_PLACEHOLDER markers
+    ├── PluginProcessor.cpp
+    ├── PluginEditor.h
+    ├── PluginEditor.cpp
+    └── FoundryLookAndFeel.h   # Full design system (dark, knobs, sliders)
+```
 
-### What Claude generates (free)
+### What Claude generates
 
 - DSP in `PluginProcessor` (oscillators, filters, effects, modulations)
-- UI layout in `PluginEditor` (which knobs, where, how many, labels)
-- Presets (via JUCE program system in `PluginProcessor`)
+- UI layout in `PluginEditor` (controls, sections, sizing)
+- Presets via JUCE program system (if `presetCount > 0`)
 - Audio parameters (names, ranges, defaults)
 - Accent colour in `FoundryLookAndFeel.h`
 
 ### Quality enforcement
 
-After generation, `GeneratedPluginValidator` checks:
-1. No `FOUNDRY_TEMPLATE_PLACEHOLDER` markers remain
-2. Every parameter ID has a matching editor control
+After Claude finishes, `GenerationQualityEnforcer` checks via `GeneratedPluginValidator`:
+1. No `FOUNDRY_TEMPLATE_PLACEHOLDER` markers remain in the source files
+2. Every `ParameterID` in `PluginProcessor.cpp` has a matching control string in `PluginEditor.cpp`
 3. The parameter set is not identical to the archetype baseline
 
-If validation fails, a rewrite pass is triggered (max 2 attempts) before the plugin is considered failed.
+If validation fails → rewrite pass (max 2 attempts) → rebuild → re-validate.
 
-### The contract
-
-The `CLAUDE.md` written into the project says: "Use `FoundryLookAndFeel` for all components, do not create your own colors/fonts, respect this API for parameters." This guarantees visual consistency across all generated plugins.
+---
 
 ## Claude Code Integration
 
-### Invocation
+### CLI invocation
 
 ```bash
 claude \
@@ -136,88 +153,96 @@ claude \
   --max-turns 30
 ```
 
-> Note: The system prompt is delivered via `CLAUDE.md` written into the project's working directory, not via `--system-prompt`. Claude Code reads `CLAUDE.md` automatically when it starts in that directory.
+The system prompt is delivered via `CLAUDE.md` written into the project directory. Claude reads it automatically on startup.
 
-The app communicates with the Claude Code subprocess via its stdout stream (JSON lines, parsed in `ClaudeCodeService.parseLine()`). Tool use events are mapped to UI progress steps.
-
-### CLAUDE.md (project-level) contains
+### CLAUDE.md contains
 
 - Plugin archetype and interface direction
-- Which files to read and edit
-- DSP rules (smoothing, bus config, no external deps)
+- Files to read and edit
+- DSP rules (SmoothedValue, bus config, no external deps)
 - UI rules (control types, grouping, colour constraints)
-- Preset implementation instructions (if preset count > 0)
-- Curated JUCE API patterns (oscillators, filters, parameter layout)
+- Preset implementation instructions (if `presetCount > 0`)
+- JUCE API patterns (oscillators, filters, parameter layout)
 
-### Build-fix loop
+### BuildLoop
+
+`BuildLoop.run()` is the shared build-fix loop used by both generate and refine pipelines:
 
 ```
-ProjectAssembler writes files → /tmp/foundry-build-<uuid>/
-          │
-          ▼
-   Claude Code edits files (--max-turns 30)
-          │
-          ▼
-   GeneratedPluginValidator checks quality
-          │ (if fails → rewrite pass, then rebuild)
-          ▼
-   BuildRunner: cmake --build (max 3 attempts)
-          │
-     ┌────┴────┐
-  Success    Failure
-     │         │
-     ▼         ▼
-  Smoke test   Parse compiler errors,
-  (bundle      send back to Claude Code
-  existence)   (max 3 retries)
-     │
-  ┌──┴──┐
-Pass   Fail → error screen
-  │
-  ▼
-Install to /Library/Audio/Plug-Ins/
-(via AppleScript with admin privileges)
+Claude edits files
+    │
+    ▼
+GenerationQualityEnforcer.enforce()   ← validates, triggers rewrite if needed
+    │
+    ▼
+BuildLoop.run(maxAttempts: 3)
+    │
+    ├─ cmake --build
+    │       │
+    │   success?──► smokeTest() ──► pass ──► done
+    │       │                  └──► fail ──► fix pass → retry
+    │       │
+    └─ fail ──► ClaudeCodeService.fix(errors) → retry
+                (throws GenerationError.buildFailed after 3 failures)
+    │
+    ▼
+PluginManager.installPlugin()   ← copies to /Library, codesigns, kills AudioComponentRegistrar
+    │
+    ▼
+BuildDirectoryCleaner.cleanAfterInstall()   ← removes /tmp dir after 10s grace period
 ```
 
-> **Known issue #7:** Smoke test currently only checks bundle existence. Planned upgrade: use `auval` to validate the plugin loads and renders audio without NaN/Inf/silence.
+### Smoke test
 
-### Timeouts and resource limits
+Current: verifies that an AU or VST3 bundle file exists in the build output.
+Planned: `auval` validation (see issue #7).
 
-- **Generation timeout:** 5 minutes per Claude Code session
-- **Build timeout:** 360s per attempt (target: 120s — see issue #10)
-- **Fix pass timeout:** 180s
-- **Quality rewrite timeout:** 240s
-- **Disk cleanup:** Temp build dirs are currently not cleaned up after generation (see issue #9)
+### Timeouts
 
-### Progress parsing
+| Step | Timeout |
+|---|---|
+| Claude generation | 300s (5 min) |
+| Claude fix pass | 180s |
+| Claude quality rewrite | 240s |
+| CMake build | 360s per attempt |
+| Logo generation | 90s |
 
-The app reads Claude Code's stdout stream (JSON lines) and maps tool use events to progress steps:
-- `Write`/`Edit` tool on `PluginProcessor.*` → "Generating DSP"
-- `Write`/`Edit` tool on `PluginEditor.*` or `FoundryLookAndFeel.h` → "Generating UI"
-- Bash tool containing `cmake` → "Compiling"
-- Process exit with success → "Installing"
+---
 
-## Dependency Management (First Launch)
+## Dependency Management
 
-On first launch, the app checks:
+Checked on every launch via `DependencyChecker`:
 
-| Dependency | Check | Install method |
+| Dependency | Check | Install |
 |---|---|---|
-| Xcode CLI Tools | `xcode-select -p` | `xcode-select --install` (system prompt) |
-| CMake | `which cmake` | `brew install cmake` or embedded binary |
-| JUCE SDK | Check `~/Library/Application Support/Foundry/JUCE/` | Download + extract automatically |
-| Claude Code CLI | `which claude` | User must install manually (`npm install -g @anthropic-ai/claude-code`) |
+| Xcode CLI Tools | `xcode-select -p` | `xcode-select --install` |
+| CMake | `which cmake` | `brew install cmake` or embedded |
+| JUCE SDK | `~/Library/Application Support/Foundry/JUCE/` | Auto-download (~200MB) |
+| Claude Code CLI | `which claude` | Manual: `npm install -g @anthropic-ai/claude-code` |
 
-## Plugin Library (Home Screen)
+---
 
-Grid of generated plugins. Each card shows:
-- Logo image (if generated) or type icon with accent color
-- Plugin name
-- Installed formats (AU/VST3)
-- Creation date
-- Actions on click: open folder, refine, regenerate, delete
+## Data Model
 
-### Plugin metadata schema (`plugins.json`)
+```swift
+struct Plugin: Identifiable, Codable {
+    let id: UUID
+    var name: String
+    var type: PluginType           // .instrument | .effect | .utility
+    var prompt: String
+    var createdAt: Date
+    var formats: [PluginFormat]    // .au | .vst3
+    var installPaths: InstallPaths // au: String?, vst3: String?
+    var iconColor: String          // hex e.g. "#C8C4BC"
+    var logoAssetPath: String?     // path to PNG, nil = use type icon fallback
+    var status: PluginStatus       // .installed | .failed | .building
+    var buildDirectory: String?    // /tmp/foundry-build-* path, used by Refine
+}
+```
+
+Persisted to `~/Library/Application Support/Foundry/plugins.json`.
+
+### plugins.json schema
 
 ```json
 {
@@ -226,7 +251,7 @@ Grid of generated plugins. Each card shows:
       "id": "uuid-v4",
       "name": "DrakeVox Synth",
       "type": "instrument",
-      "prompt": "Un synthé RnB avec des presets à la Drake",
+      "prompt": "An RnB synth with Drake-style presets",
       "createdAt": "2026-03-12T14:30:00Z",
       "formats": ["AU", "VST3"],
       "installPaths": {
@@ -234,7 +259,7 @@ Grid of generated plugins. Each card shows:
         "vst3": "/Library/Audio/Plug-Ins/VST3/DrakeVoxSynth.vst3"
       },
       "iconColor": "#C8C4BC",
-      "logoAssetPath": "~/Library/Application Support/Foundry/PluginLogos/<id>/logo.png",
+      "logoAssetPath": null,
       "status": "installed",
       "buildDirectory": "/tmp/foundry-build-abc12345"
     }
@@ -242,72 +267,107 @@ Grid of generated plugins. Each card shows:
 }
 ```
 
-## Design Direction
+---
 
-- **Style:** Dark, minimal, clean — inspired by Glaze/Raycast
-- **Generated plugins inherit the same visual identity** via `FoundryLookAndFeel`
-- Rounded corners, muted accent colors, monospaced typography for parameter labels
+## Storage Layout
+
+```
+~/Library/Application Support/Foundry/
+├── plugins.json
+├── JUCE/                          # JUCE SDK cache (~200MB)
+├── PluginLogos/
+│   └── <plugin-id>/
+│       └── logo.png               # Generated by PluginLogoService
+└── ImageModels/
+    └── coreml-stable-diffusion-2-1-base-palettized/
+        └── original_compiled/     # ~1.5GB, downloaded on first logo generation
+
+/Library/Audio/Plug-Ins/           # System-level install (admin required)
+├── Components/<Name>.component    # AU
+└── VST3/<Name>.vst3
+
+/tmp/foundry-build-<uuid>/         # Temp per generation, removed after install
+```
+
+---
+
+## Plugin Logo Generation
+
+Separate feature, triggered manually from the plugin detail view.
+
+- **Engine:** Apple `ml-stable-diffusion` Swift package
+- **Model:** `apple/coreml-stable-diffusion-2-1-base-palettized` (original_compiled)
+- **Config:** `cpuAndGPU`, 20 steps, 512×512, `reduceMemory = true`
+- **Timeout:** 90s
+- **Prompt:** Auto-constructed from `plugin.name`, `plugin.type`, `plugin.prompt`
+- **Storage:** `~/Library/Application Support/Foundry/PluginLogos/<id>/logo.png`
+- **Fallback:** If `logoAssetPath` is nil or file missing → type icon + accent color
+
+Model is downloaded on first use only. Failure to install does not block the main app.
+
+---
+
+## Install
+
+Plugins are installed to `/Library/Audio/Plug-Ins/` (system-level) via AppleScript with admin privileges:
+
+```
+rm -rf '<dest>'
+ditto '<src>' '<dest>'
+xattr -cr '<dest>'
+codesign --force --deep --sign - '<dest>'
+killall AudioComponentRegistrar  # AU only
+```
+
+System-level install ensures visibility across all DAWs without per-app sandbox exceptions.
+
+---
 
 ## MVP Scope
 
 ### In (v1)
 
-- SwiftUI app with full flow: prompt → quick options → generation → result
-- Three JUCE archetypes: instrument, effect, utility
-- FoundryLookAndFeel (dark, minimal, knobs/sliders/labels)
-- Claude Code as subprocess with CLAUDE.md system prompt
-- Build loop with 3 retries max + quality validation + rewrite pass
-- AU + VST3 installation to `/Library/Audio/Plug-Ins/` (admin required)
-- Plugin Library (grid with type icons or generated logos)
-- Dependency checker on first launch
-- Error screen with retry/modify options
-- **Refine flow** — modify existing plugins via follow-up instructions
-- **Plugin logo generation** — local Stable Diffusion (Apple CoreML), manual trigger from detail view
-- macOS only
+- Full generate flow: prompt → quick options → generation progress → result
+- Full refine flow: plugin detail → refine → progress → result
+- Three archetypes: instrument, effect, utility
+- FoundryLookAndFeel design system
+- Build loop with 3 retries + quality validator + rewrite pass
+- AU + VST3 install to `/Library`
+- Plugin Library (grid, type icon or logo)
+- Dependency checker + setup screen
+- Error screen with retry/modify
+- Plugin logo generation (local Stable Diffusion, manual trigger)
+- Build directory cleanup (post-install + stale sweep on launch)
+- Settings view
 
 ### Out (later)
 
-- Integrated audio preview (minimal AU host in-app)
+- Integrated audio preview (AU host in-app)
 - More templates (drum machine, sampler, multi-effect)
-- Export/share plugins between users
-- Community gallery (Glaze Store-style)
-- Alternative UI themes for plugins
-- Prompt analysis to estimate generation time
-- Dynamically generated quick options (LLM-powered)
+- Export/share plugins
+- Community gallery
+- `auval` smoke test (issue #7)
+- Dynamically generated quick options
 
-## JUCE Licensing
+---
 
-Foundry uses JUCE under the [JUCE Personal license](https://juce.com/legal/juce-8-licence/) (free for projects with revenue under $50k). Generated plugins are for personal use.
+## Open Issues
 
-## Known Risks
-
-| Risk | Mitigation |
+| # | Title |
 |---|---|
-| Claude Code generates non-compilable C++ | Template provides a compilable skeleton; Claude only fills in DSP/UI. Build-fix loop retries 3 times. |
-| Plugin compiles but produces silence/noise | Smoke test (bundle existence today; `auval` planned — issue #7). |
-| Claude Code subprocess hangs | 5-minute timeout with process kill. |
-| Large JUCE SDK download on first launch | ~200MB. App shows download progress. Cached in Application Support. |
-| Claude Code CLI not installed | Only dependency requiring manual install. Clear onboarding instructions. |
-| Admin password prompt on install | Required for `/Library` install path. No silent alternative for system-wide DAW visibility. |
-| Temp dirs fill `/tmp` | Cleanup not yet implemented — issue #9. |
+| #7 | Smoke test only checks bundle existence — upgrade to `auval` |
+| #8 | Build-fix loop refactor (in progress) |
+| #9 | Temp build dir cleanup (implemented via `BuildDirectoryCleaner`) |
+| #10 | Build timeout 360s vs spec 120s |
+| #11 | Spec/CLAUDE.md sync (this document) |
 
-## Technical Decisions
-
-| Decision | Choice | Rationale |
-|---|---|---|
-| App framework | SwiftUI | Native macOS integration, filesystem access |
-| AI backend | Claude Code CLI (subprocess) | Simple, leverages existing agent intelligence |
-| Plugin framework | JUCE | Industry standard for AU/VST3 |
-| Build system | CMake | JUCE's recommended build approach |
-| Template delivery | Programmatic (Swift) | No bundle maintenance, versionable, easy to update |
-| System prompt delivery | CLAUDE.md in project dir | Self-documenting, inspectable post-generation |
-| Install target | `/Library/Audio/Plug-Ins/` | System-wide DAW visibility; requires admin |
-| Iteration model | One-shot + Refine flow | Simpler UX for initial generation; targeted edits via Refine |
-| Plugin UI | Styled via FoundryLookAndFeel | Consistent visual identity across all generated plugins |
+---
 
 ## Changelog
 
 | Date | Change |
 |---|---|
-| 2026-03-15 | Added plugin logo generation spec (`2026-03-15-plugin-logo-regeneration-design.md`) |
-| 2026-03-18 | Synced spec with implementation: programmatic templates, CLI invocation, install path, Refine flow, utility type, `buildDirectory` field, quality validator, known issues |
+| 2026-03-12 | Initial design spec |
+| 2026-03-15 | Added plugin logo generation spec |
+| 2026-03-18 (v1) | Synced with implementation: programmatic templates, CLI args, install path, Refine flow, utility type |
+| 2026-03-18 (v2) | Full rewrite from code — added BuildLoop, BuildDirectoryCleaner, GenerationQualityEnforcer, PipelineCallbacks, updated service table, storage layout, timeouts, install flow |
