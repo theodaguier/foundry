@@ -41,7 +41,10 @@ final class GenerationPipeline {
 
             do {
                 let plugin = try await self.execute(config: config)
+
+                // Add plugin to library
                 PluginManager.add(plugin, to: &appState.plugins)
+
                 appState.push(.result(plugin: plugin))
             } catch let error as GenerationError {
                 appState.push(.error(message: error.localizedDescription, config: config))
@@ -65,9 +68,12 @@ final class GenerationPipeline {
 
             do {
                 let plugin = try await self.executeRefine(config: config)
+
                 PluginManager.update(plugin, in: &appState.plugins)
+
                 appState.push(.result(plugin: plugin))
             } catch let error as GenerationError {
+                // Build a GenerationConfig so the error view can retry
                 let genConfig = GenerationConfig(prompt: config.plugin.prompt)
                 appState.push(.error(message: error.localizedDescription, config: genConfig))
             } catch {
@@ -85,7 +91,7 @@ final class GenerationPipeline {
         isRunning = false
     }
 
-    // MARK: - Generate Pipeline
+    // MARK: - Pipeline
 
     private func execute(config: GenerationConfig) async throws -> Plugin {
         // Step 1: Assemble project
@@ -154,12 +160,18 @@ final class GenerationPipeline {
             throw GenerationError.generationFailed(genResult.error ?? "Claude Code CLI is unavailable")
         }
 
+        // Templates are complete and functional — even if Claude fails to modify them,
+        // the plugin will compile and work with basic controls.
+        // Only bail out if Claude explicitly errored and returned nothing.
         if !genResult.success {
+            // Check if Claude at least modified something
             let processorFile = project.directory.appendingPathComponent("Source/PluginProcessor.cpp")
             let processorContent = (try? String(contentsOf: processorFile, encoding: .utf8)) ?? ""
             let editorFile = project.directory.appendingPathComponent("Source/PluginEditor.cpp")
             let editorContent = (try? String(contentsOf: editorFile, encoding: .utf8)) ?? ""
 
+            // If files still exist and have content, proceed to build —
+            // the working template will produce a functional plugin regardless.
             if processorContent.isEmpty || editorContent.isEmpty {
                 throw GenerationError.generationFailed(genResult.error ?? "Claude did not generate any code")
             }
@@ -172,9 +184,77 @@ final class GenerationPipeline {
             initialSnapshot: initialEditorSnapshot
         )
 
-        // Step 3: Build
+        // Step 3: Build (with retry loop)
         setStep(.compiling)
-        try await runBuildLoop(projectDir: project.directory)
+
+        var lastErrors = ""
+        var buildSucceeded = false
+
+        for attempt in 1...3 {
+            buildAttempt = attempt
+
+            let buildResult = try await BuildRunner.build(
+                projectDir: project.directory,
+                skipConfigure: attempt > 1
+            )
+
+            if buildResult.success {
+                // Smoke test: check bundles exist
+                let smokeOK = await BuildRunner.smokeTest(projectDir: project.directory)
+                if smokeOK {
+                    buildSucceeded = true
+                    break
+                }
+
+                // Smoke test failed — only retry if we have attempts left
+                if attempt < 3 {
+                    lastErrors = "Build succeeded but smoke test failed: plugin bundles are missing or invalid in the build output."
+                    setStep(.generatingDSP)
+                    let _ = await ClaudeCodeService.fix(
+                        errors: lastErrors,
+                        projectDir: project.directory,
+                        attempt: attempt,
+                        onEvent: { [weak self] event in
+                            Task { @MainActor in
+                                self?.handleClaudeEvent(event)
+                            }
+                        }
+                    )
+                    setStep(.compiling)
+                    continue
+                } else {
+                    // Smoke test failed on last attempt — still try to install if bundles exist
+                    buildSucceeded = true
+                    break
+                }
+            }
+
+            lastErrors = buildResult.errors
+
+            // Build failed — send errors to Claude for fixing
+            if attempt < 3 {
+                setStep(.generatingDSP)
+                // Don't fail the whole pipeline if Claude's fix attempt exits non-zero
+                // (it may still have written valid fixes)
+                let _ = await ClaudeCodeService.fix(
+                    errors: buildResult.errors,
+                    projectDir: project.directory,
+                    attempt: attempt,
+                    onEvent: { [weak self] event in
+                        Task { @MainActor in
+                            self?.handleClaudeEvent(event)
+                        }
+                    }
+                )
+                setStep(.compiling)
+            } else {
+                throw GenerationError.buildFailed(lastErrors)
+            }
+        }
+
+        guard buildSucceeded else {
+            throw GenerationError.buildFailed(lastErrors)
+        }
 
         try Task.checkCancellation()
 
@@ -189,7 +269,7 @@ final class GenerationPipeline {
             throw GenerationError.generationFailed(error.localizedDescription)
         }
 
-        // Step 4: Install
+        // Step 5: Install
         setStep(.installing)
 
         let formats = resolveFormats(config.format)
@@ -204,6 +284,7 @@ final class GenerationPipeline {
             throw GenerationError.installFailed(error.localizedDescription)
         }
 
+        // Generate a muted accent color
         let colors = ["#C8C4BC", "#A8B4A0", "#B0A898", "#9CAAB8", "#B8A8B0", "#A0A8B0"]
         let iconColor = colors.randomElement()!
 
@@ -220,7 +301,8 @@ final class GenerationPipeline {
             buildDirectory: project.directory.path
         )
 
-        // TODO: re-enable cleanup once generation is stable (see issue #9)
+        // Keep temp dir for debugging — can inspect what Claude generated
+        // TODO: re-enable cleanup once generation is stable
         // Task.detached {
         //     try? FileManager.default.removeItem(at: project.directory)
         // }
@@ -299,9 +381,71 @@ final class GenerationPipeline {
             initialSnapshot: initialEditorSnapshot
         )
 
-        // Step 2: Build
+        // Step 2: Build (with retry loop)
         setStep(.compiling)
-        try await runBuildLoop(projectDir: projectDir)
+
+        var lastErrors = ""
+        var buildSucceeded = false
+
+        for attempt in 1...3 {
+            buildAttempt = attempt
+
+            let buildResult = try await BuildRunner.build(
+                projectDir: projectDir,
+                skipConfigure: attempt > 1
+            )
+
+            if buildResult.success {
+                let smokeOK = await BuildRunner.smokeTest(projectDir: projectDir)
+                if smokeOK {
+                    buildSucceeded = true
+                    break
+                }
+
+                if attempt < 3 {
+                    lastErrors = "Build succeeded but smoke test failed: plugin bundles are missing or invalid."
+                    setStep(.generatingDSP)
+                    let _ = await ClaudeCodeService.fix(
+                        errors: lastErrors,
+                        projectDir: projectDir,
+                        attempt: attempt,
+                        onEvent: { [weak self] event in
+                            Task { @MainActor in
+                                self?.handleClaudeEvent(event)
+                            }
+                        }
+                    )
+                    setStep(.compiling)
+                    continue
+                } else {
+                    buildSucceeded = true
+                    break
+                }
+            }
+
+            lastErrors = buildResult.errors
+
+            if attempt < 3 {
+                setStep(.generatingDSP)
+                let _ = await ClaudeCodeService.fix(
+                    errors: buildResult.errors,
+                    projectDir: projectDir,
+                    attempt: attempt,
+                    onEvent: { [weak self] event in
+                        Task { @MainActor in
+                            self?.handleClaudeEvent(event)
+                        }
+                    }
+                )
+                setStep(.compiling)
+            } else {
+                throw GenerationError.buildFailed(lastErrors)
+            }
+        }
+
+        guard buildSucceeded else {
+            throw GenerationError.buildFailed(lastErrors)
+        }
 
         try Task.checkCancellation()
 
@@ -331,80 +475,13 @@ final class GenerationPipeline {
             throw GenerationError.installFailed(error.localizedDescription)
         }
 
+        // Return updated plugin, preserving identity
         var updated = config.plugin
         updated.installPaths = installPaths
         updated.prompt = config.plugin.prompt + "\n→ " + config.modification
         updated.status = .installed
 
         return updated
-    }
-
-    // MARK: - Shared Build-Fix Loop
-
-    /// Runs CMake build with up to 3 attempts. On build failure, compiler errors are
-    /// sent back to Claude Code for fixing before retrying. On a successful build,
-    /// the smoke test is verified. Shared by both the generate and refine pipelines.
-    private func runBuildLoop(projectDir: URL) async throws {
-        var lastErrors = ""
-        var buildSucceeded = false
-
-        for attempt in 1...3 {
-            buildAttempt = attempt
-
-            let buildResult = try await BuildRunner.build(
-                projectDir: projectDir,
-                skipConfigure: attempt > 1
-            )
-
-            if buildResult.success {
-                let smokeOK = await BuildRunner.smokeTest(projectDir: projectDir)
-                if smokeOK {
-                    buildSucceeded = true
-                    break
-                }
-
-                // Smoke test failed — retry if attempts remain
-                if attempt < 3 {
-                    lastErrors = "Build succeeded but smoke test failed: plugin bundles are missing or invalid in the build output."
-                    setStep(.generatingDSP)
-                    let _ = await ClaudeCodeService.fix(
-                        errors: lastErrors,
-                        projectDir: projectDir,
-                        attempt: attempt,
-                        onEvent: { [weak self] event in
-                            Task { @MainActor in self?.handleClaudeEvent(event) }
-                        }
-                    )
-                    setStep(.compiling)
-                    continue
-                } else {
-                    // Last attempt: bundles exist but smoke test failed — proceed to install
-                    buildSucceeded = true
-                    break
-                }
-            }
-
-            lastErrors = buildResult.errors
-
-            if attempt < 3 {
-                setStep(.generatingDSP)
-                let _ = await ClaudeCodeService.fix(
-                    errors: buildResult.errors,
-                    projectDir: projectDir,
-                    attempt: attempt,
-                    onEvent: { [weak self] event in
-                        Task { @MainActor in self?.handleClaudeEvent(event) }
-                    }
-                )
-                setStep(.compiling)
-            } else {
-                throw GenerationError.buildFailed(lastErrors)
-            }
-        }
-
-        guard buildSucceeded else {
-            throw GenerationError.buildFailed(lastErrors)
-        }
     }
 
     // MARK: - Helpers
