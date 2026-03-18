@@ -58,56 +58,76 @@ flowchart TD
 ## 2. Improved Flow — Simple & Minimal (auth-ready)
 
 **Principes directeurs :**
-- Auth comme gate d'entrée unique (futur) — isolée du reste du flow
-- Setup intégré inline au premier lancement post-auth (pas de sheet modale)
-- Options de génération condensées dans PromptView (expandable, pas un écran séparé)
-- Actions sur les plugins via menu contextuel direct (pas de sheet detail)
-- Refine accessible depuis la library sans étape intermédiaire
-- Error recovery inline dans la vue de progression
+- Auth comme gate d'entrée unique (futur) — vérification Keychain silencieuse
+- Setup inline avec deux états : avertissement doux (deps OK) vs bloquant (deps manquantes)
+- Welcome screen au premier lancement post-signup
+- Options de génération condensées dans PromptView (expandable)
+- Inspector panel latéral pour le détail plugin (non intrusif)
+- Build log accessible en cas d'erreur
+- Error recovery inline dans GenerationView
+- AccountView dédiée (plan, usage, danger zone)
 
 ```mermaid
 flowchart TD
     LAUNCH([App Launch])
 
     subgraph AUTH ["🔐 Auth layer — future"]
-        AUTH_CHECK{Session\nvalide?}
+        KEYCHAIN{Keychain\ntoken valide?}
         LOGIN[LoginView\nemail + password]
+        FORGOT[ForgotPasswordView\nreset par email]
         SIGNUP[SignupView]
         AUTH_OK([Authenticated])
+        KEYCHAIN -->|token absent\nou expiré| LOGIN
+        LOGIN -->|forgot password| FORGOT
+        FORGOT -->|email envoyé| LOGIN
         LOGIN -->|no account| SIGNUP
-        SIGNUP -->|created| AUTH_OK
-        LOGIN -->|success| AUTH_OK
+        SIGNUP -->|account created| WELCOME
+        LOGIN -->|success| KEYCHAIN_STORE[Store token\nin Keychain]
+        KEYCHAIN_STORE --> ONBOARD
     end
 
+    WELCOME[WelcomeView\nWhat is Foundry · CTA]
     ONBOARD{First\nlaunch?}
-    SETUP_INLINE[Inline setup banner\nin library]
+    SETUP_DEPS{Deps\nmanquantes?}
+    SETUP_BLOCK[Banner bloquant\n+ bouton + désactivé]
+    SETUP_WARN[Banner doux\ndismissable]
     LIBRARY[PluginLibraryView\nroot]
+    INSPECTOR[Inspector panel\ninfos · formats · prompt · paths]
     PROMPT[PromptView\n+ options collapsibles]
     GEN[GenerationView\nprogression + timer]
     BUILD_OK{Build OK?}
     RETRY[Retry inline\n≤ 3 attempts]
     ERROR_INLINE[Error state inline\n+ message + retry]
+    BUILD_LOG[BuildLogView\nlog de compilation]
     RESULT[ResultView]
     REFINE[RefineView]
     REFINE_PROG[RefineProgressView]
-    SETTINGS[SettingsView\n+ account / logout]
+    SETTINGS[SettingsView\nCmd+,]
+    ACCOUNT[AccountView\nplan · usage · danger zone]
 
-    LAUNCH --> AUTH_CHECK
-    AUTH_CHECK -->|no session| LOGIN
-    AUTH_CHECK -->|valid session| ONBOARD
-    AUTH_OK --> ONBOARD
+    KEYCHAIN -->|token valide| ONBOARD
+    WELCOME --> ONBOARD
+    ONBOARD -->|first run| SETUP_DEPS
+    ONBOARD -->|returning| SETUP_DEPS
+    SETUP_DEPS -->|manquantes| SETUP_BLOCK
+    SETUP_DEPS -->|toutes OK| SETUP_WARN
+    SETUP_WARN -->|dismissed| LIBRARY
+    SETUP_BLOCK --> LIBRARY
 
-    ONBOARD -->|first run| SETUP_INLINE
-    ONBOARD -->|returning| LIBRARY
-    SETUP_INLINE -->|dismissed| LIBRARY
-
-    LIBRARY -->|+ New plugin| PROMPT
+    LIBRARY -->|+ New plugin\n↳ bloqué si deps KO| PROMPT
+    LIBRARY -->|Click card| INSPECTOR
     LIBRARY -->|Right-click card| CTX[Context menu\nRefine · Rename · Delete · Finder]
-    LIBRARY -->|Settings icon| SETTINGS
-    SETTINGS -->|Logout| LOGIN
+    LIBRARY -->|Settings Cmd+,| SETTINGS
+
+    INSPECTOR -->|Refine| REFINE
+    INSPECTOR -->|Regenerate| PROMPT
 
     CTX -->|Refine| REFINE
     CTX -->|Regenerate| PROMPT
+
+    SETTINGS -->|Account| ACCOUNT
+    ACCOUNT -->|Logout| LOGIN
+    ACCOUNT -->|Delete account| LOGIN
 
     PROMPT -->|Generate\n↳ options inline| GEN
 
@@ -115,8 +135,10 @@ flowchart TD
     BUILD_OK -->|yes| RESULT
     BUILD_OK -->|no| RETRY
     RETRY -->|3× failed| ERROR_INLINE
+    ERROR_INLINE -->|View log| BUILD_LOG
     ERROR_INLINE -->|Retry| GEN
     ERROR_INLINE -->|Back| LIBRARY
+    BUILD_LOG -->|Back| ERROR_INLINE
     GEN -->|Cancel| LIBRARY
 
     RESULT -->|Done| LIBRARY
@@ -133,11 +155,14 @@ flowchart TD
 
 | Aspect | Actuel | Amélioré |
 |--------|--------|----------|
-| Auth | ❌ absente | ✅ gate d'entrée isolée (future) |
-| Setup | Sheet modale | Banner inline dismissable |
+| Auth | ❌ absente | ✅ Keychain silencieux + Login/Signup/ForgotPassword |
+| Welcome | ❌ absent | ✅ WelcomeView post-signup |
+| Setup | Sheet modale unique | Banner doux ou bloquant selon état des deps |
 | Options génération | Écran séparé (QuickOptionsView) | Section collapsible dans PromptView |
-| Actions plugin | Sheet detail → actions | Menu contextuel direct |
+| Detail plugin | Sheet modale (PluginDetailView) | Inspector panel latéral non intrusif |
+| Actions plugin | Via detail sheet | Context menu direct |
 | Error recovery | Vue séparée (ErrorView) | État inline dans GenerationView |
-| Refine depuis library | Via detail sheet | Via context menu direct |
-| Logout / account | ❌ absent | ✅ via Settings |
-| Nombre d'écrans | 9 vues | 6 vues core + 2 auth (future) |
+| Build log | ❌ absent | ✅ BuildLogView accessible depuis l'erreur |
+| Account | ❌ absent | ✅ AccountView (plan · usage · danger zone) |
+| Logout | ❌ absent | ✅ via AccountView |
+| Nombre d'écrans | 9 vues | 7 vues core + 4 auth (future) |
