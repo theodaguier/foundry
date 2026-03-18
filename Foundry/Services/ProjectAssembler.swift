@@ -9,8 +9,6 @@ enum ProjectAssembler {
         let interfaceStyle: InterfaceStyle
     }
 
-    static let templateMarker = "FOUNDRY_TEMPLATE_PLACEHOLDER"
-
     enum InterfaceStyle: String {
         case focused = "Focused"
         case balanced = "Balanced"
@@ -22,30 +20,17 @@ enum ProjectAssembler {
     static func assemble(config: GenerationConfig) throws -> AssembledProject {
         let fm = FileManager.default
 
-        // Generate a clean plugin name from the prompt
         let pluginName = generatePluginName(from: config.prompt)
         let pluginType = inferPluginType(from: config.prompt)
         let interfaceStyle = inferInterfaceStyle(from: config.prompt, pluginType: pluginType)
 
-        // Create temp directory
         let uuid = UUID().uuidString.prefix(8).lowercased()
         let projectDir = URL(fileURLWithPath: "/tmp/foundry-build-\(uuid)")
         let sourceDir = projectDir.appendingPathComponent("Source")
         try fm.createDirectory(at: sourceDir, withIntermediateDirectories: true)
 
-        // Write all template files
         try writeCMakeLists(to: projectDir, pluginName: pluginName, pluginType: pluginType, config: config)
-        switch pluginType {
-        case .instrument:
-            try writeSynthProcessor(to: sourceDir, pluginName: pluginName, config: config)
-            try writeSynthEditor(to: sourceDir, pluginName: pluginName)
-        case .effect:
-            try writeEffectProcessor(to: sourceDir, pluginName: pluginName, config: config)
-            try writeEffectEditor(to: sourceDir, pluginName: pluginName)
-        case .utility:
-            try writeUtilityProcessor(to: sourceDir, pluginName: pluginName, config: config)
-            try writeUtilityEditor(to: sourceDir, pluginName: pluginName)
-        }
+        try writeStubFiles(to: sourceDir, pluginName: pluginName, pluginType: pluginType, config: config)
         try writeLookAndFeel(to: sourceDir)
         try writeClaudeMD(
             to: projectDir,
@@ -95,7 +80,6 @@ enum ProjectAssembler {
              ["Shard", "Frost", "Scatter", "Flicker", "Pixel"]),
         ]
 
-        // Mix prompt hash with random salt for unique names each generation
         let base = abs(prompt.utf8.reduce(0) { ($0 &* 31) &+ Int($1) })
         let hash = abs(base &+ Int.random(in: 0..<1000))
 
@@ -169,7 +153,6 @@ enum ProjectAssembler {
         config: GenerationConfig
     ) throws {
         let jucePath = DependencyChecker.jucePath
-        // Generate a unique 4-char plugin code: first 2 chars of name + 2 random hex chars
         let prefix = String(pluginName.prefix(2).uppercased())
         let suffix = String(format: "%02X", Int.random(in: 0..<256))
         let pluginCode = String((prefix + suffix).prefix(4))
@@ -226,618 +209,53 @@ enum ProjectAssembler {
         try content.write(to: dir.appendingPathComponent("CMakeLists.txt"), atomically: true, encoding: .utf8)
     }
 
-    // MARK: - Effect Processor (complete, working)
+    // MARK: - Stub files (minimal compilable skeletons)
 
-    private static func writeEffectProcessor(to dir: URL, pluginName: String, config: GenerationConfig) throws {
+    private static func writeStubFiles(
+        to dir: URL,
+        pluginName: String,
+        pluginType: PluginType,
+        config: GenerationConfig
+    ) throws {
         let busLayout = config.channelLayout == .stereo
             ? "juce::AudioChannelSet::stereo()"
             : "juce::AudioChannelSet::mono()"
+        let isInstrument = pluginType == .instrument
 
-        let header = """
+        // ── PluginProcessor.h ────────────────────────────────────────
+
+        var processorH = """
         #pragma once
         #include <JuceHeader.h>
 
-        class \(pluginName)Processor : public juce::AudioProcessor
-        {
-        public:
-            \(pluginName)Processor();
-            ~\(pluginName)Processor() override;
-
-            void prepareToPlay(double sampleRate, int samplesPerBlock) override;
-            void releaseResources() override;
-            void processBlock(juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
-
-            juce::AudioProcessorEditor* createEditor() override;
-            bool hasEditor() const override { return true; }
-
-            const juce::String getName() const override { return JucePlugin_Name; }
-            bool acceptsMidi() const override { return false; }
-            bool producesMidi() const override { return false; }
-            double getTailLengthSeconds() const override { return 0.0; }
-
-            int getNumPrograms() override { return 1; }
-            int getCurrentProgram() override { return 0; }
-            void setCurrentProgram(int) override {}
-            const juce::String getProgramName(int) override { return {}; }
-            void changeProgramName(int, const juce::String&) override {}
-
-            void getStateInformation(juce::MemoryBlock& destData) override;
-            void setStateInformation(const void* data, int sizeInBytes) override;
-
-            juce::AudioProcessorValueTreeState apvts;
-
-        private:
-            juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
-
-            juce::SmoothedValue<float> gainSmoothed;
-            juce::SmoothedValue<float> mixSmoothed;
-
-            JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(\(pluginName)Processor)
-        };
         """
-        try header.write(to: dir.appendingPathComponent("PluginProcessor.h"), atomically: true, encoding: .utf8)
 
-        let impl = """
-        #include "PluginProcessor.h"
-        #include "PluginEditor.h"
-
-        \(pluginName)Processor::\(pluginName)Processor()
-            : AudioProcessor(BusesProperties()
-                .withInput("Input", \(busLayout), true)
-                .withOutput("Output", \(busLayout), true)),
-              apvts(*this, nullptr, "PARAMETERS", createParameterLayout())
-        {
-        }
-
-        \(pluginName)Processor::~\(pluginName)Processor() {}
-
-        juce::AudioProcessorValueTreeState::ParameterLayout \(pluginName)Processor::createParameterLayout()
-        {
-            // \(templateMarker): replace these starter effect parameters with a purposeful control set for the requested plugin.
-            std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
-
-            params.push_back(std::make_unique<juce::AudioParameterFloat>(
-                juce::ParameterID{"gain", 1}, "Gain", 0.0f, 1.0f, 0.7f));
-            params.push_back(std::make_unique<juce::AudioParameterFloat>(
-                juce::ParameterID{"mix", 1}, "Mix", 0.0f, 1.0f, 1.0f));
-
-            return { params.begin(), params.end() };
-        }
-
-        void \(pluginName)Processor::prepareToPlay(double sampleRate, int)
-        {
-            gainSmoothed.reset(sampleRate, 0.02);
-            mixSmoothed.reset(sampleRate, 0.02);
-        }
-
-        void \(pluginName)Processor::releaseResources() {}
-
-        void \(pluginName)Processor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
-        {
-            // \(templateMarker): replace this default gain/mix processor with the requested audio effect.
-            juce::ScopedNoDenormals noDenormals;
-            auto totalIn = getTotalNumInputChannels();
-            auto totalOut = getTotalNumOutputChannels();
-            for (auto i = totalIn; i < totalOut; ++i)
-                buffer.clear(i, 0, buffer.getNumSamples());
-
-            gainSmoothed.setTargetValue(apvts.getRawParameterValue("gain")->load());
-            mixSmoothed.setTargetValue(apvts.getRawParameterValue("mix")->load());
-
-            juce::AudioBuffer<float> dryBuffer;
-            dryBuffer.makeCopyOf(buffer);
-
-            for (int ch = 0; ch < totalIn; ++ch)
+        if isInstrument {
+            processorH += """
+            struct \(pluginName)Sound : public juce::SynthesiserSound
             {
-                auto* data = buffer.getWritePointer(ch);
-                for (int i = 0; i < buffer.getNumSamples(); ++i)
-                    data[i] *= gainSmoothed.getNextValue();
-            }
-
-            for (int ch = 0; ch < totalIn; ++ch)
-            {
-                auto* wet = buffer.getWritePointer(ch);
-                auto* dry = dryBuffer.getReadPointer(ch);
-                for (int i = 0; i < buffer.getNumSamples(); ++i)
-                {
-                    float m = mixSmoothed.getNextValue();
-                    wet[i] = dry[i] * (1.0f - m) + wet[i] * m;
-                }
-            }
-        }
-
-        juce::AudioProcessorEditor* \(pluginName)Processor::createEditor()
-        {
-            return new \(pluginName)Editor(*this);
-        }
-
-        void \(pluginName)Processor::getStateInformation(juce::MemoryBlock& destData)
-        {
-            auto state = apvts.copyState();
-            std::unique_ptr<juce::XmlElement> xml(state.createXml());
-            copyXmlToBinary(*xml, destData);
-        }
-
-        void \(pluginName)Processor::setStateInformation(const void* data, int sizeInBytes)
-        {
-            std::unique_ptr<juce::XmlElement> xml(getXmlFromBinary(data, sizeInBytes));
-            if (xml != nullptr && xml->hasTagName(apvts.state.getType()))
-                apvts.replaceState(juce::ValueTree::fromXml(*xml));
-        }
-
-        juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
-        {
-            return new \(pluginName)Processor();
-        }
-        """
-        try impl.write(to: dir.appendingPathComponent("PluginProcessor.cpp"), atomically: true, encoding: .utf8)
-    }
-
-    // MARK: - Effect Editor (complete, working)
-
-    private static func writeEffectEditor(to dir: URL, pluginName: String) throws {
-        let header = """
-        #pragma once
-        #include "PluginProcessor.h"
-        #include "FoundryLookAndFeel.h"
-
-        class \(pluginName)Editor : public juce::AudioProcessorEditor
-        {
-        public:
-            explicit \(pluginName)Editor(\(pluginName)Processor&);
-            ~\(pluginName)Editor() override;
-
-            void paint(juce::Graphics&) override;
-            void resized() override;
-
-        private:
-            \(pluginName)Processor& processorRef;
-            FoundryLookAndFeel lookAndFeel;
-
-            juce::Slider gainSlider;
-            juce::Label gainLabel;
-            std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> gainAttachment;
-
-            juce::Slider mixSlider;
-            juce::Label mixLabel;
-            std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> mixAttachment;
-
-            JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(\(pluginName)Editor)
-        };
-        """
-        try header.write(to: dir.appendingPathComponent("PluginEditor.h"), atomically: true, encoding: .utf8)
-
-        let impl = """
-        #include "PluginEditor.h"
-
-        \(pluginName)Editor::\(pluginName)Editor(\(pluginName)Processor& p)
-            : AudioProcessorEditor(&p), processorRef(p)
-        {
-            setLookAndFeel(&lookAndFeel);
-            setSize(500, 300);
-
-            // \(templateMarker): redesign this starter editor so the UI reflects the generated effect instead of a generic knob row.
-            gainSlider.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
-            gainSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 60, 16);
-            addAndMakeVisible(gainSlider);
-            gainAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
-                processorRef.apvts, "gain", gainSlider);
-
-            gainLabel.setText("GAIN", juce::dontSendNotification);
-            gainLabel.setJustificationType(juce::Justification::centred);
-            gainLabel.setFont(juce::Font(juce::FontOptions(11.0f)));
-            gainLabel.setColour(juce::Label::textColourId, lookAndFeel.dimTextColour);
-            addAndMakeVisible(gainLabel);
-
-            mixSlider.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
-            mixSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 60, 16);
-            addAndMakeVisible(mixSlider);
-            mixAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
-                processorRef.apvts, "mix", mixSlider);
-
-            mixLabel.setText("MIX", juce::dontSendNotification);
-            mixLabel.setJustificationType(juce::Justification::centred);
-            mixLabel.setFont(juce::Font(juce::FontOptions(11.0f)));
-            mixLabel.setColour(juce::Label::textColourId, lookAndFeel.dimTextColour);
-            addAndMakeVisible(mixLabel);
-        }
-
-        \(pluginName)Editor::~\(pluginName)Editor()
-        {
-            setLookAndFeel(nullptr);
-        }
-
-        void \(pluginName)Editor::paint(juce::Graphics& g)
-        {
-            g.fillAll(lookAndFeel.backgroundColour);
-
-            auto headerArea = getLocalBounds().removeFromTop(40);
-            g.setColour(lookAndFeel.surfaceColour);
-            g.fillRect(headerArea);
-
-            g.setColour(lookAndFeel.dimTextColour);
-            g.setFont(juce::Font(juce::FontOptions(
-                juce::Font::getDefaultMonospacedFontName(), 13.0f, juce::Font::plain)));
-            g.drawText("\(pluginName)", headerArea.reduced(12, 0), juce::Justification::centredLeft);
-        }
-
-        void \(pluginName)Editor::resized()
-        {
-            auto area = getLocalBounds().reduced(20);
-            area.removeFromTop(50);
-
-            // \(templateMarker): regroup and resize controls to fit the generated effect's hierarchy.
-            auto knobWidth = area.getWidth() / 2;
-            auto row = area.removeFromTop(120);
-
-            auto col1 = row.removeFromLeft(knobWidth);
-            gainSlider.setBounds(col1.removeFromTop(90));
-            gainLabel.setBounds(col1.removeFromTop(20));
-
-            auto col2 = row;
-            mixSlider.setBounds(col2.removeFromTop(90));
-            mixLabel.setBounds(col2.removeFromTop(20));
-        }
-        """
-        try impl.write(to: dir.appendingPathComponent("PluginEditor.cpp"), atomically: true, encoding: .utf8)
-    }
-
-    // MARK: - Synth Processor (complete, working)
-
-    private static func writeSynthProcessor(to dir: URL, pluginName: String, config: GenerationConfig) throws {
-        let busLayout = config.channelLayout == .stereo
-            ? "juce::AudioChannelSet::stereo()"
-            : "juce::AudioChannelSet::mono()"
-
-        let header = """
-        #pragma once
-        #include <JuceHeader.h>
-
-        //==============================================================================
-        class \(pluginName)Sound : public juce::SynthesiserSound
-        {
-        public:
-            bool appliesToNote(int) override { return true; }
-            bool appliesToChannel(int) override { return true; }
-        };
-
-        //==============================================================================
-        class \(pluginName)Voice : public juce::SynthesiserVoice
-        {
-        public:
-            bool canPlaySound(juce::SynthesiserSound* s) override
-            {
-                return dynamic_cast<\(pluginName)Sound*>(s) != nullptr;
-            }
-
-            void startNote(int midiNoteNumber, float velocity, juce::SynthesiserSound*, int) override
-            {
-                frequency = juce::MidiMessage::getMidiNoteInHertz(midiNoteNumber);
-                level = velocity;
-                phase = 0.0;
-                adsr.setSampleRate(getSampleRate());
-                adsr.setParameters(adsrParams);
-                adsr.noteOn();
-            }
-
-            void stopNote(float, bool allowTailOff) override
-            {
-                if (allowTailOff)
-                    adsr.noteOff();
-                else
-                {
-                    adsr.reset();
-                    clearCurrentNote();
-                }
-            }
-
-            void pitchWheelMoved(int) override {}
-            void controllerMoved(int, int) override {}
-
-            void renderNextBlock(juce::AudioBuffer<float>& buffer, int startSample, int numSamples) override
-            {
-                if (!adsr.isActive())
-                    return;
-
-                for (int i = startSample; i < startSample + numSamples; ++i)
-                {
-                    double sample = (2.0 * phase - 1.0) * level;
-                    phase += frequency / getSampleRate();
-                    if (phase >= 1.0) phase -= 1.0;
-
-                    float env = adsr.getNextSample();
-                    float out = static_cast<float>(sample) * env * gain;
-
-                    for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
-                        buffer.addSample(ch, i, out);
-                }
-
-                if (!adsr.isActive())
-                    clearCurrentNote();
-            }
-
-            void setADSRParams(float a, float d, float s, float r)
-            {
-                adsrParams = { a, d, s, r };
-                adsr.setParameters(adsrParams);
-            }
-
-            void updateGain(float g) { gain = g; }
-
-        private:
-            double frequency = 440.0;
-            double phase = 0.0;
-            float level = 0.0f;
-            float gain = 0.5f;
-            juce::ADSR adsr;
-            juce::ADSR::Parameters adsrParams { 0.01f, 0.3f, 0.7f, 0.5f };
-        };
-
-        //==============================================================================
-        class \(pluginName)Processor : public juce::AudioProcessor
-        {
-        public:
-            \(pluginName)Processor();
-            ~\(pluginName)Processor() override;
-
-            void prepareToPlay(double sampleRate, int samplesPerBlock) override;
-            void releaseResources() override;
-            void processBlock(juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
-
-            juce::AudioProcessorEditor* createEditor() override;
-            bool hasEditor() const override { return true; }
-
-            const juce::String getName() const override { return JucePlugin_Name; }
-            bool acceptsMidi() const override { return true; }
-            bool producesMidi() const override { return false; }
-            double getTailLengthSeconds() const override { return 0.0; }
-
-            int getNumPrograms() override { return 1; }
-            int getCurrentProgram() override { return 0; }
-            void setCurrentProgram(int) override {}
-            const juce::String getProgramName(int) override { return {}; }
-            void changeProgramName(int, const juce::String&) override {}
-
-            void getStateInformation(juce::MemoryBlock& destData) override;
-            void setStateInformation(const void* data, int sizeInBytes) override;
-
-            juce::AudioProcessorValueTreeState apvts;
-
-        private:
-            juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
-            juce::Synthesiser synth;
-
-            JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(\(pluginName)Processor)
-        };
-        """
-        try header.write(to: dir.appendingPathComponent("PluginProcessor.h"), atomically: true, encoding: .utf8)
-
-        let impl = """
-        #include "PluginProcessor.h"
-        #include "PluginEditor.h"
-
-        \(pluginName)Processor::\(pluginName)Processor()
-            : AudioProcessor(BusesProperties()
-                .withOutput("Output", \(busLayout), true)),
-              apvts(*this, nullptr, "PARAMETERS", createParameterLayout())
-        {
-            synth.addSound(new \(pluginName)Sound());
-            for (int i = 0; i < 8; ++i)
-                synth.addVoice(new \(pluginName)Voice());
-        }
-
-        \(pluginName)Processor::~\(pluginName)Processor() {}
-
-        juce::AudioProcessorValueTreeState::ParameterLayout \(pluginName)Processor::createParameterLayout()
-        {
-            // \(templateMarker): replace these starter instrument parameters with controls that match the requested playable instrument.
-            std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
-
-            params.push_back(std::make_unique<juce::AudioParameterFloat>(
-                juce::ParameterID{"attack", 1}, "Attack",
-                juce::NormalisableRange<float>(0.001f, 5.0f, 0.001f, 0.3f), 0.01f));
-            params.push_back(std::make_unique<juce::AudioParameterFloat>(
-                juce::ParameterID{"decay", 1}, "Decay",
-                juce::NormalisableRange<float>(0.001f, 5.0f, 0.001f, 0.3f), 0.3f));
-            params.push_back(std::make_unique<juce::AudioParameterFloat>(
-                juce::ParameterID{"sustain", 1}, "Sustain", 0.0f, 1.0f, 0.7f));
-            params.push_back(std::make_unique<juce::AudioParameterFloat>(
-                juce::ParameterID{"release", 1}, "Release",
-                juce::NormalisableRange<float>(0.001f, 5.0f, 0.001f, 0.3f), 0.5f));
-            params.push_back(std::make_unique<juce::AudioParameterFloat>(
-                juce::ParameterID{"gain", 1}, "Gain", 0.0f, 1.0f, 0.5f));
-
-            return { params.begin(), params.end() };
-        }
-
-        void \(pluginName)Processor::prepareToPlay(double sampleRate, int)
-        {
-            synth.setCurrentPlaybackSampleRate(sampleRate);
-        }
-
-        void \(pluginName)Processor::releaseResources() {}
-
-        void \(pluginName)Processor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
-        {
-            // \(templateMarker): replace this starter voice engine with the requested instrument architecture and tone generation.
-            juce::ScopedNoDenormals noDenormals;
-            buffer.clear();
-
-            float a = apvts.getRawParameterValue("attack")->load();
-            float d = apvts.getRawParameterValue("decay")->load();
-            float s = apvts.getRawParameterValue("sustain")->load();
-            float r = apvts.getRawParameterValue("release")->load();
-            float g = apvts.getRawParameterValue("gain")->load();
-
-            for (int i = 0; i < synth.getNumVoices(); ++i)
-            {
-                if (auto* voice = dynamic_cast<\(pluginName)Voice*>(synth.getVoice(i)))
-                {
-                    voice->setADSRParams(a, d, s, r);
-                    voice->updateGain(g);
-                }
-            }
-
-            synth.renderNextBlock(buffer, midi, 0, buffer.getNumSamples());
-        }
-
-        juce::AudioProcessorEditor* \(pluginName)Processor::createEditor()
-        {
-            return new \(pluginName)Editor(*this);
-        }
-
-        void \(pluginName)Processor::getStateInformation(juce::MemoryBlock& destData)
-        {
-            auto state = apvts.copyState();
-            std::unique_ptr<juce::XmlElement> xml(state.createXml());
-            copyXmlToBinary(*xml, destData);
-        }
-
-        void \(pluginName)Processor::setStateInformation(const void* data, int sizeInBytes)
-        {
-            std::unique_ptr<juce::XmlElement> xml(getXmlFromBinary(data, sizeInBytes));
-            if (xml != nullptr && xml->hasTagName(apvts.state.getType()))
-                apvts.replaceState(juce::ValueTree::fromXml(*xml));
-        }
-
-        juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
-        {
-            return new \(pluginName)Processor();
-        }
-        """
-        try impl.write(to: dir.appendingPathComponent("PluginProcessor.cpp"), atomically: true, encoding: .utf8)
-    }
-
-    // MARK: - Synth Editor (complete, working)
-
-    private static func writeSynthEditor(to dir: URL, pluginName: String) throws {
-        let header = """
-        #pragma once
-        #include "PluginProcessor.h"
-        #include "FoundryLookAndFeel.h"
-
-        class \(pluginName)Editor : public juce::AudioProcessorEditor
-        {
-        public:
-            explicit \(pluginName)Editor(\(pluginName)Processor&);
-            ~\(pluginName)Editor() override;
-
-            void paint(juce::Graphics&) override;
-            void resized() override;
-
-        private:
-            \(pluginName)Processor& processorRef;
-            FoundryLookAndFeel lookAndFeel;
-
-            juce::Slider attackSlider, decaySlider, sustainSlider, releaseSlider, gainSlider;
-            juce::Label attackLabel, decayLabel, sustainLabel, releaseLabel, gainLabel;
-            std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>
-                attackAttachment, decayAttachment, sustainAttachment, releaseAttachment, gainAttachment;
-
-            JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(\(pluginName)Editor)
-        };
-        """
-        try header.write(to: dir.appendingPathComponent("PluginEditor.h"), atomically: true, encoding: .utf8)
-
-        let impl = """
-        #include "PluginEditor.h"
-
-        static void setupKnob(\(pluginName)Editor* editor, \(pluginName)Processor& proc,
-                               FoundryLookAndFeel& lf,
-                               juce::Slider& slider, juce::Label& label,
-                               const juce::String& name, const juce::String& paramId,
-                               std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>& attachment)
-        {
-            slider.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
-            slider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 60, 16);
-            editor->addAndMakeVisible(slider);
-            attachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
-                proc.apvts, paramId, slider);
-
-            label.setText(name, juce::dontSendNotification);
-            label.setJustificationType(juce::Justification::centred);
-            label.setFont(juce::Font(juce::FontOptions(11.0f)));
-            label.setColour(juce::Label::textColourId, lf.dimTextColour);
-            editor->addAndMakeVisible(label);
-        }
-
-        \(pluginName)Editor::\(pluginName)Editor(\(pluginName)Processor& p)
-            : AudioProcessorEditor(&p), processorRef(p)
-        {
-            setLookAndFeel(&lookAndFeel);
-            setSize(600, 350);
-
-            // \(templateMarker): redesign this starter panel so the UI reflects the generated instrument and its performance flow.
-            setupKnob(this, processorRef, lookAndFeel, attackSlider, attackLabel, "ATK", "attack", attackAttachment);
-            setupKnob(this, processorRef, lookAndFeel, decaySlider, decayLabel, "DEC", "decay", decayAttachment);
-            setupKnob(this, processorRef, lookAndFeel, sustainSlider, sustainLabel, "SUS", "sustain", sustainAttachment);
-            setupKnob(this, processorRef, lookAndFeel, releaseSlider, releaseLabel, "REL", "release", releaseAttachment);
-            setupKnob(this, processorRef, lookAndFeel, gainSlider, gainLabel, "GAIN", "gain", gainAttachment);
-        }
-
-        \(pluginName)Editor::~\(pluginName)Editor()
-        {
-            setLookAndFeel(nullptr);
-        }
-
-        void \(pluginName)Editor::paint(juce::Graphics& g)
-        {
-            g.fillAll(lookAndFeel.backgroundColour);
-
-            auto headerArea = getLocalBounds().removeFromTop(40);
-            g.setColour(lookAndFeel.surfaceColour);
-            g.fillRect(headerArea);
-
-            g.setColour(lookAndFeel.dimTextColour);
-            g.setFont(juce::Font(juce::FontOptions(
-                juce::Font::getDefaultMonospacedFontName(), 13.0f, juce::Font::plain)));
-            g.drawText("\(pluginName)", headerArea.reduced(12, 0), juce::Justification::centredLeft);
-
-            // ADSR section label
-            auto adsrLabel = getLocalBounds().reduced(20, 0);
-            adsrLabel.removeFromTop(50);
-            g.setFont(juce::Font(juce::FontOptions(
-                juce::Font::getDefaultMonospacedFontName(), 10.0f, juce::Font::plain)));
-            g.drawText("ENVELOPE", adsrLabel.removeFromTop(16), juce::Justification::centredLeft);
-        }
-
-        void \(pluginName)Editor::resized()
-        {
-            auto area = getLocalBounds().reduced(20);
-            area.removeFromTop(70);
-
-            // \(templateMarker): regroup, resize, and mix control types to fit the generated instrument.
-            auto knobW = area.getWidth() / 5;
-            auto row = area.removeFromTop(120);
-
-            auto layoutKnob = [&](juce::Slider& slider, juce::Label& label)
-            {
-                auto col = row.removeFromLeft(knobW);
-                slider.setBounds(col.removeFromTop(90));
-                label.setBounds(col.removeFromTop(20));
+                bool appliesToNote(int) override { return true; }
+                bool appliesToChannel(int) override { return true; }
             };
 
-            layoutKnob(attackSlider, attackLabel);
-            layoutKnob(decaySlider, decayLabel);
-            layoutKnob(sustainSlider, sustainLabel);
-            layoutKnob(releaseSlider, releaseLabel);
-            layoutKnob(gainSlider, gainLabel);
+            class \(pluginName)Voice : public juce::SynthesiserVoice
+            {
+            public:
+                bool canPlaySound(juce::SynthesiserSound* sound) override
+                {
+                    return dynamic_cast<\(pluginName)Sound*>(sound) != nullptr;
+                }
+                void startNote(int midiNote, float velocity, juce::SynthesiserSound*, int) override {}
+                void stopNote(float, bool) override { clearCurrentNote(); }
+                void pitchWheelMoved(int) override {}
+                void controllerMoved(int, int) override {}
+                void renderNextBlock(juce::AudioBuffer<float>&, int startSample, int numSamples) override {}
+            };
+
+            """
         }
-        """
-        try impl.write(to: dir.appendingPathComponent("PluginEditor.cpp"), atomically: true, encoding: .utf8)
-    }
 
-    // MARK: - Utility Processor (complete, working)
-
-    private static func writeUtilityProcessor(to dir: URL, pluginName: String, config: GenerationConfig) throws {
-        let busLayout = config.channelLayout == .stereo
-            ? "juce::AudioChannelSet::stereo()"
-            : "juce::AudioChannelSet::mono()"
-
-        let header = """
-        #pragma once
-        #include <JuceHeader.h>
-
+        processorH += """
         class \(pluginName)Processor : public juce::AudioProcessor
         {
         public:
@@ -852,7 +270,7 @@ enum ProjectAssembler {
             bool hasEditor() const override { return true; }
 
             const juce::String getName() const override { return JucePlugin_Name; }
-            bool acceptsMidi() const override { return false; }
+            bool acceptsMidi() const override { return \(isInstrument ? "true" : "false"); }
             bool producesMidi() const override { return false; }
             double getTailLengthSeconds() const override { return 0.0; }
 
@@ -869,102 +287,66 @@ enum ProjectAssembler {
 
         private:
             juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
-
-            juce::SmoothedValue<float> inputGainSmoothed;
-            juce::SmoothedValue<float> outputGainSmoothed;
-            juce::SmoothedValue<float> widthSmoothed;
-
+        \(isInstrument ? "    juce::Synthesiser synth;\n" : "")
             JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(\(pluginName)Processor)
         };
         """
-        try header.write(to: dir.appendingPathComponent("PluginProcessor.h"), atomically: true, encoding: .utf8)
+        try processorH.write(to: dir.appendingPathComponent("PluginProcessor.h"), atomically: true, encoding: .utf8)
 
-        let impl = """
+        // ── PluginProcessor.cpp ──────────────────────────────────────
+
+        var synthInit = ""
+        var processBlockBody: String
+
+        if isInstrument {
+            synthInit = """
+
+                synth.addSound(new \(pluginName)Sound());
+                for (int i = 0; i < 8; ++i)
+                    synth.addVoice(new \(pluginName)Voice());
+            """
+            processBlockBody = """
+                juce::ScopedNoDenormals noDenormals;
+                buffer.clear();
+                synth.renderNextBlock(buffer, midiMessages, 0, buffer.getNumSamples());
+            """
+        } else {
+            processBlockBody = """
+                juce::ScopedNoDenormals noDenormals;
+                for (auto i = getTotalNumInputChannels(); i < getTotalNumOutputChannels(); ++i)
+                    buffer.clear(i, 0, buffer.getNumSamples());
+            """
+        }
+
+        let processorCPP = """
         #include "PluginProcessor.h"
         #include "PluginEditor.h"
 
         \(pluginName)Processor::\(pluginName)Processor()
             : AudioProcessor(BusesProperties()
-                .withInput("Input", \(busLayout), true)
-                .withOutput("Output", \(busLayout), true)),
+                \(isInstrument ? ".withOutput(\"Output\", \(busLayout), true)" : ".withInput(\"Input\", \(busLayout), true)\n            .withOutput(\"Output\", \(busLayout), true)")),
               apvts(*this, nullptr, "PARAMETERS", createParameterLayout())
-        {
+        {\(synthInit)
         }
 
         \(pluginName)Processor::~\(pluginName)Processor() {}
 
         juce::AudioProcessorValueTreeState::ParameterLayout \(pluginName)Processor::createParameterLayout()
         {
-            // \(templateMarker): replace these starter utility parameters with controls that match the requested tool.
             std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
-
-            params.push_back(std::make_unique<juce::AudioParameterFloat>(
-                juce::ParameterID{"inputGain", 1}, "Input",
-                juce::NormalisableRange<float>(-24.0f, 24.0f, 0.1f), 0.0f));
-            params.push_back(std::make_unique<juce::AudioParameterFloat>(
-                juce::ParameterID{"width", 1}, "Width", 0.0f, 2.0f, 1.0f));
-            params.push_back(std::make_unique<juce::AudioParameterFloat>(
-                juce::ParameterID{"outputGain", 1}, "Output",
-                juce::NormalisableRange<float>(-24.0f, 24.0f, 0.1f), 0.0f));
-
             return { params.begin(), params.end() };
         }
 
-        void \(pluginName)Processor::prepareToPlay(double sampleRate, int)
+        void \(pluginName)Processor::prepareToPlay(double sampleRate, int samplesPerBlock)
         {
-            inputGainSmoothed.reset(sampleRate, 0.02);
-            outputGainSmoothed.reset(sampleRate, 0.02);
-            widthSmoothed.reset(sampleRate, 0.02);
+        \(isInstrument ? "    synth.setCurrentPlaybackSampleRate(sampleRate);" : "    juce::ignoreUnused(sampleRate, samplesPerBlock);")
         }
 
         void \(pluginName)Processor::releaseResources() {}
 
-        void \(pluginName)Processor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
+        void \(pluginName)Processor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
         {
-            // \(templateMarker): replace this safe passthrough utility with the requested analyzer, helper, or routing tool.
-            juce::ScopedNoDenormals noDenormals;
-            auto totalIn = getTotalNumInputChannels();
-            auto totalOut = getTotalNumOutputChannels();
-            for (auto i = totalIn; i < totalOut; ++i)
-                buffer.clear(i, 0, buffer.getNumSamples());
-
-            inputGainSmoothed.setTargetValue(apvts.getRawParameterValue("inputGain")->load());
-            outputGainSmoothed.setTargetValue(apvts.getRawParameterValue("outputGain")->load());
-            widthSmoothed.setTargetValue(apvts.getRawParameterValue("width")->load());
-
-            const bool isStereo = buffer.getNumChannels() >= 2;
-
-            for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
-            {
-                const float inputGain = juce::Decibels::decibelsToGain(inputGainSmoothed.getNextValue());
-                const float outputGain = juce::Decibels::decibelsToGain(outputGainSmoothed.getNextValue());
-                const float width = widthSmoothed.getNextValue();
-
-                if (isStereo)
-                {
-                    auto left = buffer.getSample(0, sample) * inputGain;
-                    auto right = buffer.getSample(1, sample) * inputGain;
-                    const float mid = 0.5f * (left + right);
-                    const float side = 0.5f * (left - right) * width;
-                    buffer.setSample(0, sample, (mid + side) * outputGain);
-                    buffer.setSample(1, sample, (mid - side) * outputGain);
-                }
-                else
-                {
-                    buffer.setSample(0, sample, buffer.getSample(0, sample) * inputGain * outputGain);
-                }
-            }
-
-            for (int channel = 2; channel < buffer.getNumChannels(); ++channel)
-            {
-                buffer.applyGain(channel, 0, buffer.getNumSamples(),
-                                 juce::Decibels::decibelsToGain(apvts.getRawParameterValue("outputGain")->load()));
-            }
-        }
-
-        juce::AudioProcessorEditor* \(pluginName)Processor::createEditor()
-        {
-            return new \(pluginName)Editor(*this);
+        \(isInstrument ? "" : "    juce::ignoreUnused(midiMessages);\n")\(processBlockBody)
         }
 
         void \(pluginName)Processor::getStateInformation(juce::MemoryBlock& destData)
@@ -977,8 +359,13 @@ enum ProjectAssembler {
         void \(pluginName)Processor::setStateInformation(const void* data, int sizeInBytes)
         {
             std::unique_ptr<juce::XmlElement> xml(getXmlFromBinary(data, sizeInBytes));
-            if (xml != nullptr && xml->hasTagName(apvts.state.getType()))
+            if (xml && xml->hasTagName(apvts.state.getType()))
                 apvts.replaceState(juce::ValueTree::fromXml(*xml));
+        }
+
+        juce::AudioProcessorEditor* \(pluginName)Processor::createEditor()
+        {
+            return new \(pluginName)Editor(*this);
         }
 
         juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
@@ -986,11 +373,11 @@ enum ProjectAssembler {
             return new \(pluginName)Processor();
         }
         """
-        try impl.write(to: dir.appendingPathComponent("PluginProcessor.cpp"), atomically: true, encoding: .utf8)
-    }
+        try processorCPP.write(to: dir.appendingPathComponent("PluginProcessor.cpp"), atomically: true, encoding: .utf8)
 
-    private static func writeUtilityEditor(to dir: URL, pluginName: String) throws {
-        let header = """
+        // ── PluginEditor.h ───────────────────────────────────────────
+
+        let editorH = """
         #pragma once
         #include "PluginProcessor.h"
         #include "FoundryLookAndFeel.h"
@@ -1008,54 +395,21 @@ enum ProjectAssembler {
             \(pluginName)Processor& processorRef;
             FoundryLookAndFeel lookAndFeel;
 
-            juce::Slider inputSlider;
-            juce::Label inputLabel;
-            std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> inputAttachment;
-
-            juce::Slider widthSlider;
-            juce::Label widthLabel;
-            std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> widthAttachment;
-
-            juce::Slider outputSlider;
-            juce::Label outputLabel;
-            std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> outputAttachment;
-
             JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(\(pluginName)Editor)
         };
         """
-        try header.write(to: dir.appendingPathComponent("PluginEditor.h"), atomically: true, encoding: .utf8)
+        try editorH.write(to: dir.appendingPathComponent("PluginEditor.h"), atomically: true, encoding: .utf8)
 
-        let impl = """
+        // ── PluginEditor.cpp ─────────────────────────────────────────
+
+        let editorCPP = """
         #include "PluginEditor.h"
-
-        static void setupStageSlider(\(pluginName)Editor* editor, \(pluginName)Processor& proc,
-                                     FoundryLookAndFeel& lf, juce::Slider& slider, juce::Label& label,
-                                     const juce::String& name, const juce::String& paramId,
-                                     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>& attachment)
-        {
-            slider.setSliderStyle(juce::Slider::LinearHorizontal);
-            slider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 64, 18);
-            editor->addAndMakeVisible(slider);
-            attachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
-                proc.apvts, paramId, slider);
-
-            label.setText(name, juce::dontSendNotification);
-            label.setJustificationType(juce::Justification::centredLeft);
-            label.setFont(juce::Font(juce::FontOptions(11.0f)));
-            label.setColour(juce::Label::textColourId, lf.dimTextColour);
-            editor->addAndMakeVisible(label);
-        }
 
         \(pluginName)Editor::\(pluginName)Editor(\(pluginName)Processor& p)
             : AudioProcessorEditor(&p), processorRef(p)
         {
             setLookAndFeel(&lookAndFeel);
-            setSize(520, 260);
-
-            // \(templateMarker): redesign this starter utility layout to match the requested workflow and visual hierarchy.
-            setupStageSlider(this, processorRef, lookAndFeel, inputSlider, inputLabel, "INPUT", "inputGain", inputAttachment);
-            setupStageSlider(this, processorRef, lookAndFeel, widthSlider, widthLabel, "WIDTH", "width", widthAttachment);
-            setupStageSlider(this, processorRef, lookAndFeel, outputSlider, outputLabel, "OUTPUT", "outputGain", outputAttachment);
+            setSize(600, 400);
         }
 
         \(pluginName)Editor::~\(pluginName)Editor()
@@ -1066,46 +420,16 @@ enum ProjectAssembler {
         void \(pluginName)Editor::paint(juce::Graphics& g)
         {
             g.fillAll(lookAndFeel.backgroundColour);
-
-            auto bounds = getLocalBounds().reduced(20);
-            auto header = bounds.removeFromTop(56);
-            g.setColour(lookAndFeel.surfaceColour);
-            g.fillRoundedRectangle(header.toFloat(), 8.0f);
-
-            g.setColour(lookAndFeel.textColour);
-            g.setFont(juce::Font(juce::FontOptions(
-                juce::Font::getDefaultMonospacedFontName(), 14.0f, juce::Font::plain)));
-            g.drawText("\(pluginName)", header.removeFromTop(24).reduced(12, 0), juce::Justification::centredLeft);
-
-            g.setColour(lookAndFeel.dimTextColour);
-            g.setFont(juce::Font(juce::FontOptions(
-                juce::Font::getDefaultMonospacedFontName(), 10.0f, juce::Font::plain)));
-            g.drawText("UTILITY STAGE", header.reduced(12, 0), juce::Justification::centredLeft);
         }
 
         void \(pluginName)Editor::resized()
         {
-            auto area = getLocalBounds().reduced(20);
-            area.removeFromTop(72);
-
-            auto layoutRow = [&](juce::Label& label, juce::Slider& slider)
-            {
-                auto row = area.removeFromTop(42);
-                label.setBounds(row.removeFromLeft(80));
-                slider.setBounds(row);
-                area.removeFromTop(12);
-            };
-
-            // \(templateMarker): rebuild the control grouping, spacing, and component mix for the generated plugin.
-            layoutRow(inputLabel, inputSlider);
-            layoutRow(widthLabel, widthSlider);
-            layoutRow(outputLabel, outputSlider);
         }
         """
-        try impl.write(to: dir.appendingPathComponent("PluginEditor.cpp"), atomically: true, encoding: .utf8)
+        try editorCPP.write(to: dir.appendingPathComponent("PluginEditor.cpp"), atomically: true, encoding: .utf8)
     }
 
-    // MARK: - LookAndFeel
+    // MARK: - LookAndFeel (reusable dark theme)
 
     private static func writeLookAndFeel(to dir: URL) throws {
         let content = """
@@ -1188,30 +512,36 @@ enum ProjectAssembler {
                 }
                 else
                 {
-                    LookAndFeel_V4::drawLinearSlider(g, x, y, width, height, sliderPos, minPos, maxPos, style, slider);
+                    juce::LookAndFeel_V4::drawLinearSlider(g, x, y, width, height,
+                                                            sliderPos, minPos, maxPos, style, slider);
                 }
+            }
+
+            void drawButtonBackground(juce::Graphics& g, juce::Button& button,
+                                      const juce::Colour& bgColour,
+                                      bool isHighlighted, bool isDown) override
+            {
+                auto bounds = button.getLocalBounds().toFloat().reduced(0.5f);
+                auto base = bgColour;
+                if (isDown) base = base.brighter(0.1f);
+                else if (isHighlighted) base = base.brighter(0.05f);
+
+                g.setColour(base);
+                g.fillRoundedRectangle(bounds, 6.0f);
+                g.setColour(borderColour);
+                g.drawRoundedRectangle(bounds, 6.0f, 1.0f);
             }
 
             juce::Font getLabelFont(juce::Label&) override
             {
-                return juce::Font(juce::FontOptions(juce::Font::getDefaultMonospacedFontName(), 11.0f, juce::Font::plain));
-            }
-
-            void drawButtonBackground(juce::Graphics& g, juce::Button& button,
-                                       const juce::Colour&, bool isHighlighted, bool isDown) override
-            {
-                auto bounds = button.getLocalBounds().toFloat().reduced(0.5f);
-                g.setColour(isDown ? borderColour.brighter(0.2f)
-                          : isHighlighted ? borderColour.brighter(0.1f)
-                          : borderColour);
-                g.drawRoundedRectangle(bounds, 2.0f, 1.0f);
+                return juce::Font(juce::FontOptions(13.0f));
             }
         };
         """
         try content.write(to: dir.appendingPathComponent("FoundryLookAndFeel.h"), atomically: true, encoding: .utf8)
     }
 
-    // MARK: - CLAUDE.md
+    // MARK: - CLAUDE.md (expert knowledge document)
 
     private static func writeClaudeMD(
         to dir: URL,
@@ -1227,58 +557,94 @@ enum ProjectAssembler {
         }
         let channelDesc = config.channelLayout == .stereo ? "stereo" : "mono"
         let presetCount = config.presetCount.rawValue
+
         let interfaceDirection: String = switch interfaceStyle {
-        case .focused: "Keep the UI tight and immediate. Show only the essential controls at first glance."
+        case .focused: "Keep the UI tight and immediate. Show only essential controls at first glance."
         case .balanced: "Use clear grouped sections with a strong primary area and tidy secondary controls."
         case .exploratory: "Allow a denser interface with richer modulation, modes, and deeper parameter access."
         }
+
+        let instrumentSkills: String = pluginType == .instrument ? """
+
+        ### Instrument voice pattern
+        Voices are declared in PluginProcessor.h. Each voice handles one note:
+        ```cpp
+        void startNote(int midiNote, float velocity, juce::SynthesiserSound*, int) override
+        {
+            frequency = juce::MidiMessage::getMidiNoteInHertz(midiNote);
+            level = velocity;
+            adsr.noteOn();
+        }
+
+        void stopNote(float, bool allowTailOff) override
+        {
+            adsr.noteOff();
+            if (!allowTailOff) clearCurrentNote();
+        }
+
+        void renderNextBlock(juce::AudioBuffer<float>& buffer, int startSample, int numSamples) override
+        {
+            // Generate samples using oscillator + envelope
+            for (int s = startSample; s < startSample + numSamples; ++s)
+            {
+                float sample = /* oscillator output */ * adsr.getNextSample() * level;
+                for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+                    buffer.addSample(ch, s, sample);
+            }
+            if (!adsr.isActive()) clearCurrentNote();
+        }
+        ```
+        - 8 voices are pre-allocated in the constructor
+        - Access processor parameters via `dynamic_cast` or store pointers
+        - Use `juce::ADSR` for envelopes, `juce::dsp::Oscillator<float>` for waveforms
+        """ : ""
+
+        let utilitySkills: String = pluginType == .utility ? """
+
+        ### Utility plugin guidelines
+        - Stay safe, transparent, and immediately useful on first load
+        - Expose clear metering, routing, gain staging, or analysis behavior
+        - Avoid fake "creative" DSP if the plugin is meant to be a helper or analyzer
+        - Use `juce::Decibels::decibelsToGain()` for dB parameters
+        """ : ""
 
         let presetSection: String
         if presetCount > 0 {
             presetSection = """
 
-            ## Presets — MANDATORY (\(presetCount) presets required)
+            ## SKILL: Presets (\(presetCount) required)
 
-            You MUST implement exactly **\(presetCount) presets** using JUCE's program system.
-            Each preset must set ALL parameters to musically useful, distinct values.
+            Implement exactly **\(presetCount) presets** using JUCE's program system.
 
             ### In PluginProcessor.h:
-            - Add a struct or array to hold preset data
-            - Store the current preset index
-
-            ### In PluginProcessor.cpp:
-            - `getNumPrograms()` → return \(presetCount)
-            - `getCurrentProgram()` → return the stored index
-            - `setCurrentProgram(int index)` → load parameter values from preset data into apvts
-            - `getProgramName(int index)` → return the preset name (short, descriptive, no emojis)
-            - Define \(presetCount) presets with creative names that fit the plugin character
-            - Each preset MUST set every parameter to a different, musically interesting value
-
-            ### Preset loading pattern:
             ```cpp
             struct PresetData {
                 const char* name;
                 std::vector<std::pair<const char*, float>> values;
             };
+            static const std::array<PresetData, \(presetCount)> presets;
+            int currentPreset = 0;
+            ```
 
-            // In setCurrentProgram():
-            void \(pluginName)Processor::setCurrentProgram(int index)
+            ### In PluginProcessor.cpp:
+            ```cpp
+            int getNumPrograms() override { return \(presetCount); }
+            int getCurrentProgram() override { return currentPreset; }
+            const juce::String getProgramName(int index) override { return presets[index].name; }
+
+            void setCurrentProgram(int index) override
             {
                 if (index < 0 || index >= getNumPrograms()) return;
                 currentPreset = index;
                 for (auto& [paramId, value] : presets[index].values)
-                {
                     if (auto* param = apvts.getParameter(paramId))
                         param->setValueNotifyingHost(param->convertTo0to1(value));
-                }
             }
             ```
 
             ### In PluginEditor — add a preset ComboBox:
             ```cpp
-            // Header:
-            juce::ComboBox presetBox;
-
+            // Header: juce::ComboBox presetBox;
             // Constructor:
             for (int i = 0; i < processorRef.getNumPrograms(); ++i)
                 presetBox.addItem(processorRef.getProgramName(i), i + 1);
@@ -1287,97 +653,186 @@ enum ProjectAssembler {
                 processorRef.setCurrentProgram(presetBox.getSelectedId() - 1);
             };
             addAndMakeVisible(presetBox);
-
-            // In resized(): place presetBox in the header area, right-aligned
             ```
+            Each preset must set ALL parameters to musically distinct values. Short, descriptive names.
             """
         } else {
             presetSection = ""
         }
 
         let content = """
-        # \(pluginName) — JUCE Plugin Project
+        # \(pluginName) — Audio Plugin Brief
 
-        You are modifying a **working \(pluginRole) plugin** to match this description:
-        **\(config.prompt)**
+        ## Mission
+        You are an expert JUCE/C++ audio plugin developer.
+        Build a **\(pluginRole)** plugin: **\(config.prompt)**
 
         Channel layout: **\(channelDesc)**
-        Interface direction: **\(interfaceStyle.rawValue)**
+        Interface style: **\(interfaceStyle.rawValue)**
 
-        ## IMPORTANT: The plugin already compiles and works.
-        Your job is to MODIFY the existing code, not start from scratch.
-        Read all 4 source files first, then make targeted edits.
+        ## Project
+        - `Source/PluginProcessor.h/.cpp` — DSP engine, parameters, audio processing
+        - `Source/PluginEditor.h/.cpp` — interface, controls, layout
+        - `Source/FoundryLookAndFeel.h` — visual theme (change `accentColour` to fit plugin character)
+        - `CMakeLists.txt` — build config, **DO NOT MODIFY**
 
-        ## Files you can edit
-        - `Source/PluginProcessor.h` — parameters + DSP members
-        - `Source/PluginProcessor.cpp` — createParameterLayout(), prepareToPlay(), processBlock()
-        - `Source/PluginEditor.h` — slider/label/attachment members
-        - `Source/PluginEditor.cpp` — UI controls, layout, paint
-        - `Source/FoundryLookAndFeel.h` — customise colours and knob style
+        Class names: `\(pluginName)Processor`, `\(pluginName)Editor` — do not rename.
+        C++17. JUCE only. No external dependencies. All JUCE types prefixed `juce::`.
+        Do not create new files. Do not modify CMakeLists.txt.
 
-        **DO NOT** modify `CMakeLists.txt`. **DO NOT** create new files.
-        **DO NOT** rename classes — keep `\(pluginName)Processor` and `\(pluginName)Editor`.
-        **REMOVE every line containing `\(templateMarker)`** before you finish. If any placeholder markers remain, the generation is considered a failure.
+        ## SKILL: Parameter System
 
-        ## What to modify
+        Parameters bridge DSP and UI. Define them in `createParameterLayout()`:
 
-        1. **Add parameters** in `createParameterLayout()` for the specific plugin described
-        2. **Implement DSP** in processBlock() — replace the placeholder with real audio processing
-        3. **Design the editor intentionally** — group controls by role, create 2-4 sections, and choose the right control type for each parameter
-        4. **Customise colours** — pick an accent colour that fits the plugin character
-        \(presetCount > 0 ? "5. **Implement \(presetCount) presets** — see Presets section below" : "")
-
-        ## DSP rules
-        - Use `juce::SmoothedValue<float>` for parameters read in processBlock()
-        - Effects: keep dry/wet mix when musically relevant, copy the dry buffer before destructive processing
-        - Utilities: stay safe, transparent, and immediately useful on first load
-        - Use `juce::dsp::` classes where helpful: IIR::Filter, DelayLine, Reverb, Chorus, WaveShaper, Oscillator
-        - Initialize DSP in prepareToPlay() with correct sample rate
-        - Feedback must be < 1.0. Sensible defaults that sound good immediately.
-        \(pluginType == .instrument ? """
-        - Instruments: modify \(pluginName)Voice::renderNextBlock() for your oscillator or tone generator
-        - Add filters, effects, modulators, or performance behavior as needed
-        - 8 voices for polyphony are already set up as a safe default
-        """ : "")
-        \(pluginType == .utility ? """
-        - Utilities should expose clear metering, routing, gain staging, stereo, or analysis behavior when relevant
-        - Avoid fake “creative” DSP if the requested plugin is meant to be a helper or analyzer
-        """ : "")
-
-        ## UI rules
-        - Every parameter MUST have an appropriate visible control and attachment
-        - Use a mix of rotary sliders, linear sliders, ComboBox, and buttons when it improves usability
-        - Group controls into named sections instead of one flat row whenever there are more than 4 controls
-        - Make the first screenful feel like a product, not a generic debug panel
-        - Dark background (0xff080808 to 0xff181818), one muted accent colour
-        - No emojis, no "AI" branding, no purple, no bright colours
-        - Use `addAndMakeVisible()` for every control
-        - Set `setSize(width, height)` to fit your layout
-        - Use `juce::Font(juce::FontOptions(float))` not `juce::Font(float)`
-        - \(interfaceDirection)
-
-        ## Control pattern examples
         ```cpp
-        // In header private section:
-        juce::Slider mySlider;
-        juce::Label myLabel;
-        std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> myAttachment;
+        // Continuous value (gain, frequency, time):
+        params.push_back(std::make_unique<juce::AudioParameterFloat>(
+            juce::ParameterID{"drive", 1}, "Drive",
+            juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.5f));
+
+        // Skewed range (frequencies):
+        juce::NormalisableRange<float>(20.0f, 20000.0f, 1.0f, 0.3f)  // skew < 1 = more resolution at low end
+
+        // Discrete choice (waveform, mode):
+        params.push_back(std::make_unique<juce::AudioParameterChoice>(
+            juce::ParameterID{"mode", 1}, "Mode",
+            juce::StringArray{"Clean", "Warm", "Aggressive"}, 0));
+
+        // Boolean (bypass, enable):
+        params.push_back(std::make_unique<juce::AudioParameterBool>(
+            juce::ParameterID{"bypass", 1}, "Bypass", false));
+        ```
+
+        Reading parameters in processBlock:
+        ```cpp
+        auto value = apvts.getRawParameterValue("paramId")->load();
+        ```
+        Always smooth continuous parameters with `juce::SmoothedValue<float>` to avoid zipper noise.
+
+        ## SKILL: DSP
+
+        ### Effect processBlock structure:
+        ```cpp
+        void processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
+        {
+            juce::ScopedNoDenormals noDenormals;
+            for (auto i = getTotalNumInputChannels(); i < getTotalNumOutputChannels(); ++i)
+                buffer.clear(i, 0, buffer.getNumSamples());
+
+            // Read parameters with smoothing
+            driveSmoothed.setTargetValue(apvts.getRawParameterValue("drive")->load());
+
+            // Copy dry buffer if you need dry/wet mix
+            juce::AudioBuffer<float> dryBuffer;
+            dryBuffer.makeCopyOf(buffer);
+
+            // Process audio per-sample or per-block
+            for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+            {
+                auto* data = buffer.getWritePointer(ch);
+                for (int s = 0; s < buffer.getNumSamples(); ++s)
+                {
+                    const float drive = driveSmoothed.getNextValue();
+                    data[s] = std::tanh(data[s] * drive);
+                }
+            }
+
+            // Apply dry/wet
+            const float mix = apvts.getRawParameterValue("mix")->load();
+            for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+            {
+                auto* wet = buffer.getWritePointer(ch);
+                auto* dry = dryBuffer.getReadPointer(ch);
+                for (int s = 0; s < buffer.getNumSamples(); ++s)
+                    wet[s] = dry[s] + mix * (wet[s] - dry[s]);
+            }
+        }
+        ```
+
+        ### Common juce::dsp classes:
+        - `juce::dsp::IIR::Filter<float>` — EQ, lowpass, highpass, shelving
+        - `juce::dsp::DelayLine<float>` — delay, chorus base, flanger
+        - `juce::dsp::Reverb` — reverb
+        - `juce::dsp::WaveShaper<float>` — distortion, saturation
+        - `juce::dsp::Oscillator<float>` — LFO, tone generation
+        - `juce::dsp::Chorus<float>` — chorus
+        - `juce::dsp::Compressor<float>` — dynamics
+        - `juce::SmoothedValue<float>` — parameter smoothing
+
+        ### Preparing DSP (in prepareToPlay):
+        ```cpp
+        juce::dsp::ProcessSpec spec;
+        spec.sampleRate = sampleRate;
+        spec.maximumBlockSize = (juce::uint32) samplesPerBlock;
+        spec.numChannels = (juce::uint32) getTotalNumOutputChannels();
+        myFilter.prepare(spec);
+        mySmoothedValue.reset(sampleRate, 0.02);
+        ```
+
+        ### Rules:
+        - Feedback must be < 1.0
+        - Sensible defaults that sound good immediately
+        - Effects: keep dry/wet mix when musically relevant
+        \(instrumentSkills)\(utilitySkills)
+
+        ## SKILL: Interface
+
+        ### Control types:
+        - `RotaryHorizontalVerticalDrag` — continuous parameters (most common)
+        - `LinearHorizontal` — gain staging, levels, wide-range params
+        - `juce::ComboBox` — discrete choices (waveform, mode, preset)
+        - `juce::ToggleButton` — on/off switches (bypass, enable)
+
+        ### Wiring a control to a parameter:
+        ```cpp
+        // In header (private section):
+        juce::Slider driveSlider;
+        juce::Label driveLabel;
+        std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> driveAttachment;
 
         // In constructor:
-        mySlider.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
-        mySlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 60, 16);
-        addAndMakeVisible(mySlider);
-        myAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
-            processorRef.apvts, "paramId", mySlider);
-        myLabel.setText("LABEL", juce::dontSendNotification);
-        myLabel.setJustificationType(juce::Justification::centred);
-        myLabel.setFont(juce::Font(juce::FontOptions(11.0f)));
-        myLabel.setColour(juce::Label::textColourId, lookAndFeel.dimTextColour);
-        addAndMakeVisible(myLabel);
+        driveSlider.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
+        driveSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 60, 16);
+        addAndMakeVisible(driveSlider);
+        driveAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
+            processorRef.apvts, "drive", driveSlider);
+        driveLabel.setText("DRIVE", juce::dontSendNotification);
+        driveLabel.setJustificationType(juce::Justification::centred);
+        driveLabel.setFont(juce::Font(juce::FontOptions(10.0f)));
+        driveLabel.setColour(juce::Label::textColourId, lookAndFeel.dimTextColour);
+        addAndMakeVisible(driveLabel);
 
-        // In resized(): position with setBounds()
+        // For ComboBox:
+        std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> modeAttachment;
+        modeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(
+            processorRef.apvts, "mode", modeBox);
+
+        // For ToggleButton:
+        std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> bypassAttachment;
         ```
-        You can also use `juce::ComboBox` with `ComboBoxAttachment`, or `juce::ToggleButton` with `ButtonAttachment`, when those fit the parameter better.
+
+        ### Layout:
+        ```cpp
+        void resized() override
+        {
+            auto area = getLocalBounds().reduced(20);
+            auto header = area.removeFromTop(48);
+            // Group controls into sections
+            auto driveSection = area.removeFromLeft(area.getWidth() / 3);
+            auto toneSection = area.removeFromLeft(area.getWidth() / 2);
+            auto outputSection = area;
+            // Position knobs within each section
+            mySlider.setBounds(section.reduced(10));
+        }
+        ```
+
+        ### Visual rules:
+        - Dark background (0xff0a0a0a to 0xff181818), one muted accent colour
+        - No emojis, no "AI" branding, no purple, no bright neon
+        - Group controls into named sections when there are more than 4
+        - Use `juce::Font(juce::FontOptions(float))` — never `juce::Font(float)`
+        - `setSize(width, height)` to fit your layout
+        - \(interfaceDirection)
         \(presetSection)
         """
         try content.write(to: dir.appendingPathComponent("CLAUDE.md"), atomically: true, encoding: .utf8)

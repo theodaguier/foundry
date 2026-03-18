@@ -37,7 +37,7 @@ Under the hood: Claude Code CLI writes the JUCE C++ code, CMake builds it, and F
 
 ## Features
 
-- **Three plugin archetypes** — instrument, effect, utility — each with a working compilable template as a starting point
+- **Three plugin archetypes** — instrument, effect, utility — Claude writes each from scratch using expert JUCE knowledge
 - **Refine** — modify an existing generated plugin with a follow-up instruction without starting from scratch
 - **Plugin logo generation** — generate a custom logo image for any plugin using local Stable Diffusion (Apple CoreML, no cloud)
 - **Plugin Library** — browse, manage, and re-open all generated plugins

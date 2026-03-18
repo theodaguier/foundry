@@ -120,29 +120,25 @@ final class GenerationPipeline {
             ? "\n- Implement exactly \(presetCount) presets with a ComboBox selector in the UI (see CLAUDE.md Presets section)"
             : ""
         let genPrompt = """
-        You are modifying a working JUCE \(pluginRole) plugin. You MUST use your tools to read and edit files.
+        IMPORTANT: Read CLAUDE.md first — it contains your expert knowledge and the plugin brief.
+        Then write the plugin code into the source files using your tools. Act immediately.
 
-        Generation target:
-        - Inferred archetype: \(project.pluginType.displayName)
-        - Inferred interface style: \(project.interfaceStyle.rawValue)
+        You are building a JUCE \(pluginRole) plugin from minimal stubs.
 
-        START by reading these files (use your Read tool):
-        1. CLAUDE.md
-        2. Source/PluginProcessor.h
-        3. Source/PluginProcessor.cpp
-        4. Source/PluginEditor.h
-        5. Source/PluginEditor.cpp
+        Brief: \(config.prompt)
+        Archetype: \(project.pluginType.displayName)
+        Interface style: \(project.interfaceStyle.rawValue)
 
-        THEN use your Edit/Write tools to modify the code to create: \(config.prompt)
+        The source files have correct class names and method signatures with empty bodies.
+        Your job:
+        1. Read CLAUDE.md for expert JUCE knowledge and constraints
+        2. Implement parameters in createParameterLayout()
+        3. Implement DSP in processBlock()\(project.pluginType == .instrument ? " and voice rendering" : "")
+        4. Build the editor with appropriate controls for every parameter
+        5. Set accentColour in FoundryLookAndFeel.h to match the plugin character\(presetInstruction)
 
-        Specifically, you MUST edit:
-        - PluginProcessor.h/cpp: add parameters and implement DSP or utility behavior for this specific \(pluginRole)
-        - PluginEditor.h/cpp: create an intentional interface with grouped sections and appropriate controls for every parameter
-        - FoundryLookAndFeel.h: change accentColour to match the plugin character\(presetInstruction)
-        - Remove EVERY line containing \(ProjectAssembler.templateMarker)
-
-        Do NOT just describe what to do - actually edit the files using your tools.
-        Keep class names unchanged. The plugin must compile with C++17 and JUCE.
+        Write production-quality code. Every parameter needs a matching UI control.
+        Keep class names unchanged. Must compile with C++17 and JUCE.
         """
         let genResult = await ClaudeCodeService.run(
             prompt: genPrompt,
@@ -159,9 +155,8 @@ final class GenerationPipeline {
             throw GenerationError.generationFailed(genResult.error ?? "Claude Code CLI is unavailable")
         }
 
-        // Templates are complete and functional - even if Claude fails to modify them,
-        // the plugin will compile and work with basic controls.
-        // Only bail out if Claude explicitly errored and returned nothing.
+        // Stubs are compilable skeletons — even if Claude fails to fully implement them,
+        // the plugin will still compile. Only bail out if source files are empty.
         if !genResult.success {
             let processorFile = project.directory.appendingPathComponent("Source/PluginProcessor.cpp")
             let processorContent = (try? String(contentsOf: processorFile, encoding: .utf8)) ?? ""
@@ -256,20 +251,18 @@ final class GenerationPipeline {
         case .utility: "utility or analysis tool"
         }
         let refinePrompt = """
-        You are modifying an existing JUCE \(pluginRole) plugin. You MUST use your tools to read and edit files.
+        You are modifying an existing JUCE \(pluginRole) plugin. Use your tools to read and edit files directly.
 
-        START by reading these files (use your Read tool):
-        1. CLAUDE.md
-        2. Source/PluginProcessor.h
-        3. Source/PluginProcessor.cpp
-        4. Source/PluginEditor.h
-        5. Source/PluginEditor.cpp
+        Read these source files first:
+        1. Source/PluginProcessor.h
+        2. Source/PluginProcessor.cpp
+        3. Source/PluginEditor.h
+        4. Source/PluginEditor.cpp
 
         The user wants this modification: \(config.modification)
 
         Use your Edit tool to make targeted changes. Keep everything else working.
-        Remove any remaining \(ProjectAssembler.templateMarker) markers if they still exist.
-        Do NOT rewrite files from scratch - only change what's needed.
+        Do NOT rewrite files from scratch — only change what's needed.
         Keep class names unchanged. The plugin must compile with C++17 and JUCE.
         """
 

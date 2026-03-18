@@ -21,11 +21,11 @@ Foundry compresse tout ça en 5 minutes.
 
 ### L'infrastructure invisible
 
-L'utilisateur n'a pas à installer JUCE, configurer CMake, gérer les templates, débugger les builds, ni installer manuellement les plugins au bon endroit. Foundry fait tout ça en arrière-plan.
+L'utilisateur n'a pas à installer JUCE, configurer CMake, écrire du C++, débugger les builds, ni installer manuellement les plugins au bon endroit. Foundry fait tout ça en arrière-plan.
 
 ### La fiabilité
 
-Le système de templates + boucle de correction automatique + smoke test garantit un plugin compilé, installé et fonctionnel. Un utilisateur seul avec un LLM obtiendrait du code C++ qu'il ne saurait pas compiler.
+L'agent expert + boucle de correction automatique + validation qualité garantit un plugin compilé, installé et fonctionnel. Un utilisateur seul avec un LLM obtiendrait du code C++ qu'il ne saurait pas compiler.
 
 ---
 

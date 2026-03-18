@@ -1,7 +1,7 @@
 # Foundry — Design Spec
 
-> **Last updated:** 2026-03-18 (v2)
-> **Status:** Reflects current implementation exactly.
+> **Last updated:** 2026-03-18 (v3)
+> **Status:** Reflects current implementation (agent-expert architecture).
 
 ## Vision
 
@@ -91,11 +91,11 @@ Plugin Library → [Refine] → RefineView
 
 ## Plugin Types
 
-| Type | Keyword detection | Template base |
+| Type | Keyword detection | Stub base |
 |---|---|---|
-| `instrument` | synth, keys, pad, oscillator, arpeggiator… | Polyphonic `juce::Synthesiser` with ADSR voices |
-| `effect` | reverb, delay, distortion, filter, chorus… | Stereo/mono processor with gain + mix |
-| `utility` | analyzer, meter, width, gain staging, tool… | Pass-through with input/output gain + stereo width |
+| `instrument` | synth, keys, pad, oscillator, arpeggiator… | Processor + Voice/Sound classes with `renderNextBlock` |
+| `effect` | reverb, delay, distortion, filter, chorus… | Processor with `processBlock` stub |
+| `utility` | analyzer, meter, width, gain staging, tool… | Processor with `processBlock` stub |
 
 Inferred by `ProjectAssembler.inferPluginType()` from the user prompt. Defaults to `effect`.
 
@@ -103,38 +103,51 @@ A secondary inference — `InterfaceStyle` (`Focused` / `Balanced` / `Explorator
 
 ---
 
-## Template System
+## Agent-Expert System
 
-Templates are **not bundle assets**. `ProjectAssembler` writes all project files programmatically in Swift to `/tmp/foundry-build-<uuid>/` at generation time.
+`ProjectAssembler` writes minimal compilable C++ stubs and an expert `CLAUDE.md` to `/tmp/foundry-build-<uuid>/` at generation time. Claude then writes all plugin code from scratch using the expert knowledge — no templates to edit.
 
 ### Files written per generation
 
 ```
 /tmp/foundry-build-<uuid>/
-├── CLAUDE.md                  # System prompt for this generation
+├── CLAUDE.md                  # Expert knowledge document with JUCE skills
 ├── CMakeLists.txt             # Pre-configured for AU + VST3
 └── Source/
-    ├── PluginProcessor.h      # Working skeleton + FOUNDRY_TEMPLATE_PLACEHOLDER markers
+    ├── PluginProcessor.h      # Minimal stub (correct class names, empty methods)
     ├── PluginProcessor.cpp
     ├── PluginEditor.h
     ├── PluginEditor.cpp
     └── FoundryLookAndFeel.h   # Full design system (dark, knobs, sliders)
 ```
 
-### What Claude generates
+### Expert CLAUDE.md contains
 
-- DSP in `PluginProcessor` (oscillators, filters, effects, modulations)
+The per-generation `CLAUDE.md` is an expert knowledge document with SKILL sections:
+
+- **SKILL: Parameter System** — `AudioParameterFloat/Choice/Bool`, `NormalisableRange`, skewed ranges, `SmoothedValue`
+- **SKILL: DSP** — `processBlock` structure, `juce::dsp` classes, `prepareToPlay`, dry/wet patterns
+- **SKILL: Interface** — control types, APVTS attachments, layout patterns, visual rules
+- **SKILL: Presets** (if `presetCount > 0`) — program system, ComboBox selector, preset data arrays
+- Instrument-specific: voice rendering with `renderNextBlock`, ADSR, oscillator patterns
+- Utility-specific: metering, gain staging, mid/side guidelines
+
+### What Claude writes from scratch
+
+- Parameters in `createParameterLayout()` (names, ranges, defaults)
+- DSP in `processBlock()` (oscillators, filters, effects, modulations)
 - UI layout in `PluginEditor` (controls, sections, sizing)
 - Presets via JUCE program system (if `presetCount > 0`)
-- Audio parameters (names, ranges, defaults)
 - Accent colour in `FoundryLookAndFeel.h`
 
 ### Quality enforcement
 
-After Claude finishes, `GenerationQualityEnforcer` checks via `GeneratedPluginValidator`:
-1. No `FOUNDRY_TEMPLATE_PLACEHOLDER` markers remain in the source files
-2. Every `ParameterID` in `PluginProcessor.cpp` has a matching control string in `PluginEditor.cpp`
-3. The parameter set is not identical to the archetype baseline
+After build succeeds, `GenerationQualityEnforcer` checks via `GeneratedPluginValidator`:
+1. Parameters exist in `createParameterLayout()`
+2. `processBlock()` body has meaningful DSP (> 200 chars)
+3. Every `ParameterID` has a matching control string in `PluginEditor.cpp`
+4. Editor has sufficient visible controls (`addAndMakeVisible` calls)
+5. Instrument plugins have `renderNextBlock` voice implementation
 
 If validation fails → rewrite pass (max 2 attempts) → rebuild → re-validate.
 
@@ -150,29 +163,19 @@ claude \
   --dangerously-skip-permissions \
   --output-format stream-json \
   --verbose \
-  --max-turns 30
+  --max-turns 50 \
+  --model sonnet \
+  --append-system-prompt "You MUST use tools (Read, Edit, Write, Bash) on every turn. Never respond with only text — always take action by reading or editing files."
 ```
 
-The system prompt is delivered via `CLAUDE.md` written into the project directory. Claude reads it automatically on startup.
-
-### CLAUDE.md contains
-
-- Plugin archetype and interface direction
-- Files to read and edit
-- DSP rules (SmoothedValue, bus config, no external deps)
-- UI rules (control types, grouping, colour constraints)
-- Preset implementation instructions (if `presetCount > 0`)
-- JUCE API patterns (oscillators, filters, parameter layout)
+Expert knowledge is delivered via `CLAUDE.md` written into the project directory. Claude reads it automatically on startup. The `--append-system-prompt` flag enforces tool usage on every turn, preventing planning-only turns. `--model sonnet` reduces thinking overhead for faster generation.
 
 ### BuildLoop
 
 `BuildLoop.run()` is the shared build-fix loop used by both generate and refine pipelines:
 
 ```
-Claude edits files
-    │
-    ▼
-GenerationQualityEnforcer.enforce()   ← validates, triggers rewrite if needed
+Claude writes plugin code from scratch (using expert CLAUDE.md)
     │
     ▼
 BuildLoop.run(maxAttempts: 3)
@@ -184,6 +187,9 @@ BuildLoop.run(maxAttempts: 3)
     │       │
     └─ fail ──► ClaudeCodeService.fix(errors) → retry
                 (throws GenerationError.buildFailed after 3 failures)
+    │
+    ▼
+GenerationQualityEnforcer.enforce()   ← validates content presence, triggers rewrite if needed
     │
     ▼
 PluginManager.installPlugin()   ← copies to /Library, codesigns, kills AudioComponentRegistrar
@@ -329,9 +335,9 @@ System-level install ensures visibility across all DAWs without per-app sandbox 
 
 - Full generate flow: prompt → quick options → generation progress → result
 - Full refine flow: plugin detail → refine → progress → result
-- Three archetypes: instrument, effect, utility
+- Three archetypes: instrument, effect, utility (agent-expert with JUCE skills)
 - FoundryLookAndFeel design system
-- Build loop with 3 retries + quality validator + rewrite pass
+- Build loop with 3 retries + content-presence validator + rewrite pass
 - AU + VST3 install to `/Library`
 - Plugin Library (grid, type icon or logo)
 - Dependency checker + setup screen
@@ -343,7 +349,7 @@ System-level install ensures visibility across all DAWs without per-app sandbox 
 ### Out (later)
 
 - Integrated audio preview (AU host in-app)
-- More templates (drum machine, sampler, multi-effect)
+- More archetypes (drum machine, sampler, multi-effect)
 - Export/share plugins
 - Community gallery
 - `auval` smoke test (issue #7)
@@ -371,3 +377,4 @@ System-level install ensures visibility across all DAWs without per-app sandbox 
 | 2026-03-15 | Added plugin logo generation spec |
 | 2026-03-18 (v1) | Synced with implementation: programmatic templates, CLI args, install path, Refine flow, utility type |
 | 2026-03-18 (v2) | Full rewrite from code — added BuildLoop, BuildDirectoryCleaner, GenerationQualityEnforcer, PipelineCallbacks, updated service table, storage layout, timeouts, install flow |
+| 2026-03-18 (v3) | Template → agent-expert architecture: stubs + expert CLAUDE.md with JUCE skills, content-presence validation, `--model sonnet`, `--max-turns 50`, `--append-system-prompt` (closes #17) |
