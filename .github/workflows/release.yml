@@ -27,14 +27,16 @@ jobs:
           manifest-file: .release-please-manifest.json
           token: ${{ env.RELEASE_PLEASE_TOKEN }}
 
+      - uses: actions/checkout@v4
+
       - name: Merge release PR
         if: ${{ steps.release.outputs.prs_created == 'true' }}
         env:
           GH_TOKEN: ${{ env.RELEASE_PLEASE_TOKEN }}
           PR_NUMBER: ${{ fromJSON(steps.release.outputs.pr).number }}
         run: |
-          gh pr merge --merge --delete-branch "$PR_NUMBER"
-          until [ "$(gh pr view "$PR_NUMBER" --json state --jq '.state')" = "MERGED" ]; do
+          gh pr merge --merge --delete-branch "$PR_NUMBER" -R "${{ github.repository }}"
+          until [ "$(gh pr view "$PR_NUMBER" --json state --jq '.state' -R "${{ github.repository }}")" = "MERGED" ]; do
             sleep 2
           done
 
