@@ -27,11 +27,11 @@ Foundry/
 | File | Role |
 |---|---|
 | `GenerationPipeline` | Orchestrates generate and refine flows |
-| `ProjectAssembler` | Writes JUCE project files to `/tmp/foundry-build-<uuid>/` |
+| `ProjectAssembler` | Writes minimal C++ stubs + expert CLAUDE.md to `/tmp/foundry-build-<uuid>/` |
 | `ClaudeCodeService` | Launches Claude CLI subprocess, parses stdout stream-json |
 | `BuildLoop` | CMake build with retry loop and Claude fix passes |
 | `BuildRunner` | Low-level CMake process runner + smoke test |
-| `GenerationQualityEnforcer` | Validates generated code, triggers rewrite if too close to template |
+| `GenerationQualityEnforcer` | Validates generated code has real implementation, triggers rewrite if insufficient |
 | `BuildDirectoryCleaner` | Cleans `/tmp/foundry-build-*` after install and on launch |
 | `PluginManager` | Persists `plugins.json`, handles install/uninstall via AppleScript |
 | `PluginLogoService` | Local Stable Diffusion logo generation (Apple CoreML) |
@@ -41,21 +41,21 @@ Foundry/
 
 ## Key Design Decisions
 
-- **Programmatic templates:** `ProjectAssembler` writes all JUCE files in Swift at runtime — no bundle assets. Templates are versionable in code.
-- **System prompt via CLAUDE.md:** The system prompt for each generation is written as `CLAUDE.md` into the temp project dir, not via `--system-prompt`. Claude reads it automatically.
-- **Claude invocation:** `claude -p "<prompt>" --dangerously-skip-permissions --output-format stream-json --verbose --max-turns 30`
+- **Agent-expert architecture:** `ProjectAssembler` writes minimal compilable C++ stubs (correct class names, empty method bodies) + an expert `CLAUDE.md` with JUCE skills. Claude writes all plugin code from scratch using expert knowledge — no templates to edit.
+- **Expert knowledge via CLAUDE.md:** Written into the temp project dir per generation. Contains SKILL sections (Parameter System, DSP, Interface, Presets) with JUCE patterns and constraints.
+- **Claude invocation:** `claude -p "<prompt>" --dangerously-skip-permissions --output-format stream-json --verbose --max-turns 50 --model sonnet --append-system-prompt "..."`
 - **Refine flow:** Modifies an existing plugin using its preserved `buildDirectory`. Full build loop runs again.
-- **Quality enforcement:** `GenerationQualityEnforcer` + `GeneratedPluginValidator` check that Claude actually customised the template. Triggers up to 2 rewrite passes if not.
+- **Quality enforcement:** `GenerationQualityEnforcer` + `GeneratedPluginValidator` check content presence (parameters exist, DSP implemented, UI controls present). Triggers up to 2 rewrite passes if insufficient.
 - **Install path:** `/Library/Audio/Plug-Ins/` (system-level) via AppleScript with admin. Ensures DAW visibility.
 - **Cleanup:** `BuildDirectoryCleaner.cleanAfterInstall()` removes temp dirs 10s after install. `sweepStaleDirectories()` runs on launch for dirs older than 24h.
 
 ## Plugin Types
 
-| Type | Keywords | Template base |
+| Type | Keywords | Stub base |
 |---|---|---|
-| `instrument` | synth, keys, pad, oscillator | Polyphonic Synthesiser with ADSR voices |
-| `effect` | reverb, delay, distortion, filter | Processor with gain + mix |
-| `utility` | analyzer, meter, width, gain staging | Pass-through with input/output gain + width |
+| `instrument` | synth, keys, pad, oscillator | Processor + Voice/Sound classes with renderNextBlock |
+| `effect` | reverb, delay, distortion, filter | Processor with processBlock stub |
+| `utility` | analyzer, meter, width, gain staging | Processor with processBlock stub |
 
 ## Data Model
 
@@ -89,10 +89,10 @@ struct Plugin: Identifiable, Codable {
 
 ## Generation Pipeline (in order)
 
-1. `ProjectAssembler.assemble()` → writes files to `/tmp/foundry-build-<uuid>/`
-2. `ClaudeCodeService.run()` → Claude edits the JUCE source files
-3. `GenerationQualityEnforcer.enforce()` → validates quality, rewrites if needed
-4. `BuildLoop.run()` → cmake build, up to 3 attempts with Claude fix passes
+1. `ProjectAssembler.assemble()` → writes stubs + expert CLAUDE.md to `/tmp/foundry-build-<uuid>/`
+2. `ClaudeCodeService.run()` → Claude writes plugin code from scratch using expert knowledge
+3. `BuildLoop.run()` → cmake build, up to 3 attempts with Claude fix passes
+4. `GenerationQualityEnforcer.enforce()` → validates implementation quality, rewrites if insufficient
 5. `PluginManager.installPlugin()` → copies to `/Library`, codesigns
 6. `BuildDirectoryCleaner.cleanAfterInstall()` → removes temp dir
 
@@ -105,12 +105,9 @@ struct Plugin: Identifiable, Codable {
 | Claude quality rewrite | 240s |
 | CMake build | 360s per attempt |
 
-## Template Marker
-
-`FOUNDRY_TEMPLATE_PLACEHOLDER` — appears in starter code to mark sections Claude must replace. If this string remains after generation, `GeneratedPluginValidator` rejects the plugin and triggers a rewrite pass.
-
 ## Known Issues
 
 - **#7** Smoke test only checks bundle existence, not audio validity
-- **#8** Build-fix loop refactor in progress
+- **#8** Build-fix loop refactor (done — `BuildLoop` extracted)
 - **#10** Build timeout is 360s; target is 120s
+- **#17** Fixed — agent-expert architecture, `--model sonnet`, `--max-turns 50`, `--append-system-prompt`

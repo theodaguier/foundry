@@ -6,8 +6,8 @@ struct ErrorView: View {
     let config: GenerationConfig
 
     private var failureTitle: String {
-        if message.localizedCaseInsensitiveContains("template") {
-            return "Generation too generic"
+        if message.localizedCaseInsensitiveContains("incomplete") || message.localizedCaseInsensitiveContains("insufficient") {
+            return "Implementation incomplete"
         }
         if message.localizedCaseInsensitiveContains("timed out") {
             return "Generation timed out"
@@ -20,8 +20,8 @@ struct ErrorView: View {
 
     private var failureSubtitle: String {
         switch failureTitle {
-        case "Generation too generic":
-            return "Foundry blocked installation because the output still looked like a starter template."
+        case "Implementation incomplete":
+            return "The generated plugin was missing key implementations (parameters, DSP, or UI controls)."
         case "Generation timed out":
             return "The code generator did not finish within the allowed time."
         case "Build failed":

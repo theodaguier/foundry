@@ -19,28 +19,24 @@ enum GenerationQualityEnforcer {
                 await callbacks.onStepChange(.generatingDSP)
 
                 let rewritePrompt = """
-                The plugin compiled, but it is still too close to the starter template.
-                You must perform a stronger rewrite before this plugin can be accepted.
+                Read CLAUDE.md first, then fix the source files using your tools. Act immediately.
 
-                User intent:
-                \(userIntent)
+                The plugin compiled but validation found implementation gaps that must be fixed.
 
-                Current inferred archetype: \(pluginType.displayName)
-                Current interface direction: \(interfaceStyle)
+                User intent: \(userIntent)
+                Plugin type: \(pluginType.displayName)
+                Interface direction: \(interfaceStyle)
 
-                Validation issues:
+                Issues found:
                 \(latestValidationError.localizedDescription)
 
-                Required fixes:
-                - Remove every line containing \(ProjectAssembler.templateMarker)
-                - Replace the starter parameter set with a purpose-built set for this plugin
-                - Make material changes to BOTH DSP/processing code and editor layout
-                - Ensure every parameter has a matching visible control
-                - Keep class names unchanged
-                - Do not modify CMakeLists.txt
+                Fix these issues:
+                - Implement parameters in createParameterLayout() appropriate for this plugin
+                - Write real DSP processing logic in processBlock()
+                - Ensure every parameter has a matching visible UI control
+                - Keep class names unchanged, do not modify CMakeLists.txt
 
-                Read Source/PluginProcessor.h/.cpp and Source/PluginEditor.h/.cpp again before editing.
-                Do not explain the plan. Use your tools and rewrite the code now.
+                Read the source files, then fix using your Edit/Write tools.
                 """
 
                 let rewriteResult = await ClaudeCodeService.run(
@@ -107,13 +103,13 @@ enum GenerationQualityEnforcer {
 private enum GeneratedPluginValidator {
 
     enum ValidationError: LocalizedError {
-        case unchangedTemplate([String])
+        case insufficientImplementation([String])
 
         var errorDescription: String? {
             switch self {
-            case .unchangedTemplate(let issues):
+            case .insufficientImplementation(let issues):
                 return """
-                Generation finished, but the plugin is still too close to the base template:
+                Generation finished but the plugin implementation is incomplete:
                 \(issues.map { "- \($0)" }.joined(separator: "\n"))
                 """
             }
@@ -122,42 +118,43 @@ private enum GeneratedPluginValidator {
 
     static func validate(projectDir: URL, pluginType: PluginType) throws {
         let sourceDir = projectDir.appendingPathComponent("Source")
-        let processorPath = sourceDir.appendingPathComponent("PluginProcessor.cpp")
-        let editorPath = sourceDir.appendingPathComponent("PluginEditor.cpp")
-
-        let processor = try String(contentsOf: processorPath, encoding: .utf8)
-        let editor = try String(contentsOf: editorPath, encoding: .utf8)
+        let processorCPP = try String(contentsOf: sourceDir.appendingPathComponent("PluginProcessor.cpp"), encoding: .utf8)
+        let editorCPP = try String(contentsOf: sourceDir.appendingPathComponent("PluginEditor.cpp"), encoding: .utf8)
 
         var issues: [String] = []
 
-        if processor.contains(ProjectAssembler.templateMarker) || editor.contains(ProjectAssembler.templateMarker) {
-            issues.append("the generator left template placeholder markers in the source files")
+        // 1. Parameters exist
+        let parameterIDs = extractMatches(pattern: #"ParameterID\{"([^"]+)""#, in: processorCPP)
+        if parameterIDs.isEmpty {
+            issues.append("no parameters defined in createParameterLayout()")
         }
 
-        let parameterIDs = extractMatches(
-            pattern: #"ParameterID\{\"([^\"]+)\""#,
-            in: processor
-        )
-
-        for parameterID in parameterIDs where !editor.contains("\"\(parameterID)\"") {
-            issues.append("parameter `\(parameterID)` does not appear to have a matching editor control")
+        // 2. processBlock has real DSP
+        if let body = extractFunctionBody(named: "processBlock", in: processorCPP), body.count < 200 {
+            issues.append("processBlock() appears to have no meaningful DSP implementation")
         }
 
-        let baselineParameters: Set<String> = switch pluginType {
-        case .instrument:
-            ["attack", "decay", "sustain", "release", "gain"]
-        case .effect:
-            ["gain", "mix"]
-        case .utility:
-            ["inputGain", "width", "outputGain"]
+        // 3. Every parameter has a UI control
+        for paramID in parameterIDs where !editorCPP.contains("\"\(paramID)\"") {
+            issues.append("parameter `\(paramID)` has no matching UI control in the editor")
         }
 
-        if Set(parameterIDs) == baselineParameters {
-            issues.append("the parameter set still matches the starter template for this plugin archetype")
+        // 4. Editor has visible controls
+        let visibleCount = editorCPP.components(separatedBy: "addAndMakeVisible").count - 1
+        if visibleCount < 2 {
+            issues.append("editor has fewer than 2 visible controls — the UI is essentially empty")
+        }
+
+        // 5. Instruments need voice rendering
+        if pluginType == .instrument {
+            let processorH = (try? String(contentsOf: sourceDir.appendingPathComponent("PluginProcessor.h"), encoding: .utf8)) ?? ""
+            if !processorH.contains("renderNextBlock") && !processorCPP.contains("renderNextBlock") {
+                issues.append("instrument plugin has no voice rendering implementation")
+            }
         }
 
         guard issues.isEmpty else {
-            throw ValidationError.unchangedTemplate(issues)
+            throw ValidationError.insufficientImplementation(issues)
         }
     }
 
@@ -171,5 +168,27 @@ private enum GeneratedPluginValidator {
             }
             return String(text[resultRange])
         }
+    }
+
+    private static func extractFunctionBody(named name: String, in source: String) -> String? {
+        guard let startRange = source.range(of: "::\(name)(") else { return nil }
+        var braceCount = 0
+        var bodyStart: String.Index?
+        var index = startRange.upperBound
+
+        while index < source.endIndex {
+            let ch = source[index]
+            if ch == "{" {
+                braceCount += 1
+                if bodyStart == nil { bodyStart = index }
+            } else if ch == "}" {
+                braceCount -= 1
+                if braceCount == 0, let start = bodyStart {
+                    return String(source[start...index])
+                }
+            }
+            index = source.index(after: index)
+        }
+        return nil
     }
 }

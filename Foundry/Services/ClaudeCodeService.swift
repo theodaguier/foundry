@@ -34,14 +34,8 @@ enum ClaudeCodeService {
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: claudePath)
-        process.arguments = [
-            "-p",
-            prompt,
-            "--dangerously-skip-permissions",
-            "--output-format", "stream-json",
-            "--verbose",
-            "--max-turns", "30",
-        ]
+        process.arguments = Self.buildArguments(prompt: prompt)
+
         process.currentDirectoryURL = projectDir
         process.environment = DependencyChecker.shellEnvironment
         process.standardInput = FileHandle.nullDevice
@@ -175,6 +169,22 @@ enum ClaudeCodeService {
             timeoutSeconds: 180,
             onEvent: onEvent
         )
+    }
+
+    // MARK: - Argument builder
+
+    static func buildArguments(prompt: String) -> [String] {
+        [
+            "-p",
+            prompt,
+            "--dangerously-skip-permissions",
+            "--output-format", "stream-json",
+            "--verbose",
+            "--max-turns", "50",
+            "--model", "sonnet",
+            "--append-system-prompt",
+            "You MUST use tools (Read, Edit, Write, Bash) on every turn. Never respond with only text — always take action by reading or editing files.",
+        ]
     }
 
     // MARK: - Line parser
