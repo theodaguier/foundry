@@ -21,7 +21,7 @@ jobs:
       RELEASE_PLEASE_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - uses: googleapis/release-please-action@v4
         id: release
@@ -29,12 +29,12 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
           token: ${{ env.RELEASE_PLEASE_TOKEN }}
-      
+
       - name: Merge release PR
         if: ${{ steps.release.outputs.prs_created == 'true' }}
         env:
           GH_TOKEN: ${{ env.RELEASE_PLEASE_TOKEN }}
-          PR_NUMBER: ${{ fromJSON(steps.release.outputs.pr).number }}
+          PR_NUMBER: ${{ fromJSON(steps.release.outputs.prs)[0].number }}
         run: |
           gh pr merge --merge --delete-branch "$PR_NUMBER"
           until [ "$(gh pr view "$PR_NUMBER" --json state --jq '.state')" = "MERGED" ]; do
