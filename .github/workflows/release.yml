@@ -27,6 +27,9 @@ jobs:
           manifest-file: .release-please-manifest.json
           token: ${{ env.RELEASE_PLEASE_TOKEN }}
 
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
       - name: Merge release PR
         if: ${{ steps.release.outputs.prs_created == 'true' }}
         env:
