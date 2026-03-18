@@ -20,15 +20,15 @@ jobs:
     env:
       RELEASE_PLEASE_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - uses: googleapis/release-please-action@v4
         id: release
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
           token: ${{ env.RELEASE_PLEASE_TOKEN }}
-
-      - name: Checkout repository
-        uses: actions/checkout@v4
       
       - name: Merge release PR
         if: ${{ steps.release.outputs.prs_created == 'true' }}
