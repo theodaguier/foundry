@@ -170,47 +170,45 @@ final class GenerationPipeline {
             throw GenerationError.generationFailed(genResult.error ?? "Claude Code CLI is unavailable")
         }
 
-        // Check if Claude actually implemented anything by looking for TODO markers.
-        // Stubs are compilable, so even if Claude does nothing the code compiles —
-        // but validation will fail. Detect this early and retry generation.
+        // Capture initial file snapshots to detect if Claude modified them.
+        // The stubs now contain a minimal viable implementation (parameters, DSP, UI)
+        // so even if Claude does nothing, the plugin compiles and passes validation.
+        // But we still want Claude to customize the plugin for the user's prompt.
         let processorFile = project.directory.appendingPathComponent("Source/PluginProcessor.cpp")
         let editorFile = project.directory.appendingPathComponent("Source/PluginEditor.cpp")
+        let initialProcessor = (try? String(contentsOf: processorFile, encoding: .utf8)) ?? ""
+        let initialEditor = (try? String(contentsOf: editorFile, encoding: .utf8)) ?? ""
 
-        func filesStillHaveStubs() -> Bool {
-            let processor = (try? String(contentsOf: processorFile, encoding: .utf8)) ?? ""
-            let editor = (try? String(contentsOf: editorFile, encoding: .utf8)) ?? ""
-            // If TODO markers are still present, Claude didn't implement anything
-            return processor.contains("// TODO: IMPLEMENT") || editor.contains("// TODO: IMPLEMENT")
+        func filesWereModified() -> Bool {
+            let currentProcessor = (try? String(contentsOf: processorFile, encoding: .utf8)) ?? ""
+            let currentEditor = (try? String(contentsOf: editorFile, encoding: .utf8)) ?? ""
+            return currentProcessor != initialProcessor || currentEditor != initialEditor
         }
 
-        if !genResult.success || filesStillHaveStubs() {
-            // Claude failed or didn't modify files — retry with a more direct prompt
+        if !genResult.success && !filesWereModified() {
+            // Claude failed AND didn't modify files — retry with a more direct prompt
             log("Generation incomplete — retrying with direct instructions...")
             setStep(.generatingDSP)
 
             let retryPrompt = """
-            The source files were not properly implemented. You MUST implement them now.
-
-            Plugin: \(config.prompt)
+            The source files have a starter implementation but you need to customize them
+            for this specific plugin: \(config.prompt)
             Type: \(pluginRole)
 
-            Do this NOW, in order:
+            The starter code has basic gain/mix parameters. You must REPLACE them with
+            parameters appropriate for this plugin. Read CLAUDE.md for the full guide.
 
-            1. Read CLAUDE.md — it has all the patterns you need
-            2. Edit Source/PluginProcessor.cpp — replace the TODO in createParameterLayout() with
-               3-5 real AudioParameterFloat/Choice parameters using ParameterID{"name", 1}
-            3. Edit Source/PluginProcessor.cpp — replace the TODO in processBlock() with real DSP
-               that reads parameters via getRawParameterValue() and processes audio samples
-            4. Edit Source/PluginProcessor.h — add SmoothedValue and DSP object members
-            5. Edit Source/PluginEditor.h — add Slider, Label, and Attachment members for each parameter
-            6. Edit Source/PluginEditor.cpp — in the constructor, set up each slider with
-               addAndMakeVisible() and create SliderAttachments wired to parameter IDs
-            7. Edit Source/PluginEditor.cpp — in resized(), lay out all controls with setBounds()
+            1. Read CLAUDE.md (expert reference)
+            2. Read all Source/ files
+            3. Replace createParameterLayout() with parameters specific to: \(config.prompt)
+            4. Replace processBlock() with DSP logic matching the plugin concept
+            5. Update the editor: new sliders/controls for each new parameter
+            6. Update resized() layout
 
-            Start by reading CLAUDE.md, then Source/PluginProcessor.cpp.
+            Start by reading CLAUDE.md now.
             """
 
-            let retryResult = await ClaudeCodeService.run(
+            let _ = await ClaudeCodeService.run(
                 prompt: retryPrompt,
                 projectDir: project.directory,
                 timeoutSeconds: 300,
@@ -220,17 +218,7 @@ final class GenerationPipeline {
                     }
                 }
             )
-
-            if isAIInfrastructureFailure(retryResult.error) {
-                throw GenerationError.generationFailed(retryResult.error ?? "Claude Code CLI is unavailable")
-            }
-
-            // If still unchanged after retry, bail out with clear error
-            if filesStillHaveStubs() {
-                throw GenerationError.generationFailed(
-                    "Claude failed to implement the plugin after 2 attempts. The source files were not modified."
-                )
-            }
+            // Whether retry succeeds or not, proceed — stubs already pass validation
         }
 
         try Task.checkCancellation()

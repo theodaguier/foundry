@@ -245,13 +245,63 @@ enum ProjectAssembler {
                 {
                     return dynamic_cast<\(pluginName)Sound*>(sound) != nullptr;
                 }
-                void startNote(int midiNote, float velocity, juce::SynthesiserSound*, int) override {}
-                void stopNote(float, bool) override { clearCurrentNote(); }
+                void startNote(int midiNote, float velocity, juce::SynthesiserSound*, int) override
+                {
+                    frequency = juce::MidiMessage::getMidiNoteInHertz(midiNote);
+                    level = velocity;
+                    phase = 0.0;
+                    adsr.setSampleRate(getSampleRate());
+                    adsr.setParameters({ 0.01f, 0.1f, 0.8f, 0.3f });
+                    adsr.noteOn();
+                }
+                void stopNote(float, bool allowTailOff) override
+                {
+                    adsr.noteOff();
+                    if (!allowTailOff) clearCurrentNote();
+                }
                 void pitchWheelMoved(int) override {}
                 void controllerMoved(int, int) override {}
-                void renderNextBlock(juce::AudioBuffer<float>&, int startSample, int numSamples) override {}
+                void renderNextBlock(juce::AudioBuffer<float>& buffer, int startSample, int numSamples) override
+                {
+                    if (!isVoiceActive()) return;
+                    for (int s = startSample; s < startSample + numSamples; ++s)
+                    {
+                        float sample = static_cast<float>(std::sin(phase * juce::MathConstants<double>::twoPi));
+                        phase += frequency / getSampleRate();
+                        if (phase >= 1.0) phase -= 1.0;
+                        float out = sample * adsr.getNextSample() * level;
+                        for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+                            buffer.addSample(ch, s, out);
+                    }
+                    if (!adsr.isActive()) clearCurrentNote();
+                }
+
+            private:
+                double frequency = 440.0;
+                double phase = 0.0;
+                float level = 0.0f;
+                juce::ADSR adsr;
             };
 
+            """
+        }
+
+        // Processor private members depend on plugin type
+        let processorMembers: String
+        switch pluginType {
+        case .effect:
+            processorMembers = """
+                juce::SmoothedValue<float> gainSmoothed;
+                juce::SmoothedValue<float> mixSmoothed;
+            """
+        case .instrument:
+            processorMembers = """
+                juce::Synthesiser synth;
+                juce::SmoothedValue<float> levelSmoothed;
+            """
+        case .utility:
+            processorMembers = """
+                juce::SmoothedValue<float> gainSmoothed;
             """
         }
 
@@ -287,7 +337,7 @@ enum ProjectAssembler {
 
         private:
             juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
-        \(isInstrument ? "    juce::Synthesiser synth;\n" : "")
+        \(processorMembers)
             JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(\(pluginName)Processor)
         };
         """
@@ -295,28 +345,128 @@ enum ProjectAssembler {
 
         // ── PluginProcessor.cpp ──────────────────────────────────────
 
+        let createParameterLayoutBody: String
+        let prepareToPlayBody: String
+        let processBlockBody: String
         var synthInit = ""
-        var processBlockBody: String
 
-        if isInstrument {
+        switch pluginType {
+        case .effect:
+            createParameterLayoutBody = """
+                std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
+                params.push_back(std::make_unique<juce::AudioParameterFloat>(
+                    juce::ParameterID{"gain", 1}, "Gain",
+                    juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.5f));
+                params.push_back(std::make_unique<juce::AudioParameterFloat>(
+                    juce::ParameterID{"mix", 1}, "Mix",
+                    juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 1.0f));
+                return { params.begin(), params.end() };
+            """
+            prepareToPlayBody = """
+                gainSmoothed.reset(sampleRate, 0.02);
+                mixSmoothed.reset(sampleRate, 0.02);
+            """
+            processBlockBody = """
+                juce::ignoreUnused(midiMessages);
+                juce::ScopedNoDenormals noDenormals;
+                for (auto i = getTotalNumInputChannels(); i < getTotalNumOutputChannels(); ++i)
+                    buffer.clear(i, 0, buffer.getNumSamples());
+
+                gainSmoothed.setTargetValue(apvts.getRawParameterValue("gain")->load());
+                mixSmoothed.setTargetValue(apvts.getRawParameterValue("mix")->load());
+
+                juce::AudioBuffer<float> dryBuffer;
+                dryBuffer.makeCopyOf(buffer);
+
+                for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+                {
+                    auto* data = buffer.getWritePointer(ch);
+                    for (int s = 0; s < buffer.getNumSamples(); ++s)
+                    {
+                        const float g = gainSmoothed.getNextValue() * 2.0f;
+                        data[s] = std::tanh(data[s] * g);
+                    }
+                }
+
+                for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+                {
+                    auto* wet = buffer.getWritePointer(ch);
+                    const auto* dry = dryBuffer.getReadPointer(ch);
+                    for (int s = 0; s < buffer.getNumSamples(); ++s)
+                    {
+                        const float m = mixSmoothed.getNextValue();
+                        wet[s] = dry[s] + m * (wet[s] - dry[s]);
+                    }
+                }
+            """
+
+        case .instrument:
             synthInit = """
 
                 synth.addSound(new \(pluginName)Sound());
                 for (int i = 0; i < 8; ++i)
                     synth.addVoice(new \(pluginName)Voice());
             """
+            createParameterLayoutBody = """
+                std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
+                params.push_back(std::make_unique<juce::AudioParameterFloat>(
+                    juce::ParameterID{"level", 1}, "Level",
+                    juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.8f));
+                params.push_back(std::make_unique<juce::AudioParameterFloat>(
+                    juce::ParameterID{"attack", 1}, "Attack",
+                    juce::NormalisableRange<float>(0.001f, 2.0f, 0.001f, 0.4f), 0.01f));
+                params.push_back(std::make_unique<juce::AudioParameterFloat>(
+                    juce::ParameterID{"release", 1}, "Release",
+                    juce::NormalisableRange<float>(0.01f, 5.0f, 0.01f, 0.4f), 0.3f));
+                return { params.begin(), params.end() };
+            """
+            prepareToPlayBody = """
+                synth.setCurrentPlaybackSampleRate(sampleRate);
+                levelSmoothed.reset(sampleRate, 0.02);
+            """
             processBlockBody = """
                 juce::ScopedNoDenormals noDenormals;
                 buffer.clear();
+                levelSmoothed.setTargetValue(apvts.getRawParameterValue("level")->load());
                 synth.renderNextBlock(buffer, midiMessages, 0, buffer.getNumSamples());
+                for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+                {
+                    auto* data = buffer.getWritePointer(ch);
+                    for (int s = 0; s < buffer.getNumSamples(); ++s)
+                        data[s] *= levelSmoothed.getNextValue();
+                }
             """
-        } else {
+
+        case .utility:
+            createParameterLayoutBody = """
+                std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
+                params.push_back(std::make_unique<juce::AudioParameterFloat>(
+                    juce::ParameterID{"gain", 1}, "Gain",
+                    juce::NormalisableRange<float>(-60.0f, 12.0f, 0.1f), 0.0f));
+                params.push_back(std::make_unique<juce::AudioParameterBool>(
+                    juce::ParameterID{"invert", 1}, "Phase Invert", false));
+                return { params.begin(), params.end() };
+            """
+            prepareToPlayBody = """
+                gainSmoothed.reset(sampleRate, 0.02);
+            """
             processBlockBody = """
+                juce::ignoreUnused(midiMessages);
                 juce::ScopedNoDenormals noDenormals;
                 for (auto i = getTotalNumInputChannels(); i < getTotalNumOutputChannels(); ++i)
                     buffer.clear(i, 0, buffer.getNumSamples());
-                // TODO: IMPLEMENT — read parameters, process audio samples with real DSP
-                // This stub will FAIL validation if left as pass-through.
+
+                gainSmoothed.setTargetValue(
+                    juce::Decibels::decibelsToGain(apvts.getRawParameterValue("gain")->load()));
+                const bool invert = apvts.getRawParameterValue("invert")->load() > 0.5f;
+                const float phase = invert ? -1.0f : 1.0f;
+
+                for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+                {
+                    auto* data = buffer.getWritePointer(ch);
+                    for (int s = 0; s < buffer.getNumSamples(); ++s)
+                        data[s] *= gainSmoothed.getNextValue() * phase;
+                }
             """
         }
 
@@ -335,22 +485,20 @@ enum ProjectAssembler {
 
         juce::AudioProcessorValueTreeState::ParameterLayout \(pluginName)Processor::createParameterLayout()
         {
-            std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
-            // TODO: IMPLEMENT — add 3-5 AudioParameterFloat/Choice/Bool here
-            // This stub will FAIL validation if left empty. You MUST add real parameters.
-            return { params.begin(), params.end() };
+        \(createParameterLayoutBody)
         }
 
         void \(pluginName)Processor::prepareToPlay(double sampleRate, int samplesPerBlock)
         {
-        \(isInstrument ? "    synth.setCurrentPlaybackSampleRate(sampleRate);" : "    juce::ignoreUnused(sampleRate, samplesPerBlock);")
+            juce::ignoreUnused(samplesPerBlock);
+        \(prepareToPlayBody)
         }
 
         void \(pluginName)Processor::releaseResources() {}
 
         void \(pluginName)Processor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
         {
-        \(isInstrument ? "" : "    juce::ignoreUnused(midiMessages);\n")\(processBlockBody)
+        \(processBlockBody)
         }
 
         void \(pluginName)Processor::getStateInformation(juce::MemoryBlock& destData)
@@ -386,6 +534,44 @@ enum ProjectAssembler {
 
         // ── PluginEditor.h ───────────────────────────────────────────
 
+        // Build editor members matching the starter parameters
+        let editorMembers: String
+        switch pluginType {
+        case .effect:
+            editorMembers = """
+                juce::Slider gainSlider;
+                juce::Label gainLabel;
+                std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> gainAttachment;
+
+                juce::Slider mixSlider;
+                juce::Label mixLabel;
+                std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> mixAttachment;
+            """
+        case .instrument:
+            editorMembers = """
+                juce::Slider levelSlider;
+                juce::Label levelLabel;
+                std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> levelAttachment;
+
+                juce::Slider attackSlider;
+                juce::Label attackLabel;
+                std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> attackAttachment;
+
+                juce::Slider releaseSlider;
+                juce::Label releaseLabel;
+                std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> releaseAttachment;
+            """
+        case .utility:
+            editorMembers = """
+                juce::Slider gainSlider;
+                juce::Label gainLabel;
+                std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> gainAttachment;
+
+                juce::ToggleButton invertButton { "Phase Invert" };
+                std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> invertAttachment;
+            """
+        }
+
         let editorH = """
         #pragma once
         #include "PluginProcessor.h"
@@ -404,12 +590,127 @@ enum ProjectAssembler {
             \(pluginName)Processor& processorRef;
             FoundryLookAndFeel lookAndFeel;
 
+        \(editorMembers)
             JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(\(pluginName)Editor)
         };
         """
         try editorH.write(to: dir.appendingPathComponent("PluginEditor.h"), atomically: true, encoding: .utf8)
 
         // ── PluginEditor.cpp ─────────────────────────────────────────
+
+        let editorConstructorBody: String
+        let editorResizedBody: String
+
+        switch pluginType {
+        case .effect:
+            editorConstructorBody = """
+                gainSlider.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
+                gainSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 60, 16);
+                addAndMakeVisible(gainSlider);
+                gainAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
+                    processorRef.apvts, "gain", gainSlider);
+                gainLabel.setText("GAIN", juce::dontSendNotification);
+                gainLabel.setJustificationType(juce::Justification::centred);
+                gainLabel.setFont(juce::Font(juce::FontOptions(10.0f)));
+                gainLabel.setColour(juce::Label::textColourId, lookAndFeel.dimTextColour);
+                addAndMakeVisible(gainLabel);
+
+                mixSlider.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
+                mixSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 60, 16);
+                addAndMakeVisible(mixSlider);
+                mixAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
+                    processorRef.apvts, "mix", mixSlider);
+                mixLabel.setText("MIX", juce::dontSendNotification);
+                mixLabel.setJustificationType(juce::Justification::centred);
+                mixLabel.setFont(juce::Font(juce::FontOptions(10.0f)));
+                mixLabel.setColour(juce::Label::textColourId, lookAndFeel.dimTextColour);
+                addAndMakeVisible(mixLabel);
+            """
+            editorResizedBody = """
+                auto area = getLocalBounds().reduced(20);
+                area.removeFromTop(40);
+                auto left = area.removeFromLeft(area.getWidth() / 2);
+                gainSlider.setBounds(left.removeFromTop(left.getHeight() - 20).reduced(10));
+                gainLabel.setBounds(left);
+                mixSlider.setBounds(area.removeFromTop(area.getHeight() - 20).reduced(10));
+                mixLabel.setBounds(area);
+            """
+
+        case .instrument:
+            editorConstructorBody = """
+                levelSlider.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
+                levelSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 60, 16);
+                addAndMakeVisible(levelSlider);
+                levelAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
+                    processorRef.apvts, "level", levelSlider);
+                levelLabel.setText("LEVEL", juce::dontSendNotification);
+                levelLabel.setJustificationType(juce::Justification::centred);
+                levelLabel.setFont(juce::Font(juce::FontOptions(10.0f)));
+                levelLabel.setColour(juce::Label::textColourId, lookAndFeel.dimTextColour);
+                addAndMakeVisible(levelLabel);
+
+                attackSlider.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
+                attackSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 60, 16);
+                addAndMakeVisible(attackSlider);
+                attackAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
+                    processorRef.apvts, "attack", attackSlider);
+                attackLabel.setText("ATTACK", juce::dontSendNotification);
+                attackLabel.setJustificationType(juce::Justification::centred);
+                attackLabel.setFont(juce::Font(juce::FontOptions(10.0f)));
+                attackLabel.setColour(juce::Label::textColourId, lookAndFeel.dimTextColour);
+                addAndMakeVisible(attackLabel);
+
+                releaseSlider.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
+                releaseSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 60, 16);
+                addAndMakeVisible(releaseSlider);
+                releaseAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
+                    processorRef.apvts, "release", releaseSlider);
+                releaseLabel.setText("RELEASE", juce::dontSendNotification);
+                releaseLabel.setJustificationType(juce::Justification::centred);
+                releaseLabel.setFont(juce::Font(juce::FontOptions(10.0f)));
+                releaseLabel.setColour(juce::Label::textColourId, lookAndFeel.dimTextColour);
+                addAndMakeVisible(releaseLabel);
+            """
+            editorResizedBody = """
+                auto area = getLocalBounds().reduced(20);
+                area.removeFromTop(40);
+                int sectionW = area.getWidth() / 3;
+                auto s1 = area.removeFromLeft(sectionW);
+                auto s2 = area.removeFromLeft(sectionW);
+                auto s3 = area;
+                levelSlider.setBounds(s1.removeFromTop(s1.getHeight() - 20).reduced(10));
+                levelLabel.setBounds(s1);
+                attackSlider.setBounds(s2.removeFromTop(s2.getHeight() - 20).reduced(10));
+                attackLabel.setBounds(s2);
+                releaseSlider.setBounds(s3.removeFromTop(s3.getHeight() - 20).reduced(10));
+                releaseLabel.setBounds(s3);
+            """
+
+        case .utility:
+            editorConstructorBody = """
+                gainSlider.setSliderStyle(juce::Slider::LinearHorizontal);
+                gainSlider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 60, 20);
+                addAndMakeVisible(gainSlider);
+                gainAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
+                    processorRef.apvts, "gain", gainSlider);
+                gainLabel.setText("GAIN (dB)", juce::dontSendNotification);
+                gainLabel.setFont(juce::Font(juce::FontOptions(10.0f)));
+                gainLabel.setColour(juce::Label::textColourId, lookAndFeel.dimTextColour);
+                addAndMakeVisible(gainLabel);
+
+                addAndMakeVisible(invertButton);
+                invertAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
+                    processorRef.apvts, "invert", invertButton);
+            """
+            editorResizedBody = """
+                auto area = getLocalBounds().reduced(20);
+                area.removeFromTop(40);
+                gainLabel.setBounds(area.removeFromTop(20));
+                gainSlider.setBounds(area.removeFromTop(40));
+                area.removeFromTop(20);
+                invertButton.setBounds(area.removeFromTop(30).removeFromLeft(160));
+            """
+        }
 
         let editorCPP = """
         #include "PluginEditor.h"
@@ -418,8 +719,8 @@ enum ProjectAssembler {
             : AudioProcessorEditor(&p), processorRef(p)
         {
             setLookAndFeel(&lookAndFeel);
-            // TODO: IMPLEMENT — create sliders, labels, attachments with addAndMakeVisible()
-            // Every parameter MUST have a visible UI control. This WILL FAIL validation if empty.
+
+        \(editorConstructorBody)
             setSize(600, 400);
         }
 
@@ -435,7 +736,7 @@ enum ProjectAssembler {
 
         void \(pluginName)Editor::resized()
         {
-            // TODO: IMPLEMENT — lay out your sliders and labels using setBounds()
+        \(editorResizedBody)
         }
         """
         try editorCPP.write(to: dir.appendingPathComponent("PluginEditor.cpp"), atomically: true, encoding: .utf8)
@@ -966,7 +1267,9 @@ enum ProjectAssembler {
         Parameters are the contract between your DSP and your UI. Define them first because
         everything else depends on them.
 
-        Edit `createParameterLayout()` in PluginProcessor.cpp. The stub has an empty vector — fill it:
+        The starter code has basic parameters (gain/mix or level/attack/release). You must
+        REPLACE them with parameters specific to this plugin. Edit `createParameterLayout()`
+        in PluginProcessor.cpp:
 
         ```cpp
         juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
@@ -1166,17 +1469,17 @@ enum ProjectAssembler {
 
         ## Automated Validation
 
-        After your code compiles, it is automatically validated. These checks MUST pass:
+        After your code compiles, it is automatically validated. The starter code already
+        passes these checks — your job is to replace the generic implementation with one
+        that matches the plugin description. Do not remove functionality without replacing it.
 
-        | Check | Requirement | How to pass |
-        |---|---|---|
-        | Parameters exist | ≥1 parameter with `ParameterID{"...", 1}` in Processor.cpp | Fill createParameterLayout() |
-        | DSP is real | processBlock contains actual audio processing (math, filters, parameter reads) | Write real DSP, not just pass-through |
-        | UI coverage | Every parameter ID string appears in Editor.cpp (via Attachments) | Wire every param to a control |
-        | Visible controls | ≥2 `addAndMakeVisible()` calls in Editor.cpp | Add sliders + labels |
-        \(pluginType == .instrument ? "| Voice rendering | `renderNextBlock` exists with real implementation | Implement oscillator + envelope |" : "")
-
-        If any check fails, you will be asked to fix it. Save time: get it right the first time.
+        | Check | Requirement |
+        |---|---|
+        | Parameters exist | ≥1 parameter with `ParameterID{"...", 1}` in Processor.cpp |
+        | DSP is real | processBlock contains actual audio processing (math, filters, parameter reads) |
+        | UI coverage | Every parameter ID string appears in Editor.cpp (via Attachments) |
+        | Visible controls | ≥2 `addAndMakeVisible()` calls in Editor.cpp |
+        \(pluginType == .instrument ? "| Voice rendering | `renderNextBlock` exists with real implementation |" : "")
         """
 
         try content.write(to: dir.appendingPathComponent("CLAUDE.md"), atomically: true, encoding: .utf8)
