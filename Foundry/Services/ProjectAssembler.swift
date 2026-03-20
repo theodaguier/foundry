@@ -315,6 +315,8 @@ enum ProjectAssembler {
                 juce::ScopedNoDenormals noDenormals;
                 for (auto i = getTotalNumInputChannels(); i < getTotalNumOutputChannels(); ++i)
                     buffer.clear(i, 0, buffer.getNumSamples());
+                // TODO: IMPLEMENT — read parameters, process audio samples with real DSP
+                // This stub will FAIL validation if left as pass-through.
             """
         }
 
@@ -334,6 +336,8 @@ enum ProjectAssembler {
         juce::AudioProcessorValueTreeState::ParameterLayout \(pluginName)Processor::createParameterLayout()
         {
             std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
+            // TODO: IMPLEMENT — add 3-5 AudioParameterFloat/Choice/Bool here
+            // This stub will FAIL validation if left empty. You MUST add real parameters.
             return { params.begin(), params.end() };
         }
 
@@ -414,6 +418,8 @@ enum ProjectAssembler {
             : AudioProcessorEditor(&p), processorRef(p)
         {
             setLookAndFeel(&lookAndFeel);
+            // TODO: IMPLEMENT — create sliders, labels, attachments with addAndMakeVisible()
+            // Every parameter MUST have a visible UI control. This WILL FAIL validation if empty.
             setSize(600, 400);
         }
 
@@ -429,6 +435,7 @@ enum ProjectAssembler {
 
         void \(pluginName)Editor::resized()
         {
+            // TODO: IMPLEMENT — lay out your sliders and labels using setBounds()
         }
         """
         try editorCPP.write(to: dir.appendingPathComponent("PluginEditor.cpp"), atomically: true, encoding: .utf8)
@@ -564,64 +571,317 @@ enum ProjectAssembler {
         let presetCount = config.presetCount.rawValue
 
         let interfaceDirection: String = switch interfaceStyle {
-        case .focused: "Keep the UI tight and immediate. Show only essential controls at first glance."
-        case .balanced: "Use clear grouped sections with a strong primary area and tidy secondary controls."
-        case .exploratory: "Allow a denser interface with richer modulation, modes, and deeper parameter access."
+        case .focused: "Focused — tight, immediate. 3-4 essential controls. No clutter."
+        case .balanced: "Balanced — grouped sections, clear primary area, tidy secondary controls. 5-8 parameters."
+        case .exploratory: "Exploratory — denser layout, richer modulation, modes, deeper parameter access. 8-12+ parameters."
         }
 
-        let instrumentSkills: String = pluginType == .instrument ? """
+        // --- Per-type architecture sections ---
 
-        ### Instrument voice pattern
-        Voices are declared in PluginProcessor.h. Each voice handles one note:
-        ```cpp
-        void startNote(int midiNote, float velocity, juce::SynthesiserSound*, int) override
-        {
-            frequency = juce::MidiMessage::getMidiNoteInHertz(midiNote);
-            level = velocity;
-            adsr.noteOn();
-        }
+        let architectureSection: String
+        let dspSection: String
 
-        void stopNote(float, bool allowTailOff) override
-        {
-            adsr.noteOff();
-            if (!allowTailOff) clearCurrentNote();
-        }
+        switch pluginType {
+        case .effect:
+            architectureSection = """
+            ## Architecture: Audio Effect
 
-        void renderNextBlock(juce::AudioBuffer<float>& buffer, int startSample, int numSamples) override
-        {
-            // Generate samples using oscillator + envelope
-            for (int s = startSample; s < startSample + numSamples; ++s)
+            An audio effect receives audio input, transforms it, and outputs the result.
+
+            **Signal flow:** Host → processBlock(buffer) → your DSP modifies buffer in-place → Host
+
+            **Key principle:** Every parameter you expose must audibly change the output. If a knob
+            doesn't do anything perceptible, remove it. Effects should sound good on default settings
+            and get more extreme as you turn knobs up.
+
+            **Processor owns:** parameters, DSP state (filters, delay lines, smoothed values), prepareToPlay setup.
+            **Editor owns:** sliders, labels, attachments, layout. Editor reads nothing from the audio thread directly.
+            **They connect through:** `AudioProcessorValueTreeState` (apvts). Parameters are defined once in
+            the Processor, and the Editor binds UI controls to them via Attachments. That's the only bridge.
+            """
+
+            dspSection = """
+            ## Phase 2: DSP — Audio Processing
+
+            Your processBlock receives a buffer of audio samples. You must:
+            1. Read parameter values (atomically, they're set from the UI thread)
+            2. Feed them into SmoothedValues (prevents clicks/zipper noise)
+            3. Process every sample in the buffer with real math
+            4. Optionally mix dry/wet
+
+            ### processBlock pattern:
+            ```cpp
+            void processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
             {
-                float sample = /* oscillator output */ * adsr.getNextSample() * level;
+                juce::ScopedNoDenormals noDenormals;
+                for (auto i = getTotalNumInputChannels(); i < getTotalNumOutputChannels(); ++i)
+                    buffer.clear(i, 0, buffer.getNumSamples());
+
+                // 1. Update smoothed parameter targets
+                driveSmoothed.setTargetValue(apvts.getRawParameterValue("drive")->load());
+                mixSmoothed.setTargetValue(apvts.getRawParameterValue("mix")->load());
+
+                // 2. Copy dry signal for dry/wet mixing
+                juce::AudioBuffer<float> dryBuffer;
+                dryBuffer.makeCopyOf(buffer);
+
+                // 3. Process each channel, each sample
                 for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
-                    buffer.addSample(ch, s, sample);
+                {
+                    auto* data = buffer.getWritePointer(ch);
+                    for (int s = 0; s < buffer.getNumSamples(); ++s)
+                    {
+                        const float drive = driveSmoothed.getNextValue();
+                        data[s] = std::tanh(data[s] * drive * 4.0f);
+                    }
+                }
+
+                // 4. Apply dry/wet mix
+                for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+                {
+                    auto* wet = buffer.getWritePointer(ch);
+                    const auto* dry = dryBuffer.getReadPointer(ch);
+                    for (int s = 0; s < buffer.getNumSamples(); ++s)
+                    {
+                        const float mix = mixSmoothed.getNextValue();
+                        wet[s] = dry[s] + mix * (wet[s] - dry[s]);
+                    }
+                }
             }
-            if (!adsr.isActive()) clearCurrentNote();
+            ```
+
+            ### prepareToPlay pattern:
+            ```cpp
+            void prepareToPlay(double sampleRate, int samplesPerBlock)
+            {
+                juce::dsp::ProcessSpec spec;
+                spec.sampleRate = sampleRate;
+                spec.maximumBlockSize = (juce::uint32)samplesPerBlock;
+                spec.numChannels = (juce::uint32)getTotalNumOutputChannels();
+
+                // Prepare all DSP objects
+                myFilter.prepare(spec);
+                myDelay.prepare(spec);
+
+                // Reset smoothed values with ~20ms ramp
+                driveSmoothed.reset(sampleRate, 0.02);
+                mixSmoothed.reset(sampleRate, 0.02);
+            }
+            ```
+
+            ### Available juce::dsp classes:
+            | Class | Use for |
+            |---|---|
+            | `juce::dsp::IIR::Filter<float>` | EQ, lowpass, highpass, shelving, bandpass |
+            | `juce::dsp::StateVariableTPTFilter<float>` | Multi-mode filter (LP/HP/BP simultaneously) |
+            | `juce::dsp::DelayLine<float>` | Delay, chorus, flanger, comb filtering |
+            | `juce::dsp::Reverb` | Reverb (Freeverb algorithm) |
+            | `juce::dsp::WaveShaper<float>` | Distortion, saturation, waveshaping |
+            | `juce::dsp::Oscillator<float>` | LFO, tone generation, test signals |
+            | `juce::dsp::Chorus<float>` | Chorus effect |
+            | `juce::dsp::Compressor<float>` | Dynamics compression |
+            | `juce::dsp::Limiter<float>` | Output limiting |
+            | `juce::SmoothedValue<float>` | Parameter smoothing (ALWAYS use for continuous params) |
+
+            ### DSP rules:
+            - Feedback coefficients must be < 1.0 (or you get infinite gain → explosion)
+            - Delay times: allocate max in prepareToPlay, set actual time in processBlock
+            - All SmoothedValue members must be `.reset(sampleRate, rampTime)` in prepareToPlay
+            - Every `getRawParameterValue()` call must use the exact string ID from createParameterLayout
+            - Default parameter values must produce a musically useful, audible effect
+            """
+
+        case .instrument:
+            architectureSection = """
+            ## Architecture: Instrument Plugin
+
+            An instrument receives MIDI input and generates audio output. There is no audio input.
+
+            **Signal flow:** Host sends MIDI → Synthesiser distributes to Voices → each Voice renders
+            audio via renderNextBlock → mixed into output buffer → Host
+
+            **Key principle:** The Synthesiser + Voice architecture is already set up in the stubs.
+            8 voices are pre-allocated. Your job is to implement the voice (oscillator + envelope)
+            and wire processor parameters into the voices.
+
+            **Processor owns:** `juce::Synthesiser synth`, parameters, global DSP (master filter, effects).
+            processBlock calls `synth.renderNextBlock()` — do NOT generate audio directly in processBlock.
+            **Voice owns:** per-note state (phase, frequency, envelope, level). Each voice is one note.
+            **Editor owns:** sliders, labels, attachments, layout.
+            **They connect through:** `apvts` for parameters. Voices access processor params via pointer.
+            """
+
+            dspSection = """
+            ## Phase 2: DSP — Voice Rendering + Processor
+
+            ### Voice implementation (in PluginProcessor.h):
+
+            The voice stub already exists. You must implement these methods:
+
+            ```cpp
+            class \(pluginName)Voice : public juce::SynthesiserVoice
+            {
+            public:
+                // Store a pointer to the processor to access parameters
+                void setProcessor(\(pluginName)Processor* p) { processor = p; }
+
+                bool canPlaySound(juce::SynthesiserSound* sound) override
+                {
+                    return dynamic_cast<\(pluginName)Sound*>(sound) != nullptr;
+                }
+
+                void startNote(int midiNote, float velocity, juce::SynthesiserSound*, int) override
+                {
+                    frequency = juce::MidiMessage::getMidiNoteInHertz(midiNote);
+                    level = velocity;
+                    phase = 0.0;
+                    adsr.noteOn();
+                }
+
+                void stopNote(float, bool allowTailOff) override
+                {
+                    adsr.noteOff();
+                    if (!allowTailOff) clearCurrentNote();
+                }
+
+                void pitchWheelMoved(int) override {}
+                void controllerMoved(int, int) override {}
+
+                void renderNextBlock(juce::AudioBuffer<float>& buffer, int startSample, int numSamples) override
+                {
+                    if (!isVoiceActive()) return;
+
+                    for (int s = startSample; s < startSample + numSamples; ++s)
+                    {
+                        // Generate oscillator sample
+                        double sample = std::sin(phase * juce::MathConstants<double>::twoPi);
+                        phase += frequency / getSampleRate();
+                        if (phase >= 1.0) phase -= 1.0;
+
+                        // Apply envelope
+                        float envValue = adsr.getNextSample();
+                        float output = static_cast<float>(sample) * envValue * level;
+
+                        for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+                            buffer.addSample(ch, s, output);
+                    }
+
+                    if (!adsr.isActive()) clearCurrentNote();
+                }
+
+                void prepareToPlay(double sampleRate, int /*samplesPerBlock*/)
+                {
+                    adsr.setSampleRate(sampleRate);
+                }
+
+            private:
+                \(pluginName)Processor* processor = nullptr;
+                double frequency = 440.0;
+                double phase = 0.0;
+                float level = 0.0f;
+                juce::ADSR adsr;
+                juce::ADSR::Parameters adsrParams { 0.01f, 0.1f, 0.8f, 0.3f };
+            };
+            ```
+
+            ### Processor processBlock (already stubbed — voices handle audio):
+            ```cpp
+            void processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
+            {
+                juce::ScopedNoDenormals noDenormals;
+                buffer.clear();
+
+                // Update voice parameters from apvts before rendering
+                // (e.g., update ADSR, filter cutoff, etc. on all voices)
+
+                synth.renderNextBlock(buffer, midiMessages, 0, buffer.getNumSamples());
+
+                // Optional: apply master effects (filter, reverb) to the mixed output
+            }
+            ```
+
+            ### prepareToPlay:
+            ```cpp
+            void prepareToPlay(double sampleRate, int samplesPerBlock)
+            {
+                synth.setCurrentPlaybackSampleRate(sampleRate);
+                // Prepare voices
+                for (int i = 0; i < synth.getNumVoices(); ++i)
+                    if (auto* voice = dynamic_cast<\(pluginName)Voice*>(synth.getVoice(i)))
+                        voice->prepareToPlay(sampleRate, samplesPerBlock);
+            }
+            ```
+
+            ### Voice rules:
+            - 8 voices are pre-allocated in the constructor — do not change this
+            - Use `buffer.addSample()` (not setSample) — voices are mixed additively
+            - Always check `isVoiceActive()` at the top of renderNextBlock
+            - Always call `clearCurrentNote()` when the envelope finishes
+            - Use `juce::ADSR` for envelopes — it handles sample-accurate note-on/off
+            - Access processor parameters via the stored pointer, not globals
+            """
+
+        case .utility:
+            architectureSection = """
+            ## Architecture: Utility Plugin
+
+            A utility plugin processes or analyzes audio without creative coloring.
+            It should be transparent, precise, and immediately useful.
+
+            **Signal flow:** Same as effect — Host → processBlock → Host.
+
+            **Key principle:** Utility plugins must be safe and predictable. Default settings should
+            pass audio through unchanged or with minimal, expected processing. No surprises.
+            Gain parameters should use decibels. Metering should be accurate.
+
+            **Common utility types:** gain/trim, stereo width, mono check, phase invert,
+            spectrum analyzer, level meter, balance, mid/side encoder.
+            """
+
+            dspSection = """
+            ## Phase 2: DSP — Utility Processing
+
+            ### processBlock pattern for utilities:
+            ```cpp
+            void processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
+            {
+                juce::ScopedNoDenormals noDenormals;
+                for (auto i = getTotalNumInputChannels(); i < getTotalNumOutputChannels(); ++i)
+                    buffer.clear(i, 0, buffer.getNumSamples());
+
+                // Read parameters
+                gainSmoothed.setTargetValue(
+                    juce::Decibels::decibelsToGain(apvts.getRawParameterValue("gain")->load()));
+
+                for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+                {
+                    auto* data = buffer.getWritePointer(ch);
+                    for (int s = 0; s < buffer.getNumSamples(); ++s)
+                        data[s] *= gainSmoothed.getNextValue();
+                }
+            }
+            ```
+
+            ### Utility-specific rules:
+            - Use `juce::Decibels::decibelsToGain()` / `gainToDecibels()` for all gain parameters
+            - Gain range: typically -60 dB to +12 dB, default 0 dB (unity)
+            - Width range: 0% (mono) to 200% (wide), default 100% (unchanged)
+            - Phase parameters are boolean (invert or not)
+            - Be transparent: default settings = no audible change
+            """
         }
-        ```
-        - 8 voices are pre-allocated in the constructor
-        - Access processor parameters via `dynamic_cast` or store pointers
-        - Use `juce::ADSR` for envelopes, `juce::dsp::Oscillator<float>` for waveforms
-        """ : ""
 
-        let utilitySkills: String = pluginType == .utility ? """
-
-        ### Utility plugin guidelines
-        - Stay safe, transparent, and immediately useful on first load
-        - Expose clear metering, routing, gain staging, or analysis behavior
-        - Avoid fake "creative" DSP if the plugin is meant to be a helper or analyzer
-        - Use `juce::Decibels::decibelsToGain()` for dB parameters
-        """ : ""
+        // --- Preset section (conditional) ---
 
         let presetSection: String
         if presetCount > 0 {
             presetSection = """
 
-            ## SKILL: Presets (\(presetCount) required)
+            ## Phase 5: Presets (\(presetCount) required)
 
-            Implement exactly **\(presetCount) presets** using JUCE's program system.
+            After completing Phases 1-4, implement exactly \(presetCount) presets.
 
-            ### In PluginProcessor.h:
+            ### In PluginProcessor.h — add to private section:
             ```cpp
             struct PresetData {
                 const char* name;
@@ -631,22 +891,17 @@ enum ProjectAssembler {
             int currentPreset = 0;
             ```
 
-            ### In PluginProcessor.cpp — use Edit to MODIFY the existing one-liner stubs:
-            The file already contains these methods with stub bodies. Use your Edit tool to replace their bodies:
-            - `getNumPrograms()` → return \(presetCount);
-            - `getCurrentProgram()` → return currentPreset;
-            - `getProgramName(int index)` → return presets[index].name;
-            - `setCurrentProgram(int index)` → apply preset values via apvts
-
-            **DO NOT add new method definitions — they already exist. Edit them in place.**
-
+            ### In PluginProcessor.cpp — MODIFY (not add) existing stubs:
+            These methods already exist with one-liner bodies. Use Edit to replace them:
+            - `getNumPrograms()` → `return \(presetCount);`
+            - `getCurrentProgram()` → `return currentPreset;`
+            - `getProgramName(int index)` → `return presets[(size_t)index].name;`
+            - `setCurrentProgram(int index)`:
             ```cpp
-            // setCurrentProgram implementation pattern:
-            void \(pluginName)Processor::setCurrentProgram(int index)
             {
                 if (index < 0 || index >= getNumPrograms()) return;
                 currentPreset = index;
-                for (const auto& [paramId, value] : presets[index].values)
+                for (const auto& [paramId, value] : presets[(size_t)index].values)
                     if (auto* param = apvts.getParameter(paramId))
                         param->setValueNotifyingHost(param->convertTo0to1(value));
             }
@@ -664,199 +919,266 @@ enum ProjectAssembler {
             };
             addAndMakeVisible(presetBox);
             ```
-            Each preset must set ALL parameters to musically distinct values. Short, descriptive names.
+
+            Each preset must set ALL parameters to musically distinct, useful values.
             """
         } else {
             presetSection = ""
         }
 
+        // --- Main CLAUDE.md content ---
+
         let content = """
-        # \(pluginName) — Audio Plugin Brief
+        # \(pluginName)
 
-        ## Mission
-        You are an expert JUCE/C++ audio plugin developer.
-        Build a **\(pluginRole)** plugin: **\(config.prompt)**
+        You are an expert C++/JUCE audio plugin developer. Your job is to implement a fully
+        working \(pluginRole) plugin based on this description:
 
-        Channel layout: **\(channelDesc)**
-        Interface style: **\(interfaceStyle.rawValue)**
+        > \(config.prompt)
 
-        ## Project
-        - `Source/PluginProcessor.h/.cpp` — DSP engine, parameters, audio processing
-        - `Source/PluginEditor.h/.cpp` — interface, controls, layout
-        - `Source/FoundryLookAndFeel.h` — visual theme (change `accentColour` to fit plugin character)
-        - `CMakeLists.txt` — build config, **DO NOT MODIFY**
+        Channel layout: **\(channelDesc)** | Interface: **\(interfaceDirection)**
 
-        Class names: `\(pluginName)Processor`, `\(pluginName)Editor` — do not rename.
-        C++17. JUCE only. No external dependencies. All JUCE types prefixed `juce::`.
-        Do not create new files. Do not modify CMakeLists.txt.
+        ---
 
-        ## SKILL: Parameter System
+        ## Project Structure
 
-        Parameters bridge DSP and UI. Define them in `createParameterLayout()`:
+        | File | Role | You should |
+        |---|---|---|
+        | `Source/PluginProcessor.h` | Processor class, voice classes (instruments), member declarations | Add members (SmoothedValues, DSP objects, sliders) |
+        | `Source/PluginProcessor.cpp` | Parameter layout, prepareToPlay, processBlock, state save/load | Implement all DSP logic |
+        | `Source/PluginEditor.h` | Editor class, UI member declarations | Add slider/label/attachment members |
+        | `Source/PluginEditor.cpp` | Constructor (create controls), paint, resized (layout) | Build the full UI |
+        | `Source/FoundryLookAndFeel.h` | Dark theme with configurable accent colour | Change `accentColour` only |
+        | `CMakeLists.txt` | Build configuration | **NEVER MODIFY** |
+
+        Class names: **\(pluginName)Processor**, **\(pluginName)Editor** — do not rename.
+
+        \(architectureSection)
+
+        ---
+
+        ## Implementation Phases
+
+        Follow these phases in strict order. Complete each phase fully before moving to the next.
+
+        ## Phase 1: Parameters — Define the Controls
+
+        Parameters are the contract between your DSP and your UI. Define them first because
+        everything else depends on them.
+
+        Edit `createParameterLayout()` in PluginProcessor.cpp. The stub has an empty vector — fill it:
 
         ```cpp
-        // Continuous value (gain, frequency, time):
-        params.push_back(std::make_unique<juce::AudioParameterFloat>(
-            juce::ParameterID{"drive", 1}, "Drive",
-            juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.5f));
-
-        // Skewed range (frequencies):
-        juce::NormalisableRange<float>(20.0f, 20000.0f, 1.0f, 0.3f)  // skew < 1 = more resolution at low end
-
-        // Discrete choice (waveform, mode):
-        params.push_back(std::make_unique<juce::AudioParameterChoice>(
-            juce::ParameterID{"mode", 1}, "Mode",
-            juce::StringArray{"Clean", "Warm", "Aggressive"}, 0));
-
-        // Boolean (bypass, enable):
-        params.push_back(std::make_unique<juce::AudioParameterBool>(
-            juce::ParameterID{"bypass", 1}, "Bypass", false));
-        ```
-
-        Reading parameters in processBlock:
-        ```cpp
-        auto value = apvts.getRawParameterValue("paramId")->load();
-        ```
-        Always smooth continuous parameters with `juce::SmoothedValue<float>` to avoid zipper noise.
-
-        ## SKILL: DSP
-
-        ### Effect processBlock structure:
-        ```cpp
-        void processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
+        juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
         {
-            juce::ScopedNoDenormals noDenormals;
-            for (auto i = getTotalNumInputChannels(); i < getTotalNumOutputChannels(); ++i)
-                buffer.clear(i, 0, buffer.getNumSamples());
+            std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
 
-            // Read parameters with smoothing
-            driveSmoothed.setTargetValue(apvts.getRawParameterValue("drive")->load());
+            // Continuous float parameter:
+            params.push_back(std::make_unique<juce::AudioParameterFloat>(
+                juce::ParameterID{"drive", 1}, "Drive",
+                juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.5f));
 
-            // Copy dry buffer if you need dry/wet mix
-            juce::AudioBuffer<float> dryBuffer;
-            dryBuffer.makeCopyOf(buffer);
+            // Frequency parameter (skewed — more resolution at low end):
+            params.push_back(std::make_unique<juce::AudioParameterFloat>(
+                juce::ParameterID{"cutoff", 1}, "Cutoff",
+                juce::NormalisableRange<float>(20.0f, 20000.0f, 1.0f, 0.3f), 1000.0f));
 
-            // Process audio per-sample or per-block
-            for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
-            {
-                auto* data = buffer.getWritePointer(ch);
-                for (int s = 0; s < buffer.getNumSamples(); ++s)
-                {
-                    const float drive = driveSmoothed.getNextValue();
-                    data[s] = std::tanh(data[s] * drive);
-                }
-            }
+            // Choice parameter (discrete options):
+            params.push_back(std::make_unique<juce::AudioParameterChoice>(
+                juce::ParameterID{"mode", 1}, "Mode",
+                juce::StringArray{"Clean", "Warm", "Aggressive"}, 0));
 
-            // Apply dry/wet
-            const float mix = apvts.getRawParameterValue("mix")->load();
-            for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
-            {
-                auto* wet = buffer.getWritePointer(ch);
-                auto* dry = dryBuffer.getReadPointer(ch);
-                for (int s = 0; s < buffer.getNumSamples(); ++s)
-                    wet[s] = dry[s] + mix * (wet[s] - dry[s]);
-            }
+            // Boolean parameter:
+            params.push_back(std::make_unique<juce::AudioParameterBool>(
+                juce::ParameterID{"bypass", 1}, "Bypass", false));
+
+            return { params.begin(), params.end() };
         }
         ```
 
-        ### Common juce::dsp classes:
-        - `juce::dsp::IIR::Filter<float>` — EQ, lowpass, highpass, shelving
-        - `juce::dsp::DelayLine<float>` — delay, chorus base, flanger
-        - `juce::dsp::Reverb` — reverb
-        - `juce::dsp::WaveShaper<float>` — distortion, saturation
-        - `juce::dsp::Oscillator<float>` — LFO, tone generation
-        - `juce::dsp::Chorus<float>` — chorus
-        - `juce::dsp::Compressor<float>` — dynamics
-        - `juce::SmoothedValue<float>` — parameter smoothing
+        ### Parameter design rules:
+        - Choose parameter IDs that are short, lowercase, no spaces: `"drive"`, `"cutoff"`, `"mix"`
+        - The second argument to ParameterID is the version number — always use `1`
+        - Set default values that produce a musically useful result immediately
+        - For frequencies, use skew factor < 1 (typically 0.2-0.4) for log-like feel
+        - For gain/volume, consider using decibels with `juce::Decibels::decibelsToGain()`
+        - Every plugin should have a `"mix"` (dry/wet) parameter unless it's a utility
 
-        ### Preparing DSP (in prepareToPlay):
+        ### Reading parameters in the audio thread:
         ```cpp
-        juce::dsp::ProcessSpec spec;
-        spec.sampleRate = sampleRate;
-        spec.maximumBlockSize = (juce::uint32) samplesPerBlock;
-        spec.numChannels = (juce::uint32) getTotalNumOutputChannels();
-        myFilter.prepare(spec);
-        mySmoothedValue.reset(sampleRate, 0.02);
+        // Atomic read — safe from audio thread:
+        float value = apvts.getRawParameterValue("drive")->load();
         ```
 
-        ### Rules:
-        - Feedback must be < 1.0
-        - Sensible defaults that sound good immediately
-        - Effects: keep dry/wet mix when musically relevant
-        \(instrumentSkills)\(utilitySkills)
+        \(dspSection)
 
-        ## SKILL: Interface
+        ## Phase 3: Interface — Build the UI
 
-        ### Control types:
-        - `RotaryHorizontalVerticalDrag` — continuous parameters (most common)
-        - `LinearHorizontal` — gain staging, levels, wide-range params
-        - `juce::ComboBox` — discrete choices (waveform, mode, preset)
-        - `juce::ToggleButton` — on/off switches (bypass, enable)
+        Every parameter must have a visible, interactive control in the editor.
+        The editor must have at least as many `addAndMakeVisible()` calls as you have parameters.
 
-        ### Wiring a control to a parameter:
+        ### Step 3a: Declare members in PluginEditor.h
+
+        For each parameter, add to the private section:
         ```cpp
-        // In header (private section):
+        // For a float parameter "drive":
         juce::Slider driveSlider;
         juce::Label driveLabel;
         std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> driveAttachment;
 
-        // In constructor:
+        // For a choice parameter "mode":
+        juce::ComboBox modeBox;
+        juce::Label modeLabel;
+        std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> modeAttachment;
+
+        // For a bool parameter "bypass":
+        juce::ToggleButton bypassButton { "Bypass" };
+        std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> bypassAttachment;
+        ```
+
+        ### Step 3b: Wire controls in the constructor (PluginEditor.cpp)
+
+        For each slider parameter:
+        ```cpp
         driveSlider.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
         driveSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 60, 16);
         addAndMakeVisible(driveSlider);
         driveAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
             processorRef.apvts, "drive", driveSlider);
+
         driveLabel.setText("DRIVE", juce::dontSendNotification);
         driveLabel.setJustificationType(juce::Justification::centred);
         driveLabel.setFont(juce::Font(juce::FontOptions(10.0f)));
         driveLabel.setColour(juce::Label::textColourId, lookAndFeel.dimTextColour);
         addAndMakeVisible(driveLabel);
-
-        // For ComboBox:
-        std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> modeAttachment;
-        modeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(
-            processorRef.apvts, "mode", modeBox);
-
-        // For ToggleButton:
-        std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> bypassAttachment;
         ```
 
-        ### Layout:
+        For a ComboBox:
+        ```cpp
+        addAndMakeVisible(modeBox);
+        modeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(
+            processorRef.apvts, "mode", modeBox);
+        modeLabel.setText("MODE", juce::dontSendNotification);
+        modeLabel.setJustificationType(juce::Justification::centred);
+        addAndMakeVisible(modeLabel);
+        ```
+
+        For a ToggleButton:
+        ```cpp
+        addAndMakeVisible(bypassButton);
+        bypassAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
+            processorRef.apvts, "bypass", bypassButton);
+        ```
+
+        ### Step 3c: Layout in resized()
+
         ```cpp
         void resized() override
         {
             auto area = getLocalBounds().reduced(20);
-            auto header = area.removeFromTop(48);
-            // Group controls into sections
-            auto driveSection = area.removeFromLeft(area.getWidth() / 3);
-            auto toneSection = area.removeFromLeft(area.getWidth() / 2);
-            auto outputSection = area;
-            // Position knobs within each section
-            mySlider.setBounds(section.reduced(10));
+
+            // Optional: plugin title at top
+            auto header = area.removeFromTop(40);
+
+            // Divide remaining area into columns for knob groups
+            int numSections = 3; // adjust to your parameter count
+            int sectionWidth = area.getWidth() / numSections;
+
+            auto section1 = area.removeFromLeft(sectionWidth);
+            auto section2 = area.removeFromLeft(sectionWidth);
+            auto section3 = area;
+
+            // Place knob + label in each section
+            driveSlider.setBounds(section1.removeFromTop(section1.getHeight() - 20).reduced(10));
+            driveLabel.setBounds(section1);
+
+            // ... repeat for other controls
         }
         ```
 
-        ### C++ rules (WILL NOT COMPILE IF VIOLATED):
-        - **Iteration**: `for (const auto& item : container)` — NEVER `for (auto* item : container)`. The `auto*` syntax is ONLY for pointer return values. Using `auto*` on a `std::pair` or struct WILL NOT COMPILE.
-          ```cpp
-          // CORRECT:
-          for (const auto& [slider, label] : sliderPairs) { ... }
-          for (const auto& pair : myPairs) { pair.first->setBounds(...); }
-          // WRONG — WILL NOT COMPILE:
-          for (auto* pair : myPairs) { ... }
-          ```
-        - **No duplicate definitions**: Methods like getNumPrograms(), getCurrentProgram(), etc. already exist in PluginProcessor.cpp. Use Edit to MODIFY them — do NOT add new definitions or you get "redefinition" errors.
-        - All method signatures in .cpp must match .h declarations exactly.
+        ### Slider style guide:
+        | Parameter type | Slider style | Why |
+        |---|---|---|
+        | Gain, drive, amount | `RotaryHorizontalVerticalDrag` | Familiar knob feel |
+        | Frequency, time | `RotaryHorizontalVerticalDrag` | Continuous range |
+        | Dry/wet mix | `LinearHorizontal` | Visual feedback of balance |
+        | Pan, balance | `LinearHorizontal` | Matches spatial metaphor |
+        | Mode, type | `juce::ComboBox` | Discrete choices |
+        | On/off, bypass | `juce::ToggleButton` | Binary state |
+
+        ## Phase 4: Visual Polish
+
+        - Edit `accentColour` in FoundryLookAndFeel.h to match the plugin's character
+        - Call `setSize(width, height)` in the constructor to fit your layout
+        - Use `juce::Font(juce::FontOptions(float))` for fonts — never `juce::Font(float)`
+        - Suggested sizes: Focused = 400x300, Balanced = 600x400, Exploratory = 800x500
 
         ### Visual rules:
-        - Dark background (0xff0a0a0a to 0xff181818), one muted accent colour
-        - No emojis, no "AI" branding, no purple, no bright neon
-        - Group controls into named sections when there are more than 4
-        - Use `juce::Font(juce::FontOptions(float))` — never `juce::Font(float)`
-        - `setSize(width, height)` to fit your layout
-        - \(interfaceDirection)
+        - Dark background (already set: 0xff0a0a0a). One muted accent colour, not neon.
+        - No emojis, no "AI" branding, no purple/magenta.
+        - Group controls into named sections when there are more than 4 parameters.
+        - Labels should be uppercase, small font (10-11pt), dimTextColour.
         \(presetSection)
+
+        ---
+
+        ## Fatal Mistakes — WILL NOT COMPILE
+
+        These are the most common errors. Memorize them.
+
+        ### 1. `auto*` on value types
+        ```cpp
+        // FATAL — std::pair is a value type, not a pointer:
+        for (auto* pair : myPairs) { ... }
+
+        // CORRECT:
+        for (const auto& [first, second] : myPairs) { ... }
+        for (const auto& pair : myPairs) { pair.first->setBounds(...); }
+        ```
+
+        ### 2. Duplicate method definitions
+        The stubs already define every method declared in the header. If you add a second
+        `getNumPrograms()` definition, you get a "redefinition" linker error.
+        → Use **Edit** to modify the existing body. Never add a new definition.
+
+        ### 3. Signature mismatch between .h and .cpp
+        If the header declares `void processBlock(juce::AudioBuffer<float>&, juce::MidiBuffer&)`,
+        the .cpp must match exactly. Extra `const`, different param names, or missing `override` → error.
+
+        ### 4. Wrong Font constructor
+        ```cpp
+        // FATAL — deprecated, will not compile:
+        juce::Font(14.0f)
+
+        // CORRECT:
+        juce::Font(juce::FontOptions(14.0f))
+        ```
+
+        ### 5. Missing juce:: prefix
+        Every JUCE type must be fully qualified: `juce::Slider`, `juce::Label`,
+        `juce::AudioProcessorValueTreeState`, etc. Unqualified names → "undeclared identifier".
+
+        ### 6. Parameter ID mismatch
+        If createParameterLayout uses `"drive"` but the SliderAttachment uses `"Drive"` or `"drv"`,
+        you get a runtime assertion failure. IDs must match exactly, case-sensitive.
+
+        ---
+
+        ## Automated Validation
+
+        After your code compiles, it is automatically validated. These checks MUST pass:
+
+        | Check | Requirement | How to pass |
+        |---|---|---|
+        | Parameters exist | ≥1 parameter with `ParameterID{"...", 1}` in Processor.cpp | Fill createParameterLayout() |
+        | DSP is real | processBlock contains actual audio processing (math, filters, parameter reads) | Write real DSP, not just pass-through |
+        | UI coverage | Every parameter ID string appears in Editor.cpp (via Attachments) | Wire every param to a control |
+        | Visible controls | ≥2 `addAndMakeVisible()` calls in Editor.cpp | Add sliders + labels |
+        \(pluginType == .instrument ? "| Voice rendering | `renderNextBlock` exists with real implementation | Implement oscillator + envelope |" : "")
+
+        If any check fails, you will be asked to fix it. Save time: get it right the first time.
         """
+
         try content.write(to: dir.appendingPathComponent("CLAUDE.md"), atomically: true, encoding: .utf8)
     }
 }

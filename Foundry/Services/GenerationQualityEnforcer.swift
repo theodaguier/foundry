@@ -19,24 +19,41 @@ enum GenerationQualityEnforcer {
                 await callbacks.onStepChange(.generatingDSP)
 
                 let rewritePrompt = """
-                Read CLAUDE.md first, then fix the source files using your tools. Act immediately.
-
-                The plugin compiled but validation found implementation gaps that must be fixed.
+                The plugin compiled but FAILED automated validation. You must fix it NOW.
 
                 User intent: \(userIntent)
                 Plugin type: \(pluginType.displayName)
                 Interface direction: \(interfaceStyle)
 
-                Issues found:
+                ## VALIDATION FAILURES:
                 \(latestValidationError.localizedDescription)
 
-                Fix these issues:
-                - Implement parameters in createParameterLayout() appropriate for this plugin
-                - Write real DSP processing logic in processBlock()
-                - Ensure every parameter has a matching visible UI control
-                - Keep class names unchanged, do not modify CMakeLists.txt
+                ## Step-by-step — follow this order:
+                1. Read CLAUDE.md for JUCE patterns
+                2. Read Source/PluginProcessor.cpp and Source/PluginEditor.cpp
+                3. Fix each issue:
 
-                Read the source files, then fix using your Edit/Write tools.
+                **If "no parameters defined":**
+                Edit createParameterLayout() in PluginProcessor.cpp — add params like:
+                ```cpp
+                params.push_back(std::make_unique<juce::AudioParameterFloat>(
+                    juce::ParameterID{"drive", 1}, "Drive",
+                    juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.5f));
+                ```
+
+                **If "no meaningful DSP":**
+                Edit processBlock() — read parameters with getRawParameterValue(), process samples in a per-channel/per-sample loop with real math (tanh, filters, delays).
+
+                **If "no matching UI control":**
+                For each parameter, add in PluginEditor.h: Slider + Label + SliderAttachment members.
+                In constructor: set slider style, addAndMakeVisible(), create attachment.
+                In resized(): setBounds() for all controls.
+
+                **If "fewer than 2 visible controls":**
+                Every parameter needs a slider with addAndMakeVisible(). Add labels too.
+
+                Keep class names unchanged. Do NOT modify CMakeLists.txt.
+                Use Edit to modify existing methods — do NOT add duplicate definitions.
                 """
 
                 let rewriteResult = await ClaudeCodeService.run(
@@ -123,15 +140,38 @@ private enum GeneratedPluginValidator {
 
         var issues: [String] = []
 
-        // 1. Parameters exist
-        let parameterIDs = extractMatches(pattern: #"ParameterID\{"([^"]+)""#, in: processorCPP)
+        // 1. Parameters exist — match multiple syntaxes:
+        //    ParameterID{"x", 1}  or  ParameterID{ "x", 1 }  or  ParameterID ("x", 1)
+        //    Also detect AudioParameterFloat/Choice/Bool/Int constructors as evidence
+        var parameterIDs = extractMatches(pattern: #"ParameterID\s*[\{(]\s*"([^"]+)""#, in: processorCPP)
+        if parameterIDs.isEmpty {
+            // Fallback: look for AudioParameter* constructors with string IDs
+            parameterIDs = extractMatches(pattern: #"AudioParameter(?:Float|Choice|Bool|Int)\s*\([^"]*"([^"]+)""#, in: processorCPP)
+        }
         if parameterIDs.isEmpty {
             issues.append("no parameters defined in createParameterLayout()")
         }
 
-        // 2. processBlock has real DSP
-        if let body = extractFunctionBody(named: "processBlock", in: processorCPP), body.count < 200 {
-            issues.append("processBlock() appears to have no meaningful DSP implementation")
+        // 2. processBlock has real DSP — check for meaningful processing patterns,
+        //    not just body size. The stub is ~150 chars of boilerplate, so size alone
+        //    is unreliable. Instead, look for evidence of actual audio work.
+        if let body = extractFunctionBody(named: "processBlock", in: processorCPP) {
+            let dspIndicators = [
+                "getRawParameterValue",   // reading parameters
+                "getWritePointer",        // writing audio samples
+                "getNextValue",           // SmoothedValue
+                "std::tanh", "std::sin", "std::cos", "std::abs", "std::clamp", "std::fmod",  // math
+                "dsp::",                  // JUCE DSP module usage
+                "delayLine", "DelayLine", // delay processing
+                "filter", "Filter",       // filter processing
+                ".process(",              // juce::dsp process calls
+                "processSample",          // custom sample processing
+            ]
+            let hasDSP = dspIndicators.contains { body.localizedCaseInsensitiveContains($0) }
+            // Also accept body size > 400 as sufficient (real implementations are much larger than stubs)
+            if !hasDSP && body.count < 400 {
+                issues.append("processBlock() appears to have no meaningful DSP implementation")
+            }
         }
 
         // 3. Every parameter has a UI control

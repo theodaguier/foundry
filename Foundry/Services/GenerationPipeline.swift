@@ -142,20 +142,18 @@ final class GenerationPipeline {
             ? "\n- Implement exactly \(presetCount) presets with a ComboBox selector in the UI (see CLAUDE.md Presets section)"
             : ""
         let genPrompt = """
-        You are building a JUCE \(pluginRole) plugin: \(config.prompt)
-        Archetype: \(project.pluginType.displayName) | Interface: \(project.interfaceStyle.rawValue)
+        Build a JUCE \(pluginRole) plugin: \(config.prompt)
 
-        ## Step-by-step instructions — follow in order:
+        Follow the implementation guide in CLAUDE.md exactly. It contains everything you need:
+        architecture, DSP patterns, UI wiring, validation criteria, and fatal mistakes to avoid.
 
-        1. **Read CLAUDE.md** — it contains your expert JUCE knowledge, DSP patterns, and constraints.
-        2. **Read all Source/ files** — PluginProcessor.h, PluginProcessor.cpp, PluginEditor.h, PluginEditor.cpp, FoundryLookAndFeel.h. Understand the existing stubs before editing.
-        3. **Implement parameters** — Edit PluginProcessor.cpp: add AudioParameterFloat/Choice/Bool in createParameterLayout(). Add SmoothedValue members in the header. You need at least 3-5 parameters appropriate for this plugin.
-        4. **Implement DSP** — Edit processBlock() with real audio processing logic. Read parameter values, apply smoothing, process samples. This must be substantial (not just pass-through).\(project.pluginType == .instrument ? " Also implement voice rendering in renderNextBlock()." : "")
-        5. **Build the editor** — Add sliders, labels, and attachments in PluginEditor.h and .cpp. Every parameter MUST have a matching visible UI control with addAndMakeVisible(). Wire them with SliderAttachment/ComboBoxAttachment.
-        6. **Set accent colour** — Edit FoundryLookAndFeel.h accentColour to match the plugin character.\(presetInstruction)
+        ## Your workflow:
+        1. Read CLAUDE.md (your expert reference — read it fully before writing any code)
+        2. Read all Source/ files to understand the stubs
+        3. Follow Phases 1→2→3→4 from CLAUDE.md in strict order\(presetInstruction.isEmpty ? "" : "\n        4. Phase 5: Presets (see CLAUDE.md)")
+        4. Use Edit to modify existing methods — never add duplicate definitions
 
-        CRITICAL: Use Edit tool to modify existing method bodies. Do NOT add duplicate method definitions.
-        Use `const auto&` for iteration — NEVER `auto*` on value types.
+        Start by reading CLAUDE.md now.
         """
         let genResult = await ClaudeCodeService.run(
             prompt: genPrompt,
@@ -172,16 +170,66 @@ final class GenerationPipeline {
             throw GenerationError.generationFailed(genResult.error ?? "Claude Code CLI is unavailable")
         }
 
-        // Stubs are compilable skeletons — even if Claude fails to fully implement them,
-        // the plugin will still compile. Only bail out if source files are empty.
-        if !genResult.success {
-            let processorFile = project.directory.appendingPathComponent("Source/PluginProcessor.cpp")
-            let processorContent = (try? String(contentsOf: processorFile, encoding: .utf8)) ?? ""
-            let editorFile = project.directory.appendingPathComponent("Source/PluginEditor.cpp")
-            let editorContent = (try? String(contentsOf: editorFile, encoding: .utf8)) ?? ""
+        // Check if Claude actually implemented anything by looking for TODO markers.
+        // Stubs are compilable, so even if Claude does nothing the code compiles —
+        // but validation will fail. Detect this early and retry generation.
+        let processorFile = project.directory.appendingPathComponent("Source/PluginProcessor.cpp")
+        let editorFile = project.directory.appendingPathComponent("Source/PluginEditor.cpp")
 
-            if processorContent.isEmpty || editorContent.isEmpty {
-                throw GenerationError.generationFailed(genResult.error ?? "Claude did not generate any code")
+        func filesStillHaveStubs() -> Bool {
+            let processor = (try? String(contentsOf: processorFile, encoding: .utf8)) ?? ""
+            let editor = (try? String(contentsOf: editorFile, encoding: .utf8)) ?? ""
+            // If TODO markers are still present, Claude didn't implement anything
+            return processor.contains("// TODO: IMPLEMENT") || editor.contains("// TODO: IMPLEMENT")
+        }
+
+        if !genResult.success || filesStillHaveStubs() {
+            // Claude failed or didn't modify files — retry with a more direct prompt
+            log("Generation incomplete — retrying with direct instructions...")
+            setStep(.generatingDSP)
+
+            let retryPrompt = """
+            The source files were not properly implemented. You MUST implement them now.
+
+            Plugin: \(config.prompt)
+            Type: \(pluginRole)
+
+            Do this NOW, in order:
+
+            1. Read CLAUDE.md — it has all the patterns you need
+            2. Edit Source/PluginProcessor.cpp — replace the TODO in createParameterLayout() with
+               3-5 real AudioParameterFloat/Choice parameters using ParameterID{"name", 1}
+            3. Edit Source/PluginProcessor.cpp — replace the TODO in processBlock() with real DSP
+               that reads parameters via getRawParameterValue() and processes audio samples
+            4. Edit Source/PluginProcessor.h — add SmoothedValue and DSP object members
+            5. Edit Source/PluginEditor.h — add Slider, Label, and Attachment members for each parameter
+            6. Edit Source/PluginEditor.cpp — in the constructor, set up each slider with
+               addAndMakeVisible() and create SliderAttachments wired to parameter IDs
+            7. Edit Source/PluginEditor.cpp — in resized(), lay out all controls with setBounds()
+
+            Start by reading CLAUDE.md, then Source/PluginProcessor.cpp.
+            """
+
+            let retryResult = await ClaudeCodeService.run(
+                prompt: retryPrompt,
+                projectDir: project.directory,
+                timeoutSeconds: 300,
+                onEvent: { [weak self] event in
+                    Task { @MainActor in
+                        self?.handleClaudeEvent(event)
+                    }
+                }
+            )
+
+            if isAIInfrastructureFailure(retryResult.error) {
+                throw GenerationError.generationFailed(retryResult.error ?? "Claude Code CLI is unavailable")
+            }
+
+            // If still unchanged after retry, bail out with clear error
+            if filesStillHaveStubs() {
+                throw GenerationError.generationFailed(
+                    "Claude failed to implement the plugin after 2 attempts. The source files were not modified."
+                )
             }
         }
 
