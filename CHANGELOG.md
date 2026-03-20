@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.2.0](https://github.com/theodaguier/foundry/compare/v1.1.1...v1.2.0) (2026-03-20)
+
+
+### Features
+
+* extract reusable design system and component library ([#23](https://github.com/theodaguier/foundry/issues/23)) ([03e441b](https://github.com/theodaguier/foundry/commit/03e441bcbfb5a6e80d717b45878feecc91f50eb3))
+
 ## [1.1.1](https://github.com/theodaguier/foundry/compare/v1.1.0...v1.1.1) (2026-03-20)
 
 
