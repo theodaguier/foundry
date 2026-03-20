@@ -7,8 +7,14 @@ struct ContentView: View {
         @Bindable var state = appState
 
         NavigationStack(path: $state.path) {
-            PluginLibraryView()
-                .navigationDestination(for: Route.self) { route in
+            Group {
+                if appState.plugins.isEmpty && !state.showSetup {
+                    WelcomeView()
+                } else {
+                    PluginLibraryView()
+                }
+            }
+            .navigationDestination(for: Route.self) { route in
                     switch route {
                     case .prompt:
                         PromptView()

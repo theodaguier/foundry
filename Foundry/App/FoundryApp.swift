@@ -1,4 +1,5 @@
 import SwiftUI
+import CoreText
 
 enum AppAppearance: String, CaseIterable {
     case system = "System"
@@ -18,6 +19,10 @@ enum AppAppearance: String, CaseIterable {
 struct FoundryApp: App {
     @State private var appState = AppState()
     @AppStorage("appearance") private var appearance: String = AppAppearance.system.rawValue
+
+    init() {
+        FontLoader.registerAll()
+    }
 
     private var colorScheme: ColorScheme? {
         AppAppearance(rawValue: appearance)?.colorScheme

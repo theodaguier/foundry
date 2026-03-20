@@ -17,6 +17,7 @@
 		35EDBA20A32AE39CA31D493F /* FoundryApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 062329561A5C9490BE3CADA5 /* FoundryApp.swift */; };
 		393A7A9567D8321B5D64581D /* PluginCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D573C52800A8C21F640C8EC /* PluginCard.swift */; };
 		3AE99668365C08959FB76B1F /* PluginLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9861DA9A7D015E767E7908D5 /* PluginLibraryView.swift */; };
+		BCEA59E113057D8400522A73 /* WelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 330DA4467113497C40DE0744 /* WelcomeView.swift */; };
 		46F97EDD013A980C36506FC2 /* SetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11F0B8ACE372F6DC5016FB8C /* SetupView.swift */; };
 		5C1CFA77E9C4E3D9AB009A51 /* FoundryPaths.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1040BD9D4DE4D2A55075D593 /* FoundryPaths.swift */; };
 		618695CF77938A4C12B11984 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 272AA57049A5DC372AA93659 /* Assets.xcassets */; };
@@ -43,6 +44,18 @@
 		FA1B2C3D4E5F6A7B8C9D0E1F /* BuildDirectoryCleaner.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA1B2C3D4E5F6A7B8C9D0E10 /* BuildDirectoryCleaner.swift */; };
 		AB1234560000000000000001 /* ClaudeCodeServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB1234560000000000000002 /* ClaudeCodeServiceTests.swift */; };
 		AB1234560000000000000003 /* PromptContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB1234560000000000000004 /* PromptContractTests.swift */; };
+		C0A1000000000000000000A1 /* FoundryTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0A1000000000000000000B1 /* FoundryTheme.swift */; };
+		C0A1000000000000000000A2 /* FoundryHeaderBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0A1000000000000000000B2 /* FoundryHeaderBar.swift */; };
+		C0A1000000000000000000A3 /* FoundryStatusBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0A1000000000000000000B3 /* FoundryStatusBar.swift */; };
+		C0A1000000000000000000A4 /* WindowChromeBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0A1000000000000000000B4 /* WindowChromeBar.swift */; };
+		C0A1000000000000000000A5 /* BadgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0A1000000000000000000B5 /* BadgeView.swift */; };
+		C0A1000000000000000000A6 /* BorderedContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0A1000000000000000000B6 /* BorderedContainer.swift */; };
+		C0A1000000000000000000A7 /* CustomShapes.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0A1000000000000000000B7 /* CustomShapes.swift */; };
+		C0A1000000000000000000A8 /* AbstractArtwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0A1000000000000000000B8 /* AbstractArtwork.swift */; };
+		C0A1000000000000000000A9 /* TerminalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0A1000000000000000000B9 /* TerminalView.swift */; };
+		D1F0A2B3C4E5F6A7B8C9D0E2 /* FontLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1F0A2B3C4E5F6A7B8C9D0E1 /* FontLoader.swift */; };
+		D1F0A2B3C4E5F6A7B8C9D0E4 /* ArchitypeStedelijkW00.ttf in Resources */ = {isa = PBXBuildFile; fileRef = D1F0A2B3C4E5F6A7B8C9D0E3 /* ArchitypeStedelijkW00.ttf */; };
+		A3B7C2D4E5F6A1B2C3D4E5F7 /* AzeretMono.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A3B7C2D4E5F6A1B2C3D4E5F6 /* AzeretMono.ttf */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -78,6 +91,7 @@
 		86B86FC5AD40A7F02F1CC6DD /* PluginLogoService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginLogoService.swift; sourceTree = "<group>"; };
 		87DAC6800229A279E461E577 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		9861DA9A7D015E767E7908D5 /* PluginLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginLibraryView.swift; sourceTree = "<group>"; };
+		330DA4467113497C40DE0744 /* WelcomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeView.swift; sourceTree = "<group>"; };
 		9CECA854D6D9CF69BA7E8F4B /* GenerationQualityEnforcer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GenerationQualityEnforcer.swift; sourceTree = "<group>"; };
 		AA3D84E0F9B66518AA9B05F8 /* PluginArtworkView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginArtworkView.swift; sourceTree = "<group>"; };
 		B69E79AA8740BF14CDC02F3E /* DependencyChecker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DependencyChecker.swift; sourceTree = "<group>"; };
@@ -93,6 +107,18 @@
 		DD63B0B69B661DD62739C874 /* QuickOptionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickOptionsView.swift; sourceTree = "<group>"; };
 		F75004640D40807A6FE43589 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		FD87798E4D6622F313640CB5 /* RefineProgressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefineProgressView.swift; sourceTree = "<group>"; };
+		C0A1000000000000000000B1 /* FoundryTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoundryTheme.swift; sourceTree = "<group>"; };
+		C0A1000000000000000000B2 /* FoundryHeaderBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoundryHeaderBar.swift; sourceTree = "<group>"; };
+		C0A1000000000000000000B3 /* FoundryStatusBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoundryStatusBar.swift; sourceTree = "<group>"; };
+		C0A1000000000000000000B4 /* WindowChromeBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowChromeBar.swift; sourceTree = "<group>"; };
+		C0A1000000000000000000B5 /* BadgeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BadgeView.swift; sourceTree = "<group>"; };
+		C0A1000000000000000000B6 /* BorderedContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BorderedContainer.swift; sourceTree = "<group>"; };
+		C0A1000000000000000000B7 /* CustomShapes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomShapes.swift; sourceTree = "<group>"; };
+		C0A1000000000000000000B8 /* AbstractArtwork.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AbstractArtwork.swift; sourceTree = "<group>"; };
+		C0A1000000000000000000B9 /* TerminalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalView.swift; sourceTree = "<group>"; };
+		D1F0A2B3C4E5F6A7B8C9D0E1 /* FontLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FontLoader.swift; sourceTree = "<group>"; };
+		D1F0A2B3C4E5F6A7B8C9D0E3 /* ArchitypeStedelijkW00.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = ArchitypeStedelijkW00.ttf; sourceTree = "<group>"; };
+		A3B7C2D4E5F6A1B2C3D4E5F6 /* AzeretMono.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = AzeretMono.ttf; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -129,10 +155,19 @@
 		55C30D0A6DF15677590182EE /* Components */ = {
 			isa = PBXGroup;
 			children = (
+				C0A1000000000000000000B8 /* AbstractArtwork.swift */,
+				C0A1000000000000000000B5 /* BadgeView.swift */,
+				C0A1000000000000000000B6 /* BorderedContainer.swift */,
+				C0A1000000000000000000B7 /* CustomShapes.swift */,
 				B757385330BAAD1CC592BB96 /* DependencyListModel.swift */,
+				C0A1000000000000000000B2 /* FoundryHeaderBar.swift */,
+				C0A1000000000000000000B3 /* FoundryStatusBar.swift */,
+				C0A1000000000000000000B1 /* FoundryTheme.swift */,
 				AA3D84E0F9B66518AA9B05F8 /* PluginArtworkView.swift */,
 				1D573C52800A8C21F640C8EC /* PluginCard.swift */,
 				D859FA6E1B937AA29A392942 /* StepListView.swift */,
+				C0A1000000000000000000B9 /* TerminalView.swift */,
+				C0A1000000000000000000B4 /* WindowChromeBar.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -144,6 +179,7 @@
 				3AABD14C81BD24623C0607BB /* GenerationProgressView.swift */,
 				C3EE70BE829D987076CBC625 /* PluginDetailView.swift */,
 				9861DA9A7D015E767E7908D5 /* PluginLibraryView.swift */,
+				330DA4467113497C40DE0744 /* WelcomeView.swift */,
 				BB69D6CB5EE2903F1755F2BD /* PromptView.swift */,
 				DD63B0B69B661DD62739C874 /* QuickOptionsView.swift */,
 				FD87798E4D6622F313640CB5 /* RefineProgressView.swift */,
@@ -171,6 +207,7 @@
 				7F23104490434BFC76E45BA7 /* App */,
 				55C30D0A6DF15677590182EE /* Components */,
 				CFB7510603FB0FCA9F67A2F8 /* Models */,
+				D1F0A2B3C4E5F6A7B8C9D0E6 /* Resources */,
 				AF6AAB9DD2AED4A73CF86AFE /* Services */,
 				5C297B163F503F4367B07CAD /* Views */,
 			);
@@ -212,6 +249,24 @@
 				C806DCDABFBFF5C60F776E68 /* Plugin.swift */,
 			);
 			path = Models;
+			sourceTree = "<group>";
+		};
+		D1F0A2B3C4E5F6A7B8C9D0E5 /* Fonts */ = {
+			isa = PBXGroup;
+			children = (
+				D1F0A2B3C4E5F6A7B8C9D0E1 /* FontLoader.swift */,
+				D1F0A2B3C4E5F6A7B8C9D0E3 /* ArchitypeStedelijkW00.ttf */,
+				A3B7C2D4E5F6A1B2C3D4E5F6 /* AzeretMono.ttf */,
+			);
+			path = Fonts;
+			sourceTree = "<group>";
+		};
+		D1F0A2B3C4E5F6A7B8C9D0E6 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				D1F0A2B3C4E5F6A7B8C9D0E5 /* Fonts */,
+			);
+			path = Resources;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -295,6 +350,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				618695CF77938A4C12B11984 /* Assets.xcassets in Resources */,
+				D1F0A2B3C4E5F6A7B8C9D0E4 /* ArchitypeStedelijkW00.ttf in Resources */,
+				A3B7C2D4E5F6A1B2C3D4E5F7 /* AzeretMono.ttf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -325,6 +382,7 @@
 				393A7A9567D8321B5D64581D /* PluginCard.swift in Sources */,
 				B5F2D7D605AF8A718025987B /* PluginDetailView.swift in Sources */,
 				3AE99668365C08959FB76B1F /* PluginLibraryView.swift in Sources */,
+				BCEA59E113057D8400522A73 /* WelcomeView.swift in Sources */,
 				E9B4B7650C26B7875EDF66F5 /* PluginLogoService.swift in Sources */,
 				C20595A79857CCEA7F4B232B /* PluginManager.swift in Sources */,
 				301815F14418B44F12D68E6E /* ProjectAssembler.swift in Sources */,
@@ -336,6 +394,16 @@
 				AF2D89AC5EED252B56D3D793 /* SettingsView.swift in Sources */,
 				46F97EDD013A980C36506FC2 /* SetupView.swift in Sources */,
 				1DB09B2440A1B060E3CABF0C /* StepListView.swift in Sources */,
+				C0A1000000000000000000A1 /* FoundryTheme.swift in Sources */,
+				C0A1000000000000000000A2 /* FoundryHeaderBar.swift in Sources */,
+				C0A1000000000000000000A3 /* FoundryStatusBar.swift in Sources */,
+				C0A1000000000000000000A4 /* WindowChromeBar.swift in Sources */,
+				C0A1000000000000000000A5 /* BadgeView.swift in Sources */,
+				C0A1000000000000000000A6 /* BorderedContainer.swift in Sources */,
+				C0A1000000000000000000A7 /* CustomShapes.swift in Sources */,
+				C0A1000000000000000000A8 /* AbstractArtwork.swift in Sources */,
+				C0A1000000000000000000A9 /* TerminalView.swift in Sources */,
+				D1F0A2B3C4E5F6A7B8C9D0E2 /* FontLoader.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
