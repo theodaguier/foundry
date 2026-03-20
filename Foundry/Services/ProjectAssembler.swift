@@ -274,10 +274,10 @@ enum ProjectAssembler {
             bool producesMidi() const override { return false; }
             double getTailLengthSeconds() const override { return 0.0; }
 
-            int getNumPrograms() override { return 1; }
-            int getCurrentProgram() override { return 0; }
-            void setCurrentProgram(int) override {}
-            const juce::String getProgramName(int) override { return {}; }
+            int getNumPrograms() override;
+            int getCurrentProgram() override;
+            void setCurrentProgram(int index) override;
+            const juce::String getProgramName(int index) override;
             void changeProgramName(int, const juce::String&) override {}
 
             void getStateInformation(juce::MemoryBlock& destData) override;
@@ -367,6 +367,11 @@ enum ProjectAssembler {
         {
             return new \(pluginName)Editor(*this);
         }
+
+        int \(pluginName)Processor::getNumPrograms() { return 1; }
+        int \(pluginName)Processor::getCurrentProgram() { return 0; }
+        void \(pluginName)Processor::setCurrentProgram(int) {}
+        const juce::String \(pluginName)Processor::getProgramName(int) { return {}; }
 
         juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
         {
@@ -626,17 +631,22 @@ enum ProjectAssembler {
             int currentPreset = 0;
             ```
 
-            ### In PluginProcessor.cpp:
-            ```cpp
-            int getNumPrograms() override { return \(presetCount); }
-            int getCurrentProgram() override { return currentPreset; }
-            const juce::String getProgramName(int index) override { return presets[index].name; }
+            ### In PluginProcessor.cpp — use Edit to MODIFY the existing one-liner stubs:
+            The file already contains these methods with stub bodies. Use your Edit tool to replace their bodies:
+            - `getNumPrograms()` → return \(presetCount);
+            - `getCurrentProgram()` → return currentPreset;
+            - `getProgramName(int index)` → return presets[index].name;
+            - `setCurrentProgram(int index)` → apply preset values via apvts
 
-            void setCurrentProgram(int index) override
+            **DO NOT add new method definitions — they already exist. Edit them in place.**
+
+            ```cpp
+            // setCurrentProgram implementation pattern:
+            void \(pluginName)Processor::setCurrentProgram(int index)
             {
                 if (index < 0 || index >= getNumPrograms()) return;
                 currentPreset = index;
-                for (auto& [paramId, value] : presets[index].values)
+                for (const auto& [paramId, value] : presets[index].values)
                     if (auto* param = apvts.getParameter(paramId))
                         param->setValueNotifyingHost(param->convertTo0to1(value));
             }
@@ -825,6 +835,18 @@ enum ProjectAssembler {
             mySlider.setBounds(section.reduced(10));
         }
         ```
+
+        ### C++ rules (WILL NOT COMPILE IF VIOLATED):
+        - **Iteration**: `for (const auto& item : container)` — NEVER `for (auto* item : container)`. The `auto*` syntax is ONLY for pointer return values. Using `auto*` on a `std::pair` or struct WILL NOT COMPILE.
+          ```cpp
+          // CORRECT:
+          for (const auto& [slider, label] : sliderPairs) { ... }
+          for (const auto& pair : myPairs) { pair.first->setBounds(...); }
+          // WRONG — WILL NOT COMPILE:
+          for (auto* pair : myPairs) { ... }
+          ```
+        - **No duplicate definitions**: Methods like getNumPrograms(), getCurrentProgram(), etc. already exist in PluginProcessor.cpp. Use Edit to MODIFY them — do NOT add new definitions or you get "redefinition" errors.
+        - All method signatures in .cpp must match .h declarations exactly.
 
         ### Visual rules:
         - Dark background (0xff0a0a0a to 0xff181818), one muted accent colour

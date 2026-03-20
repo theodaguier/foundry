@@ -183,7 +183,14 @@ enum ClaudeCodeService {
             "--max-turns", "50",
             "--model", "sonnet",
             "--append-system-prompt",
-            "You MUST use tools (Read, Edit, Write, Bash) on every turn. Never respond with only text — always take action by reading or editing files.",
+            """
+            You MUST use tools (Read, Edit, Write, Bash) on every turn. Never respond with only text — always take action by reading or editing files.
+            CRITICAL C++ RULES:
+            - Use `const auto&` to iterate value types (std::pair, struct). NEVER `auto*` — that is a pointer dereference and will not compile.
+            - Never add a new definition for a method that already exists in the .cpp file. Use Edit to MODIFY the existing implementation.
+            - All JUCE types must be fully qualified with juce:: prefix.
+            - Use juce::Font(juce::FontOptions(float)) — never juce::Font(float).
+            """,
         ]
     }
 

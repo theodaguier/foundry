@@ -120,25 +120,20 @@ final class GenerationPipeline {
             ? "\n- Implement exactly \(presetCount) presets with a ComboBox selector in the UI (see CLAUDE.md Presets section)"
             : ""
         let genPrompt = """
-        IMPORTANT: Read CLAUDE.md first — it contains your expert knowledge and the plugin brief.
-        Then write the plugin code into the source files using your tools. Act immediately.
+        You are building a JUCE \(pluginRole) plugin: \(config.prompt)
+        Archetype: \(project.pluginType.displayName) | Interface: \(project.interfaceStyle.rawValue)
 
-        You are building a JUCE \(pluginRole) plugin from minimal stubs.
+        ## Step-by-step instructions — follow in order:
 
-        Brief: \(config.prompt)
-        Archetype: \(project.pluginType.displayName)
-        Interface style: \(project.interfaceStyle.rawValue)
+        1. **Read CLAUDE.md** — it contains your expert JUCE knowledge, DSP patterns, and constraints.
+        2. **Read all Source/ files** — PluginProcessor.h, PluginProcessor.cpp, PluginEditor.h, PluginEditor.cpp, FoundryLookAndFeel.h. Understand the existing stubs before editing.
+        3. **Implement parameters** — Edit PluginProcessor.cpp: add AudioParameterFloat/Choice/Bool in createParameterLayout(). Add SmoothedValue members in the header. You need at least 3-5 parameters appropriate for this plugin.
+        4. **Implement DSP** — Edit processBlock() with real audio processing logic. Read parameter values, apply smoothing, process samples. This must be substantial (not just pass-through).\(project.pluginType == .instrument ? " Also implement voice rendering in renderNextBlock()." : "")
+        5. **Build the editor** — Add sliders, labels, and attachments in PluginEditor.h and .cpp. Every parameter MUST have a matching visible UI control with addAndMakeVisible(). Wire them with SliderAttachment/ComboBoxAttachment.
+        6. **Set accent colour** — Edit FoundryLookAndFeel.h accentColour to match the plugin character.\(presetInstruction)
 
-        The source files have correct class names and method signatures with empty bodies.
-        Your job:
-        1. Read CLAUDE.md for expert JUCE knowledge and constraints
-        2. Implement parameters in createParameterLayout()
-        3. Implement DSP in processBlock()\(project.pluginType == .instrument ? " and voice rendering" : "")
-        4. Build the editor with appropriate controls for every parameter
-        5. Set accentColour in FoundryLookAndFeel.h to match the plugin character\(presetInstruction)
-
-        Write production-quality code. Every parameter needs a matching UI control.
-        Keep class names unchanged. Must compile with C++17 and JUCE.
+        CRITICAL: Use Edit tool to modify existing method bodies. Do NOT add duplicate method definitions.
+        Use `const auto&` for iteration — NEVER `auto*` on value types.
         """
         let genResult = await ClaudeCodeService.run(
             prompt: genPrompt,
