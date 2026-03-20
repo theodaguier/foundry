@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.1.1](https://github.com/theodaguier/foundry/compare/v1.1.0...v1.1.1) (2026-03-20)
+
+
+### Bug Fixes
+
+* prevent auto* and method redefinition errors in generated plugins ([#21](https://github.com/theodaguier/foundry/issues/21)) ([8164e3d](https://github.com/theodaguier/foundry/commit/8164e3d4282b50d78c5eb3f13aa3a1a6a83aa114))
+
 ## [1.1.0](https://github.com/theodaguier/foundry/compare/v1.0.1...v1.1.0) (2026-03-18)
 
 
