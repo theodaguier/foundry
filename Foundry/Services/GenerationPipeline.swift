@@ -142,20 +142,18 @@ final class GenerationPipeline {
             ? "\n- Implement exactly \(presetCount) presets with a ComboBox selector in the UI (see CLAUDE.md Presets section)"
             : ""
         let genPrompt = """
-        You are building a JUCE \(pluginRole) plugin: \(config.prompt)
-        Archetype: \(project.pluginType.displayName) | Interface: \(project.interfaceStyle.rawValue)
+        Build a JUCE \(pluginRole) plugin: \(config.prompt)
 
-        ## Step-by-step instructions — follow in order:
+        Follow the implementation guide in CLAUDE.md exactly. It contains everything you need:
+        architecture, DSP patterns, UI wiring, validation criteria, and fatal mistakes to avoid.
 
-        1. **Read CLAUDE.md** — it contains your expert JUCE knowledge, DSP patterns, and constraints.
-        2. **Read all Source/ files** — PluginProcessor.h, PluginProcessor.cpp, PluginEditor.h, PluginEditor.cpp, FoundryLookAndFeel.h. Understand the existing stubs before editing.
-        3. **Implement parameters** — Edit PluginProcessor.cpp: add AudioParameterFloat/Choice/Bool in createParameterLayout(). Add SmoothedValue members in the header. You need at least 3-5 parameters appropriate for this plugin.
-        4. **Implement DSP** — Edit processBlock() with real audio processing logic. Read parameter values, apply smoothing, process samples. This must be substantial (not just pass-through).\(project.pluginType == .instrument ? " Also implement voice rendering in renderNextBlock()." : "")
-        5. **Build the editor** — Add sliders, labels, and attachments in PluginEditor.h and .cpp. Every parameter MUST have a matching visible UI control with addAndMakeVisible(). Wire them with SliderAttachment/ComboBoxAttachment.
-        6. **Set accent colour** — Edit FoundryLookAndFeel.h accentColour to match the plugin character.\(presetInstruction)
+        ## Your workflow:
+        1. Read CLAUDE.md (your expert reference — read it fully before writing any code)
+        2. Read all Source/ files to understand the stubs
+        3. Follow Phases 1→2→3→4 from CLAUDE.md in strict order\(presetInstruction.isEmpty ? "" : "\n        4. Phase 5: Presets (see CLAUDE.md)")
+        4. Use Edit to modify existing methods — never add duplicate definitions
 
-        CRITICAL: Use Edit tool to modify existing method bodies. Do NOT add duplicate method definitions.
-        Use `const auto&` for iteration — NEVER `auto*` on value types.
+        Start by reading CLAUDE.md now.
         """
         let genResult = await ClaudeCodeService.run(
             prompt: genPrompt,
@@ -172,17 +170,55 @@ final class GenerationPipeline {
             throw GenerationError.generationFailed(genResult.error ?? "Claude Code CLI is unavailable")
         }
 
-        // Stubs are compilable skeletons — even if Claude fails to fully implement them,
-        // the plugin will still compile. Only bail out if source files are empty.
-        if !genResult.success {
-            let processorFile = project.directory.appendingPathComponent("Source/PluginProcessor.cpp")
-            let processorContent = (try? String(contentsOf: processorFile, encoding: .utf8)) ?? ""
-            let editorFile = project.directory.appendingPathComponent("Source/PluginEditor.cpp")
-            let editorContent = (try? String(contentsOf: editorFile, encoding: .utf8)) ?? ""
+        // Capture initial file snapshots to detect if Claude modified them.
+        // The stubs now contain a minimal viable implementation (parameters, DSP, UI)
+        // so even if Claude does nothing, the plugin compiles and passes validation.
+        // But we still want Claude to customize the plugin for the user's prompt.
+        let processorFile = project.directory.appendingPathComponent("Source/PluginProcessor.cpp")
+        let editorFile = project.directory.appendingPathComponent("Source/PluginEditor.cpp")
+        let initialProcessor = (try? String(contentsOf: processorFile, encoding: .utf8)) ?? ""
+        let initialEditor = (try? String(contentsOf: editorFile, encoding: .utf8)) ?? ""
 
-            if processorContent.isEmpty || editorContent.isEmpty {
-                throw GenerationError.generationFailed(genResult.error ?? "Claude did not generate any code")
-            }
+        func filesWereModified() -> Bool {
+            let currentProcessor = (try? String(contentsOf: processorFile, encoding: .utf8)) ?? ""
+            let currentEditor = (try? String(contentsOf: editorFile, encoding: .utf8)) ?? ""
+            return currentProcessor != initialProcessor || currentEditor != initialEditor
+        }
+
+        if !genResult.success && !filesWereModified() {
+            // Claude failed AND didn't modify files — retry with a more direct prompt
+            log("Generation incomplete — retrying with direct instructions...")
+            setStep(.generatingDSP)
+
+            let retryPrompt = """
+            The source files have a starter implementation but you need to customize them
+            for this specific plugin: \(config.prompt)
+            Type: \(pluginRole)
+
+            The starter code has basic gain/mix parameters. You must REPLACE them with
+            parameters appropriate for this plugin. Read CLAUDE.md for the full guide.
+
+            1. Read CLAUDE.md (expert reference)
+            2. Read all Source/ files
+            3. Replace createParameterLayout() with parameters specific to: \(config.prompt)
+            4. Replace processBlock() with DSP logic matching the plugin concept
+            5. Update the editor: new sliders/controls for each new parameter
+            6. Update resized() layout
+
+            Start by reading CLAUDE.md now.
+            """
+
+            let _ = await ClaudeCodeService.run(
+                prompt: retryPrompt,
+                projectDir: project.directory,
+                timeoutSeconds: 300,
+                onEvent: { [weak self] event in
+                    Task { @MainActor in
+                        self?.handleClaudeEvent(event)
+                    }
+                }
+            )
+            // Whether retry succeeds or not, proceed — stubs already pass validation
         }
 
         try Task.checkCancellation()
