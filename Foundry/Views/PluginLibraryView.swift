@@ -1,25 +1,11 @@
+import AppKit
 import SwiftUI
 
-// MARK: - Filter
-
-enum PluginFilter: String, CaseIterable {
-    case all = "All"
-    case instruments = "Instruments"
-    case effects = "Effects"
-    case utilities = "Utilities"
-}
-
-enum PluginSort: String, CaseIterable {
-    case newest = "Newest"
-    case oldest = "Oldest"
-    case name = "Name"
-}
+// MARK: - Library View
 
 struct PluginLibraryView: View {
     @Environment(AppState.self) private var appState
-    @State private var searchText = ""
     @State private var filter: PluginFilter = .all
-    @State private var sort: PluginSort = .newest
     @State private var selectedPlugin: Plugin?
     @State private var pluginToDelete: Plugin?
     @State private var pluginToRename: Plugin?
@@ -28,115 +14,40 @@ struct PluginLibraryView: View {
 
     private var filteredPlugins: [Plugin] {
         var result = appState.plugins
-
-        if !searchText.isEmpty {
-            let query = searchText.lowercased()
-            result = result.filter {
-                $0.name.lowercased().contains(query) ||
-                $0.prompt.lowercased().contains(query)
-            }
-        }
-
         switch filter {
         case .all: break
         case .instruments: result = result.filter { $0.type == .instrument }
         case .effects: result = result.filter { $0.type == .effect }
         case .utilities: result = result.filter { $0.type == .utility }
         }
-
-        switch sort {
-        case .newest: result.sort { $0.createdAt > $1.createdAt }
-        case .oldest: result.sort { $0.createdAt < $1.createdAt }
-        case .name: result.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-        }
-
-        return result
-    }
-
-    /// Split into 3 columns, filling left-to-right per row
-    private var columns: [[Plugin]] {
-        var col0: [Plugin] = []
-        var col1: [Plugin] = []
-        var col2: [Plugin] = []
-        for (i, plugin) in filteredPlugins.enumerated() {
-            switch i % 3 {
-            case 0: col0.append(plugin)
-            case 1: col1.append(plugin)
-            default: col2.append(plugin)
-            }
-        }
-        return [col0, col1, col2]
+        return result.sorted { $0.createdAt > $1.createdAt }
     }
 
     var body: some View {
-        Group {
-            if appState.plugins.isEmpty {
-                emptyState
-            } else if filteredPlugins.isEmpty {
-                noResultsState
-            } else {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 28) {
-                        // Recently created — large cards
-                        if searchText.isEmpty && filter == .all {
-                            recentSection
-                        }
-
-                        // All plugins — App Store grid
-                        VStack(alignment: .leading, spacing: 14) {
-                            HStack(alignment: .firstTextBaseline) {
-                                Text("All Plugins")
-                                    .font(.title3.weight(.semibold))
-                                Spacer()
-                                Text("\(filteredPlugins.count)")
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            appStoreGrid
-                        }
+        VStack(spacing: 0) {
+            FoundryHeaderBar(
+                activeFilter: filter,
+                onFilterTap: { filter = $0 },
+                onLogoTap: {}
+            ) {
+                HStack(spacing: FoundryTheme.Spacing.md) {
+                    FoundryActionButton(title: "+ NEW") {
+                        appState.push(.prompt)
                     }
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 16)
+
+                    if let building = appState.plugins.first(where: { $0.status == .building }) {
+                        BuildingIndicator(name: building.name)
+                    }
                 }
             }
+
+            ScrollView {
+                pluginGrid
+            }
+            .background(FoundryTheme.Colors.backgroundElevated)
+
         }
-        .navigationTitle("Foundry")
-        .searchable(text: $searchText, prompt: "Search plugins...")
-        .toolbar {
-            ToolbarItemGroup(placement: .automatic) {
-                Picker("Filter", selection: $filter) {
-                    ForEach(PluginFilter.allCases, id: \.self) { f in
-                        Text(f.rawValue).tag(f)
-                    }
-                }
-                .pickerStyle(.segmented)
-
-                Menu {
-                    ForEach(PluginSort.allCases, id: \.self) { s in
-                        Button {
-                            sort = s
-                        } label: {
-                            if sort == s {
-                                Label(s.rawValue, systemImage: "checkmark")
-                            } else {
-                                Text(s.rawValue)
-                            }
-                        }
-                    }
-                } label: {
-                    Label("Sort", systemImage: "arrow.up.arrow.down")
-                }
-            }
-
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    appState.push(.prompt)
-                } label: {
-                    Image(systemName: "plus")
-                }
-            }
-        }
+        .background(FoundryTheme.Colors.backgroundElevated)
         .sheet(item: $selectedPlugin) { plugin in
             PluginDetailView(plugin: plugin) { action in
                 handleDetailAction(action, for: plugin)
@@ -167,161 +78,38 @@ struct PluginLibraryView: View {
                 if let plugin = pluginToRename { renamePlugin(plugin, to: renameText) }
             }
         }
-        .alert("Could not delete plugin", isPresented: Binding(
-            get: { deleteError != nil },
-            set: { if !$0 { deleteError = nil } }
-        )) {
+        .alert("Could not delete plugin",
+               isPresented: Binding(
+                   get: { deleteError != nil },
+                   set: { if !$0 { deleteError = nil } }
+               )
+        ) {
             Button("OK") { deleteError = nil }
         } message: {
             Text(deleteError ?? "")
         }
     }
 
-    // MARK: - Recent Section
+    // MARK: - Plugin Grid
 
-    private var recentPlugins: [Plugin] {
-        Array(
-            appState.plugins
-                .sorted { $0.createdAt > $1.createdAt }
-                .prefix(2)
-        )
-    }
-
-    private var recentSection: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("Recently Created")
-                .font(.title3.weight(.semibold))
-
-            HStack(spacing: 14) {
-                ForEach(recentPlugins) { plugin in
-                    largePluginCard(plugin)
+    private var pluginGrid: some View {
+        let cols = Array(repeating: GridItem(.flexible(), spacing: 1), count: 5)
+        return LazyVGrid(columns: cols, spacing: 1) {
+            NewPluginCard { appState.push(.prompt) }
+            ForEach(filteredPlugins) { plugin in
+                LibraryPluginCard(plugin: plugin) {
+                    selectedPlugin = plugin
+                } onRename: {
+                    pluginToRename = plugin
+                    renameText = plugin.name
+                } onShowInFinder: {
+                    showInFinder(plugin)
+                } onDelete: {
+                    pluginToDelete = plugin
                 }
             }
         }
-    }
-
-    private func largePluginCard(_ plugin: Plugin) -> some View {
-        Button {
-            selectedPlugin = plugin
-        } label: {
-            HStack(spacing: 0) {
-                // Text content — left side
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(plugin.type.displayName)
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.secondary)
-
-                    Text(plugin.name)
-                        .font(.title3.weight(.semibold))
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
-
-                    Text(plugin.prompt)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.leading)
-                }
-                .padding(20)
-
-                Spacer(minLength: 0)
-
-                PluginArtworkView(
-                    plugin: plugin,
-                    size: 80,
-                    cornerRadius: 22,
-                    symbolSize: 30
-                )
-                .padding(.trailing, 20)
-            }
-            .frame(maxWidth: .infinity, minHeight: 120, alignment: .leading)
-            .background(Color(.controlBackgroundColor).opacity(0.5), in: .rect(cornerRadius: 14))
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
-
-    // MARK: - App Store Grid
-
-    private var appStoreGrid: some View {
-        HStack(alignment: .top, spacing: 24) {
-            ForEach(0..<3, id: \.self) { colIndex in
-                VStack(spacing: 0) {
-                    let items = columns[colIndex]
-                    ForEach(Array(items.enumerated()), id: \.element.id) { rowIndex, plugin in
-                        if rowIndex > 0 {
-                            Divider()
-                                .padding(.leading, 46)
-                        }
-
-                        pluginCardView(for: plugin)
-                    }
-                }
-                .frame(maxWidth: .infinity)
-            }
-        }
-    }
-
-    private func pluginCardView(for plugin: Plugin) -> some View {
-        PluginCard(plugin: plugin) {
-            selectedPlugin = plugin
-        } onDelete: {
-            pluginToDelete = plugin
-        } onShowInFinder: {
-            showInFinder(plugin)
-        } onRename: {
-            pluginToRename = plugin
-            renameText = plugin.name
-        } onRegenerate: {
-            appState.push(.quickOptions(prompt: plugin.prompt))
-        }
-    }
-
-    // MARK: - States
-
-    private var emptyState: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "waveform")
-                .font(.system(size: 48, weight: .thin))
-                .foregroundStyle(.quaternary)
-
-            VStack(spacing: 8) {
-                Text("No plugins yet")
-                    .font(.title2)
-                    .fontWeight(.medium)
-
-                Text("Create your first audio plugin from a description.")
-                    .font(.body)
-                    .foregroundStyle(.secondary)
-            }
-
-            Button("New Plugin", systemImage: "plus") {
-                appState.push(.prompt)
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .padding(.top, 4)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    private var noResultsState: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 36, weight: .thin))
-                .foregroundStyle(.quaternary)
-
-            Text("No matching plugins")
-                .font(.body)
-                .foregroundStyle(.secondary)
-
-            Button("Clear Filters") {
-                searchText = ""
-                filter = .all
-            }
-            .buttonStyle(.bordered)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(FoundryTheme.Colors.backgroundSubtle)
     }
 
     // MARK: - Actions
@@ -371,14 +159,183 @@ struct PluginLibraryView: View {
     }
 }
 
-#Preview {
-    NavigationStack {
-        PluginLibraryView()
+// MARK: - Building Indicator
+
+struct BuildingIndicator: View {
+    let name: String
+    @Environment(AppState.self) private var appState
+
+    var body: some View {
+        HStack(spacing: FoundryTheme.Spacing.xs) {
+            Circle()
+                .fill(Color.white)
+                .frame(width: 6, height: 6)
+            Text("BUILDING · \(Int(appState.buildProgress * 100))%")
+                .font(FoundryTheme.Fonts.jetBrainsMono(9))
+                .tracking(0.9)
+                .foregroundStyle(.white)
+        }
     }
-    .environment({
-        let state = AppState()
-        state.plugins = Plugin.samplePlugins
-        return state
-    }())
-    .preferredColorScheme(.dark)
+}
+
+// MARK: - New Plugin Card
+
+struct NewPluginCard: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: FoundryTheme.Spacing.xs) {
+                Image(systemName: "plus")
+                    .font(.system(size: 18, weight: .thin))
+                    .foregroundStyle(FoundryTheme.Colors.textSecondary)
+                Text("NEW PLUGIN")
+                    .font(FoundryTheme.Fonts.azeretMono(10))
+                    .tracking(2)
+                    .foregroundStyle(FoundryTheme.Colors.textSecondary)
+            }
+            .frame(maxWidth: .infinity, minHeight: 340)
+            .background(FoundryTheme.Colors.backgroundCard)
+            .overlay(
+                Rectangle()
+                    .strokeBorder(
+                        FoundryTheme.Colors.borderSubtle,
+                        style: StrokeStyle(lineWidth: 1, dash: [4, 4])
+                    )
+                    .padding(1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Library Plugin Card
+
+struct LibraryPluginCard: View {
+    let plugin: Plugin
+    let onTap: () -> Void
+    var onRename: (() -> Void)?
+    var onShowInFinder: (() -> Void)?
+    var onDelete: (() -> Void)?
+    @Environment(AppState.self) private var appState
+
+    var body: some View {
+        Button(action: onTap) {
+            VStack(spacing: 0) {
+                artworkArea
+                    .frame(height: 204)
+                infoArea
+            }
+            .frame(maxWidth: .infinity)
+            .clipShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .contextMenu {
+            Button("Rename...", systemImage: "pencil") { onRename?() }
+            Button("Show in Finder", systemImage: "folder") { onShowInFinder?() }
+            Divider()
+            Button("Delete Plugin", systemImage: "trash", role: .destructive) { onDelete?() }
+        }
+    }
+
+    @ViewBuilder
+    private var artworkArea: some View {
+        ZStack {
+            FoundryTheme.Colors.backgroundCard
+            if plugin.status == .building {
+                buildingArtwork
+            } else if let img = loadLogoImage() {
+                Image(nsImage: img)
+                    .resizable()
+                    .scaledToFill()
+                    .clipped()
+            } else {
+                AbstractArtwork(pluginType: plugin.type)
+            }
+        }
+    }
+
+    private var buildingArtwork: some View {
+        Rectangle()
+            .strokeBorder(
+                FoundryTheme.Colors.borderSubtle,
+                style: StrokeStyle(lineWidth: 1, dash: [4, 4])
+            )
+            .padding(32)
+            .overlay(
+                Image(systemName: "gearshape")
+                    .font(.system(size: 18, weight: .ultraLight))
+                    .foregroundStyle(FoundryTheme.Colors.borderSubtle)
+            )
+    }
+
+    private var infoArea: some View {
+        ZStack(alignment: .bottomLeading) {
+            (plugin.status == .building ? Color(hex: 0x1F1F1F) : FoundryTheme.Colors.backgroundToolbar)
+            VStack(alignment: .leading, spacing: 3) {
+                if plugin.status == .building {
+                    Text(plugin.name.uppercased())
+                        .font(FoundryTheme.Fonts.spaceGrotesk(20))
+                        .tracking(1)
+                        .foregroundStyle(.white.opacity(0.4))
+                        .lineLimit(1)
+                    Text("BUILDING... \(Int(appState.buildProgress * 100))%")
+                        .font(FoundryTheme.Fonts.jetBrainsMono(9))
+                        .tracking(1.8)
+                        .foregroundStyle(.white)
+                } else {
+                    Text(plugin.name.uppercased())
+                        .font(FoundryTheme.Fonts.spaceGrotesk(24))
+                        .tracking(1)
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                }
+                Text(formatSubtitle())
+                    .font(FoundryTheme.Fonts.jetBrainsMono(9))
+                    .tracking(0.9)
+                    .foregroundStyle(FoundryTheme.Colors.textSecondary)
+                    .textCase(.uppercase)
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 13)
+
+            if plugin.status == .building {
+                VStack {
+                    Spacer()
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            Color(hex: 0x353535).frame(height: 4)
+                            Color.white.frame(width: geo.size.width * appState.buildProgress, height: 4)
+                        }
+                    }
+                    .frame(height: 4)
+                }
+            }
+        }
+        .frame(height: 136)
+    }
+
+    private func formatSubtitle() -> String {
+        let type = plugin.type.displayName.uppercased()
+        let formats = plugin.formats.map(\.rawValue).joined(separator: " / ")
+        return "\(type) · \(formats)"
+    }
+
+    private func loadLogoImage() -> NSImage? {
+        guard let path = plugin.logoAssetPath,
+              FileManager.default.fileExists(atPath: path) else { return nil }
+        return NSImage(contentsOfFile: path)
+    }
+}
+
+// MARK: - Preview
+
+#Preview {
+    ContentView()
+        .environment({
+            let state = AppState()
+            state.plugins = Plugin.samplePlugins
+            return state
+        }())
+        .preferredColorScheme(.dark)
 }

@@ -1,148 +1,375 @@
 import SwiftUI
 
+// MARK: - Prompt View (New Plugin — v4 design)
+
 struct PromptView: View {
     @Environment(AppState.self) private var appState
     @State private var prompt = ""
+    @State private var format: FormatOption = .both
+    @State private var channelLayout: ChannelLayout = .stereo
+    @State private var presetCount: PresetCount = .five
     @FocusState private var isFocused: Bool
 
-    private let instrumentExamples = [
-        "Warm analog polysynth with detuned oscillators and a low-pass filter",
-        "Monophonic bass synth with glide, sub-oscillator, and drive",
-        "FM pad synth with slow attack, chorus, and stereo spread",
-        "Supersaw lead synth with unison, portamento, and filter envelope",
-        "Hammond-style tonewheel organ with drawbars, percussion, and rotary speaker",
-        "Farfisa compact organ with vibrato and tone controls",
-        "Electric piano with velocity-sensitive tines, tremolo, and chorus",
-        "Granular instrument that turns MIDI notes into shimmering cloud textures",
-    ]
-
-    private let effectExamples = [
-        "Lo-fi tape delay with wow, flutter, and saturation",
-        "Shimmer reverb with pitch-shifted tails and freeze",
-        "Multi-band distortion with per-band tone controls",
-        "Stereo chorus with rate, depth, and feedback controls",
-        "Gated reverb with adjustable threshold and decay",
-        "Phaser with LFO sync, stereo mode, and resonance",
-        "Bitcrusher with sample rate reduction and dithering",
-        "Dynamic compressor with sidechain filter and auto-gain",
-    ]
-
-    private let utilityExamples = [
-        "Stereo utility with width, polarity, and mono fold-down",
-        "Transient shaper with simple attack and sustain macros",
-        "Analyzer with input trim, output trim, and animated stereo meter",
-        "DJ-style isolator with large low, mid, and high bands",
+    private let suggestions: [SuggestionCategory] = [
+        SuggestionCategory(
+            title: "INSTRUMENTS",
+            systemImage: "pianokeys",
+            items: [
+                ("SUBTRACTIVE SYNTH", "Warm analog polysynth with detuned oscillators and a low-pass filter"),
+                ("FM ENGINE", "FM pad synth with slow attack, chorus, and stereo spread"),
+                ("WAVETABLE OSC", "Wavetable synthesizer with morphable waveforms and built-in effects"),
+            ]
+        ),
+        SuggestionCategory(
+            title: "EFFECTS",
+            systemImage: "waveform",
+            items: [
+                ("ALGORITHMIC REVERB", "Algorithmic reverb with room size, damping, and pre-delay"),
+                ("TAPE DELAY", "Lo-fi tape delay with wow, flutter, and saturation"),
+                ("BITCRUSHER", "Bitcrusher with sample rate reduction and dithering"),
+            ]
+        ),
+        SuggestionCategory(
+            title: "UTILITIES",
+            systemImage: "dial.low",
+            items: [
+                ("MODULATION MATRIX", "Flexible modulation matrix with multiple sources and destinations"),
+                ("STEP SEQUENCER", "8-step sequencer with rate, swing, and gate controls"),
+                ("ADSR ENVELOPE", "ADSR envelope follower with output level and retrigger"),
+            ]
+        ),
     ]
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                // Header
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Describe your plugin")
-                        .font(.title3)
-                        .fontWeight(.medium)
-                    Text("Include the role, sonic character, must-have controls, and how the interface should feel.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-
-                // Text editor
-                ZStack(alignment: .topLeading) {
-                    TextEditor(text: $prompt)
-                        .font(.body)
-                        .scrollContentBackground(.hidden)
-                        .focused($isFocused)
-
-                    if prompt.isEmpty {
-                        Text("A stereo utility for widening vocals with width, mono check, output trim, and a focused interface with 4 large controls...")
-                            .font(.body)
-                            .foregroundStyle(.quaternary)
-                            .allowsHitTesting(false)
-                            .padding(.top, 8)
-                            .padding(.leading, 5)
+        VStack(spacing: 0) {
+            FoundryHeaderBar(
+                onLogoTap: { appState.popToRoot() }
+            ) {
+                HStack(spacing: FoundryTheme.Spacing.lg) {
+                    if let building = appState.plugins.first(where: { $0.status == .building }) {
+                        BuildingIndicator(name: building.name)
                     }
-                }
-                .frame(height: 100)
-                .padding(10)
-                .background(Color(.controlBackgroundColor).opacity(0.3), in: .rect(cornerRadius: 10))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10)
-                        .strokeBorder(.quaternary, lineWidth: 1)
-                )
 
-                // Tip
-                HStack(alignment: .top, spacing: 10) {
-                    Image(systemName: "sparkles")
-                        .foregroundStyle(.secondary)
-                        .font(.subheadline)
-                    Text("State whether it is an instrument, effect, or utility. Mention the source material, the primary controls, and whether you want a focused or dense interface.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(14)
-                .background(Color(.controlBackgroundColor).opacity(0.3), in: .rect(cornerRadius: 10))
-
-                // Examples
-                VStack(alignment: .leading, spacing: 20) {
-                    exampleSection("Instruments", icon: "pianokeys", examples: instrumentExamples)
-                    exampleSection("Effects", icon: "waveform", examples: effectExamples)
-                    exampleSection("Utilities", icon: "dial.low", examples: utilityExamples)
+                    FoundryActionButton(
+                        title: "GENERATE",
+                        action: generate,
+                        isDisabled: prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    )
+                    .keyboardShortcut(.return, modifiers: .command)
                 }
             }
-            .padding(24)
-            .frame(maxWidth: 600, alignment: .leading)
-        }
-        .navigationTitle("New plugin")
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button("Continue") {
-                    appState.push(.quickOptions(prompt: prompt))
+
+            GeometryReader { geo in
+                ScrollView {
+                    HStack(spacing: 0) {
+                        Spacer(minLength: 128)
+                        contentCanvas
+                            .frame(maxWidth: 1024)
+                        Spacer(minLength: 128)
+                    }
+                    .frame(minHeight: geo.size.height)
+                    .padding(.vertical, FoundryTheme.Spacing.xxxl)
                 }
-                .buttonStyle(.borderedProminent)
-                .disabled(prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                .keyboardShortcut(.return, modifiers: .command)
             }
+            .background(FoundryTheme.Colors.background)
+
         }
-        .onAppear {
-            isFocused = true
+        .background(FoundryTheme.Colors.background)
+        .navigationBarBackButtonHidden(true)
+        .toolbar(.hidden)
+        .onAppear { isFocused = true }
+    }
+
+    // MARK: - Content Canvas
+
+    private var contentCanvas: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            pageHeader
+                .padding(.bottom, FoundryTheme.Spacing.xxl)
+
+            promptSection
+                .padding(.bottom, FoundryTheme.Spacing.xxl)
+
+            categoryGrid
+                .padding(.bottom, FoundryTheme.Spacing.xxxl)
+
+            Spacer(minLength: 0)
+
+            configRow
+        }
+        .padding(.horizontal, FoundryTheme.Spacing.xl)
+    }
+
+    // MARK: - Page Header
+
+    private var pageHeader: some View {
+        VStack(alignment: .leading, spacing: FoundryTheme.Spacing.md) {
+            Text("NEW PLUGIN")
+                .font(FoundryTheme.Fonts.spaceGrotesk(96))
+                .tracking(2)
+                .foregroundStyle(.white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.5)
+
+            HStack(spacing: FoundryTheme.Spacing.xs) {
+                Text("System Status: Ready")
+                    .font(FoundryTheme.Fonts.jetBrainsMono(10))
+                    .tracking(2)
+                    .foregroundStyle(FoundryTheme.Colors.textSecondary)
+                    .textCase(.uppercase)
+
+                Rectangle()
+                    .fill(Color.white)
+                    .frame(width: 8, height: 8)
+            }
         }
     }
 
-    private func exampleSection(_ title: String, icon: String, examples: [String]) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label(title, systemImage: icon)
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(.tertiary)
+    // MARK: - Prompt Section
 
-            VStack(alignment: .leading, spacing: 2) {
-                ForEach(examples, id: \.self) { example in
-                    Button {
-                        withAnimation(.easeOut(duration: 0.15)) {
-                            prompt = example
+    private var promptSection: some View {
+        VStack(alignment: .leading, spacing: FoundryTheme.Spacing.xs) {
+            Text("Natural Language Prompt")
+                .font(FoundryTheme.Fonts.jetBrainsMono(10))
+                .tracking(1)
+                .foregroundStyle(FoundryTheme.Colors.textSecondary)
+                .textCase(.uppercase)
+
+            promptTextarea
+        }
+    }
+
+    private var promptTextarea: some View {
+        ZStack(alignment: .topLeading) {
+            FoundryTheme.Colors.backgroundDeep
+
+            if prompt.isEmpty {
+                Text("Describe the sound architecture... (e.g., A dual-oscillator subtractive synth with a ladder filter and gritty tape saturation stage)")
+                    .font(FoundryTheme.Fonts.inter(20))
+                    .lineSpacing(8)
+                    .foregroundStyle(FoundryTheme.Colors.borderSubtle.opacity(0.3))
+                    .allowsHitTesting(false)
+                    .padding(FoundryTheme.Spacing.lg)
+            }
+
+            TextEditor(text: $prompt)
+                .font(FoundryTheme.Fonts.inter(20))
+                .lineSpacing(8)
+                .scrollContentBackground(.hidden)
+                .background(Color.clear)
+                .foregroundStyle(.white)
+                .focused($isFocused)
+                .padding(FoundryTheme.Spacing.lg - 5)
+        }
+        .frame(height: 180)
+        .foundryBorder()
+        .cornerBrackets()
+    }
+
+    // MARK: - Category Grid
+
+    private var categoryGrid: some View {
+        HStack(alignment: .top, spacing: FoundryTheme.Spacing.lg) {
+            ForEach(suggestions) { cat in
+                SuggestionCategoryCard(category: cat) { item in
+                    withAnimation(.easeOut(duration: 0.12)) {
+                        prompt = item.fullPrompt
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - Config Row
+
+    private var configRow: some View {
+        VStack(spacing: 0) {
+            Rectangle()
+                .fill(FoundryTheme.Colors.border)
+                .frame(height: 1)
+
+            HStack(alignment: .center) {
+                HStack(spacing: FoundryTheme.Spacing.xxxl) {
+                    configSelector(
+                        label: "FORMAT",
+                        options: FormatOption.allCases.map { $0.rawValue.uppercased() },
+                        selected: format.rawValue.uppercased()
+                    ) { cycleFormat() }
+
+                    configSelector(
+                        label: "CHANNELS",
+                        options: ChannelLayout.allCases.map { $0.rawValue.uppercased() },
+                        selected: channelLayout.rawValue.uppercased()
+                    ) { cycleChannels() }
+
+                    configSelector(
+                        label: "PRESETS",
+                        options: [PresetCount.zero, .five, .ten].map { "\($0.rawValue)" },
+                        selected: "\(presetCount.rawValue)"
+                    ) { cyclePresets() }
+                }
+
+                Spacer()
+
+                Button { appState.push(.quickOptions(prompt: prompt)) } label: {
+                    HStack(spacing: FoundryTheme.Spacing.md) {
+                        Text("Adv. Options")
+                            .font(FoundryTheme.Fonts.jetBrainsMono(10))
+                            .tracking(1)
+                            .foregroundStyle(FoundryTheme.Colors.textSecondary)
+                            .textCase(.uppercase)
+
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 7))
+                            .foregroundStyle(FoundryTheme.Colors.textSecondary)
+                    }
+                    .padding(.horizontal, 21)
+                    .padding(.vertical, 11)
+                    .foundryBorder(background: FoundryTheme.Colors.backgroundToolbar)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.top, FoundryTheme.Spacing.xl)
+            .padding(.bottom, FoundryTheme.Spacing.xxl)
+        }
+    }
+
+    private func configSelector(
+        label: String,
+        options: [String],
+        selected: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        VStack(alignment: .leading, spacing: FoundryTheme.Spacing.xs) {
+            Text(label)
+                .font(FoundryTheme.Fonts.jetBrainsMono(9))
+                .tracking(2.7)
+                .foregroundStyle(FoundryTheme.Colors.textSecondary)
+
+            Button(action: action) {
+                HStack(spacing: 4) {
+                    ForEach(Array(options.enumerated()), id: \.offset) { idx, option in
+                        if idx > 0 {
+                            Text("/")
+                                .font(FoundryTheme.Fonts.jetBrainsMono(12))
+                                .foregroundStyle(FoundryTheme.Colors.textDimmed)
                         }
-                    } label: {
-                        Text(example)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.vertical, 7)
-                            .padding(.horizontal, 10)
-                            .contentShape(Rectangle())
+                        Text(option)
+                            .font(FoundryTheme.Fonts.jetBrainsMono(12))
+                            .foregroundStyle(option == selected ? .white : FoundryTheme.Colors.textDimmed)
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    // MARK: - Cycle Actions
+
+    private func cycleFormat() {
+        let cases = FormatOption.allCases
+        let idx = cases.firstIndex(of: format)!
+        format = cases[(idx + 1) % cases.count]
+    }
+
+    private func cycleChannels() {
+        channelLayout = channelLayout == .mono ? .stereo : .mono
+    }
+
+    private func cyclePresets() {
+        let cases = PresetCount.allCases
+        let idx = cases.firstIndex(of: presetCount)!
+        presetCount = cases[(idx + 1) % cases.count]
+    }
+
+    private func generate() {
+        guard !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        appState.push(.generation(config: GenerationConfig(
+            prompt: prompt,
+            format: format,
+            channelLayout: channelLayout,
+            presetCount: presetCount
+        )))
+    }
+}
+
+// MARK: - Suggestion Category Card
+
+struct SuggestionCategoryCard: View {
+    let category: SuggestionCategory
+    let onSelect: (SuggestionItem) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: FoundryTheme.Spacing.lg) {
+            HStack(spacing: FoundryTheme.Spacing.sm) {
+                Image(systemName: category.systemImage)
+                    .font(.system(size: 11, weight: .regular))
+                    .foregroundStyle(.white)
+                    .frame(width: 14, height: 14)
+
+                Text(category.title)
+                    .font(FoundryTheme.Fonts.azeretMono(12))
+                    .tracking(2.4)
+                    .foregroundStyle(.white)
+                    .textCase(.uppercase)
+            }
+
+            VStack(alignment: .leading, spacing: FoundryTheme.Spacing.md) {
+                ForEach(category.items, id: \.display) { item in
+                    Button { onSelect(item) } label: {
+                        HStack {
+                            Text(item.display)
+                                .font(FoundryTheme.Fonts.jetBrainsMono(11))
+                                .tracking(-0.275)
+                                .foregroundStyle(FoundryTheme.Colors.textSecondary)
+                            Spacer()
+                            Image(systemName: "arrow.up.right")
+                                .font(.system(size: 7, weight: .regular))
+                                .foregroundStyle(FoundryTheme.Colors.textSecondary)
+                        }
                     }
                     .buttonStyle(.plain)
                 }
             }
-            .padding(4)
-            .background(Color(.controlBackgroundColor).opacity(0.2), in: .rect(cornerRadius: 8))
         }
+        .padding(25)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .foundryBorder()
     }
 }
+
+// MARK: - Data Models
+
+struct SuggestionCategory: Identifiable {
+    let id = UUID()
+    let title: String
+    let systemImage: String
+    let items: [SuggestionItem]
+}
+
+struct SuggestionItem {
+    let display: String
+    let fullPrompt: String
+}
+
+extension SuggestionCategory {
+    init(title: String, systemImage: String, items: [(String, String)]) {
+        self.title = title
+        self.systemImage = systemImage
+        self.items = items.map { SuggestionItem(display: $0.0, fullPrompt: $0.1) }
+    }
+}
+
+// MARK: - Preview
 
 #Preview {
     NavigationStack {
         PromptView()
     }
-    .environment(AppState())
+    .environment({
+        let s = AppState()
+        s.plugins = Plugin.samplePlugins
+        return s
+    }())
     .preferredColorScheme(.dark)
 }

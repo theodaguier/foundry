@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 enum PluginDetailAction {
@@ -18,7 +19,6 @@ struct PluginDetailView: View {
     @State private var logoProgress: PluginLogoProgress?
     @State private var logoTask: Task<Void, Never>?
     @State private var logoError: String?
-    @State private var successMessage: String?
 
     init(plugin: Plugin, onAction: ((PluginDetailAction) -> Void)? = nil) {
         self.pluginID = plugin.id
@@ -30,279 +30,281 @@ struct PluginDetailView: View {
         appState.plugins.first(where: { $0.id == pluginID }) ?? fallbackPlugin
     }
 
-    private var isGeneratingLogo: Bool {
-        logoTask != nil
-    }
-
     var body: some View {
         VStack(spacing: 0) {
-            ZStack {
-                LinearGradient(
-                    colors: [iconColor.opacity(0.2), iconColor.opacity(0.05)],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .frame(height: 120)
+            WindowChromeBar(title: "PLUGIN_INFO.SH")
 
-                VStack(spacing: 10) {
-                    PluginArtworkView(
-                        plugin: plugin,
-                        size: 56,
-                        cornerRadius: 16,
-                        symbolSize: 20
-                    )
+            artworkSection
 
-                    Text(plugin.name)
-                        .font(.title2)
-                        .fontWeight(.semibold)
-                }
-            }
+            infoSection
 
-            VStack(spacing: 20) {
-                HStack(spacing: 8) {
-                    Text(plugin.type.displayName)
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
-                        .background(.quaternary.opacity(0.5), in: .capsule)
-
-                    if plugin.status == .failed {
-                        Text("Failed")
-                            .font(.caption.weight(.medium))
-                            .foregroundStyle(.orange)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 4)
-                            .background(.orange.opacity(0.1), in: .capsule)
-                    } else {
-                        Text("Installed")
-                            .font(.caption.weight(.medium))
-                            .foregroundStyle(.green)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 4)
-                            .background(.green.opacity(0.1), in: .capsule)
-                    }
-                }
-
-                VStack(spacing: 0) {
-                    infoRow("Prompt", value: plugin.prompt)
-                    Divider().padding(.leading, 80)
-                    infoRow("Formats", value: plugin.formats.map(\.rawValue).joined(separator: ", "))
-                    Divider().padding(.leading, 80)
-                    infoRow("Created", value: plugin.createdAt.formatted(date: .long, time: .shortened))
-
-                    if let au = plugin.installPaths.au {
-                        Divider().padding(.leading, 80)
-                        infoRow("AU Path", value: au)
-                    }
-                    if let vst3 = plugin.installPaths.vst3 {
-                        Divider().padding(.leading, 80)
-                        infoRow("VST3 Path", value: vst3)
-                    }
-                }
-                .background(Color(.controlBackgroundColor).opacity(0.3), in: .rect(cornerRadius: 8))
-
-                VStack(alignment: .leading, spacing: 10) {
-                    Button {
-                        startLogoGeneration()
-                    } label: {
-                        Label("Recreate Logo", systemImage: "photo.badge.sparkles")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
-                    .disabled(isGeneratingLogo)
-
-                    if let successMessage {
-                        Text(successMessage)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    HStack(spacing: 8) {
-                        actionButton("Finder", icon: "folder") {
-                            onAction?(.showInFinder)
-                        }
-
-                        actionButton("Rename", icon: "pencil") {
-                            onAction?(.rename)
-                        }
-
-                        actionButton("Regenerate", icon: "arrow.counterclockwise") {
-                            onAction?(.regenerate)
-                        }
-
-                        actionButton("Delete", icon: "trash", role: .destructive) {
-                            onAction?(.delete)
-                        }
-                    }
-                }
-            }
-            .padding(24)
-
-            Spacer(minLength: 0)
+            actionSection
         }
-        .frame(width: 460, height: 560)
+        .frame(width: 520)
+        .background(FoundryTheme.Colors.background)
         .overlay {
             if let logoProgress {
-                progressOverlay(for: logoProgress)
-            }
-        }
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button("Done") {
-                    dismiss()
+                LogoProgressOverlay(progress: logoProgress) {
+                    logoTask?.cancel()
                 }
-                .disabled(isGeneratingLogo)
             }
-        }
-        .onDisappear {
-            logoTask?.cancel()
         }
         .alert("Logo generation failed", isPresented: Binding(
             get: { logoError != nil },
             set: { if !$0 { logoError = nil } }
         )) {
-            Button("OK") {
-                logoError = nil
-            }
+            Button("OK") { logoError = nil }
         } message: {
             Text(logoError ?? "")
         }
+        .onDisappear { logoTask?.cancel() }
     }
 
-    private func infoRow(_ label: String, value: String) -> some View {
-        HStack(alignment: .top) {
-            Text(label)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .frame(width: 70, alignment: .leading)
+    // MARK: - Artwork
 
-            Text(value)
-                .font(.subheadline)
-                .foregroundStyle(.primary)
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-    }
-
-    private func actionButton(
-        _ title: String,
-        icon: String,
-        role: ButtonRole? = nil,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(role: role) {
-            action()
-        } label: {
-            VStack(spacing: 6) {
-                Image(systemName: icon)
-                    .font(.body)
-                Text(title)
-                    .font(.caption2)
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: 52)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.bordered)
-        .tint(role == .destructive ? .red : nil)
-    }
-
-    @ViewBuilder
-    private func progressOverlay(for progress: PluginLogoProgress) -> some View {
-        ZStack {
-            Rectangle()
-                .fill(.black.opacity(0.35))
-                .ignoresSafeArea()
-
-            VStack(spacing: 16) {
-                ProgressView()
-                    .controlSize(.large)
-
-                Text(progressTitle(for: progress))
-                    .font(.headline)
-
-                Text(progress.message)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-
-                Button("Cancel") {
-                    logoTask?.cancel()
+    private var artworkSection: some View {
+        ZStack(alignment: .bottomLeading) {
+            // Background artwork
+            ZStack {
+                FoundryTheme.Colors.backgroundCard
+                if let img = loadLogoImage() {
+                    Image(nsImage: img)
+                        .resizable()
+                        .scaledToFill()
+                        .clipped()
+                } else {
+                    AbstractArtwork(pluginType: plugin.type)
                 }
-                .buttonStyle(.bordered)
             }
-            .padding(24)
-            .frame(width: 280)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .frame(height: 200)
+
+            // Name + type overlay
+            VStack(alignment: .leading, spacing: 3) {
+                Text(plugin.type.displayName.uppercased() + " · " + plugin.formats.map(\.rawValue).joined(separator: " / "))
+                    .font(FoundryTheme.Fonts.azeretMono(9))
+                    .tracking(1.2)
+                    .foregroundStyle(FoundryTheme.Colors.textSecondary)
+
+                Text(plugin.name.uppercased())
+                    .font(FoundryTheme.Fonts.spaceGrotesk(32))
+                    .tracking(1)
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+            }
+            .padding(.horizontal, 24)
+            .padding(.bottom, 20)
+            .padding(.top, 60)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                LinearGradient(
+                    colors: [.clear, FoundryTheme.Colors.backgroundCard],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+        }
+        .clipped()
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(FoundryTheme.Colors.border).frame(height: 1)
         }
     }
 
-    private func progressTitle(for progress: PluginLogoProgress) -> String {
-        switch progress {
-        case .preparing:
-            "Preparing"
-        case .generating:
-            "Generating Logo"
-        case .writing:
-            "Saving Logo"
+    // MARK: - Info
+
+    private var infoSection: some View {
+        VStack(spacing: 0) {
+            InfoRow(label: "PROMPT", value: plugin.prompt)
+            Separator()
+            InfoRow(label: "CREATED", value: plugin.createdAt.formatted(date: .abbreviated, time: .shortened))
+            if let au = plugin.installPaths.au {
+                Separator()
+                InfoRow(label: "AU PATH", value: au)
+            }
+            if let vst3 = plugin.installPaths.vst3 {
+                Separator()
+                InfoRow(label: "VST3 PATH", value: vst3)
+            }
         }
+        .background(FoundryTheme.Colors.backgroundCard)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(FoundryTheme.Colors.border).frame(height: 1)
+        }
+    }
+
+    // MARK: - Actions
+
+    private var actionSection: some View {
+        HStack(spacing: 0) {
+            DetailAction(label: "FINDER", icon: "folder") {
+                onAction?(.showInFinder)
+            }
+            VerticalSeparator()
+            DetailAction(label: "RENAME", icon: "pencil") {
+                onAction?(.rename)
+            }
+            VerticalSeparator()
+            DetailAction(label: "REGENERATE", icon: "arrow.counterclockwise") {
+                onAction?(.regenerate)
+            }
+            VerticalSeparator()
+            DetailAction(label: "LOGO", icon: "photo.badge.sparkles", disabled: logoTask != nil) {
+                startLogoGeneration()
+            }
+            VerticalSeparator()
+            DetailAction(label: "CLOSE", icon: "xmark") {
+                dismiss()
+            }
+            VerticalSeparator()
+            DetailAction(label: "DELETE", icon: "trash", destructive: true) {
+                onAction?(.delete)
+            }
+        }
+        .frame(height: 64)
+        .background(FoundryTheme.Colors.backgroundToolbar)
+    }
+
+    // MARK: - Helpers
+
+    private func loadLogoImage() -> NSImage? {
+        guard let path = plugin.logoAssetPath,
+              FileManager.default.fileExists(atPath: path) else { return nil }
+        return NSImage(contentsOfFile: path)
     }
 
     private func startLogoGeneration() {
         guard logoTask == nil else { return }
-
-        successMessage = nil
         let currentPlugin = plugin
         logoProgress = .preparing("Preparing logo generation…")
-
         logoTask = Task {
             do {
                 let updatedPlugin = try await PluginLogoService.generateLogo(for: currentPlugin) { progress in
-                    Task { @MainActor in
-                        logoProgress = progress
-                    }
+                    Task { @MainActor in logoProgress = progress }
                 }
-
                 try Task.checkCancellation()
-
                 await MainActor.run {
                     PluginManager.update(updatedPlugin, in: &appState.plugins)
-                    successMessage = "Logo updated"
                     logoProgress = nil
                     logoTask = nil
                 }
             } catch is CancellationError {
-                await MainActor.run {
-                    logoProgress = nil
-                    logoTask = nil
-                }
+                await MainActor.run { logoProgress = nil; logoTask = nil }
             } catch {
-                await MainActor.run {
-                    logoProgress = nil
-                    logoTask = nil
-                    logoError = error.localizedDescription
-                }
+                await MainActor.run { logoProgress = nil; logoTask = nil; logoError = error.localizedDescription }
             }
         }
     }
+}
 
-    private var iconColor: Color {
-        guard plugin.iconColor.hasPrefix("#"),
-              let hex = UInt(plugin.iconColor.dropFirst(), radix: 16) else {
-            return .accentColor
+// MARK: - Info Row
+
+private struct InfoRow: View {
+    let label: String
+    let value: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: FoundryTheme.Spacing.lg) {
+            Text(label)
+                .font(FoundryTheme.Fonts.azeretMono(9))
+                .tracking(1.2)
+                .foregroundStyle(FoundryTheme.Colors.textMuted)
+                .frame(width: 72, alignment: .leading)
+
+            Text(value)
+                .font(FoundryTheme.Fonts.azeretMono(11))
+                .foregroundStyle(FoundryTheme.Colors.textSecondary)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        return Color(
-            .sRGB,
-            red: Double((hex >> 16) & 0xFF) / 255.0,
-            green: Double((hex >> 8) & 0xFF) / 255.0,
-            blue: Double(hex & 0xFF) / 255.0
-        )
+        .padding(.horizontal, 24)
+        .padding(.vertical, 12)
     }
 }
+
+// MARK: - Detail Action
+
+private struct DetailAction: View {
+    let label: String
+    let icon: String
+    var destructive: Bool = false
+    var disabled: Bool = false
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 5) {
+                Image(systemName: icon)
+                    .font(.system(size: 11, weight: .light))
+                    .foregroundStyle(destructive ? Color(hex: 0xFF5F56) : (disabled ? FoundryTheme.Colors.textFaint : FoundryTheme.Colors.textSecondary))
+                Text(label)
+                    .font(FoundryTheme.Fonts.azeretMono(8))
+                    .tracking(1.2)
+                    .foregroundStyle(destructive ? Color(hex: 0xFF5F56) : (disabled ? FoundryTheme.Colors.textFaint : FoundryTheme.Colors.textMuted))
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 64)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(disabled)
+    }
+}
+
+// MARK: - Separators
+
+private struct Separator: View {
+    var body: some View {
+        Rectangle().fill(FoundryTheme.Colors.border).frame(height: 1)
+    }
+}
+
+private struct VerticalSeparator: View {
+    var body: some View {
+        Rectangle().fill(FoundryTheme.Colors.border).frame(width: 1)
+    }
+}
+
+// MARK: - Logo Progress Overlay
+
+struct LogoProgressOverlay: View {
+    let progress: PluginLogoProgress
+    let onCancel: () -> Void
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.7).ignoresSafeArea()
+
+            VStack(spacing: FoundryTheme.Spacing.md) {
+                ProgressView()
+                    .progressViewStyle(.circular)
+                    .tint(.white)
+
+                Text(progress.message.uppercased())
+                    .font(FoundryTheme.Fonts.azeretMono(10))
+                    .tracking(1.5)
+                    .foregroundStyle(FoundryTheme.Colors.textSecondary)
+                    .multilineTextAlignment(.center)
+
+                Button(action: onCancel) {
+                    Text("CANCEL")
+                        .font(FoundryTheme.Fonts.azeretMono(10))
+                        .tracking(2)
+                        .foregroundStyle(FoundryTheme.Colors.textMuted)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(FoundryTheme.Spacing.xxl)
+            .background(FoundryTheme.Colors.backgroundElevated)
+            .overlay(
+                Rectangle()
+                    .stroke(FoundryTheme.Colors.border, lineWidth: 1)
+            )
+        }
+    }
+}
+
+// MARK: - Preview
 
 #Preview {
     PluginDetailView(plugin: Plugin.samplePlugins[0])

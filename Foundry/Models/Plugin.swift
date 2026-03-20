@@ -80,11 +80,6 @@ extension Plugin {
               let hex = UInt(iconColor.dropFirst(), radix: 16) else {
             return .accentColor
         }
-        return Color(
-            .sRGB,
-            red: Double((hex >> 16) & 0xFF) / 255.0,
-            green: Double((hex >> 8) & 0xFF) / 255.0,
-            blue: Double(hex & 0xFF) / 255.0
-        )
+        return Color(hex: hex)
     }
 }

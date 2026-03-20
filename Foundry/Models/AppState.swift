@@ -1,5 +1,20 @@
 import SwiftUI
 
+// MARK: - Filters
+
+enum PluginFilter: String, CaseIterable {
+    case all = "ALL"
+    case instruments = "INSTRUMENTS"
+    case effects = "EFFECTS"
+    case utilities = "UTILITIES"
+}
+
+enum PluginSort: String, CaseIterable {
+    case newest = "Newest"
+    case oldest = "Oldest"
+    case name = "Name"
+}
+
 // MARK: - Navigation
 
 enum Route: Hashable {
@@ -61,6 +76,7 @@ final class AppState {
     var path = NavigationPath()
     var plugins: [Plugin] = []
     var showSetup: Bool = false
+    var buildProgress: Double = 0
 
     func push(_ route: Route) {
         path.append(route)

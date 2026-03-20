@@ -19,13 +19,35 @@ enum GenerationError: Error, LocalizedError {
     }
 }
 
+// MARK: - Log
+
+struct PipelineLogLine: Identifiable, Sendable {
+    enum Style: Sendable { case normal, success, active }
+    let id = UUID()
+    let timestamp: String
+    let message: String
+    let style: Style
+}
+
+// MARK: - Pipeline
+
 @Observable @MainActor
 final class GenerationPipeline {
 
     var currentStep: GenerationStep = .preparingProject
     var isRunning = false
     var buildAttempt = 0
+    var logLines: [PipelineLogLine] = []
     private var task: Task<Void, Never>?
+
+    private func log(_ message: String, style: PipelineLogLine.Style = .normal) {
+        let now = Date()
+        let h = Calendar.current.component(.hour, from: now)
+        let m = Calendar.current.component(.minute, from: now)
+        let s = Calendar.current.component(.second, from: now)
+        let ts = String(format: "[%02d:%02d:%02d]", h, m, s)
+        logLines.append(PipelineLogLine(timestamp: ts, message: message, style: style))
+    }
 
     // MARK: - Run
 
@@ -334,8 +356,22 @@ final class GenerationPipeline {
     // MARK: - Helpers
 
     private func setStep(_ step: GenerationStep) {
+        let prev = currentStep
         withAnimation(.easeInOut(duration: 0.2)) {
             currentStep = step
+        }
+        if step != prev {
+            let completionMap: [GenerationStep: String] = [
+                .preparingProject: "PREPARING PROJECT: Dependencies resolved.",
+                .generatingDSP: "GENERATING DSP: Audio kernel convergence complete.",
+                .generatingUI: "GENERATING UI: Interface layer committed.",
+                .compiling: "COMPILING: Build artifacts ready.",
+                .installing: "INSTALLING: Plugin bundle staged.",
+            ]
+            if let msg = completionMap[prev] {
+                log(msg, style: .success)
+            }
+            log("START: \(step.logLabel)...", style: .active)
         }
     }
 
@@ -343,15 +379,23 @@ final class GenerationPipeline {
         switch event {
         case .toolUse(let tool, let filePath):
             let normalizedTool = tool.lowercased()
-            guard normalizedTool.contains("write")
-                    || normalizedTool.contains("edit")
-                    || normalizedTool.contains("file_activity") else { return }
             if let path = filePath {
-                if path.contains("Processor") {
-                    setStep(.generatingDSP)
-                } else if path.contains("Editor") || path.contains("LookAndFeel") {
-                    setStep(.generatingUI)
+                let filename = URL(fileURLWithPath: path).lastPathComponent
+                if normalizedTool.contains("write") || normalizedTool.contains("edit") || normalizedTool.contains("file_activity") {
+                    log("WRITE: \(filename)", style: .normal)
+                    if path.contains("Processor") {
+                        setStep(.generatingDSP)
+                    } else if path.contains("Editor") || path.contains("LookAndFeel") {
+                        setStep(.generatingUI)
+                    }
+                } else if normalizedTool.contains("read") {
+                    log("READ: \(filename)", style: .normal)
                 }
+            }
+        case .text(let t):
+            let trimmed = t.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty && trimmed.count < 120 {
+                log(trimmed, style: .normal)
             }
         default:
             break
