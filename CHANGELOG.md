@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.2.1](https://github.com/theodaguier/foundry/compare/v1.2.0...v1.2.1) (2026-03-20)
+
+
+### Bug Fixes
+
+* eliminate build failures with viable stubs and expert prompt rewrite ([#25](https://github.com/theodaguier/foundry/issues/25)) ([3baf068](https://github.com/theodaguier/foundry/commit/3baf068f58762aee7f6d58a2914370e0a921bb24))
+
 ## [1.2.0](https://github.com/theodaguier/foundry/compare/v1.1.1...v1.2.0) (2026-03-20)
 
 
