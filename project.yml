@@ -15,7 +15,7 @@ packages:
     revision: e12202c1f6405b83918b58a5d097cd61e3e1f702
   Supabase:
     url: https://github.com/supabase/supabase-swift.git
-    from: '2.0.0'
+    from: 2.0.0
 targets:
   Foundry:
     type: application
@@ -36,7 +36,7 @@ targets:
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.music
         INFOPLIST_KEY_CFBundleDisplayName: Foundry
         GENERATE_INFOPLIST_FILE: 'YES'
-        MARKETING_VERSION: 1.5.0
+        MARKETING_VERSION: 1.6.0
         CURRENT_PROJECT_VERSION: 1
         SWIFT_EMIT_LOC_STRINGS: 'YES'
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
