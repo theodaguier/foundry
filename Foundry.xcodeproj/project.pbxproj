@@ -24,6 +24,7 @@
 		6D6AEFE51B6FDC1DFB20C16F /* GenerationPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C1774C2EE1F0C15BF39B1E7 /* GenerationPipeline.swift */; };
 		7256639E17819BF99D5BAA78 /* DependencyListModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B757385330BAAD1CC592BB96 /* DependencyListModel.swift */; };
 		8502215EAB71ADC5A00BED70 /* ResultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB4CE5638194D3E319878858 /* ResultView.swift */; };
+		3644C7D01E89D3AA4153B08B /* BuildQueueView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8641B562F8D0835FC1CE114 /* BuildQueueView.swift */; };
 		86791B8E09C59944FF09FDE1 /* BuildLoopTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E4FA286AB0BFE6410D00E84 /* BuildLoopTests.swift */; };
 		86DC86F9E65EB121BAAA6E4B /* PromptView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB69D6CB5EE2903F1755F2BD /* PromptView.swift */; };
 		8F62055B3F66E39E34698C84 /* Plugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = C806DCDABFBFF5C60F776E68 /* Plugin.swift */; };
@@ -99,6 +100,7 @@
 		B7B720FD5B7CCC0031786F1D /* RefineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefineView.swift; sourceTree = "<group>"; };
 		BAA4AA1400D0A8005F16FC9D /* ClaudeCodeService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeCodeService.swift; sourceTree = "<group>"; };
 		BB4CE5638194D3E319878858 /* ResultView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultView.swift; sourceTree = "<group>"; };
+		E8641B562F8D0835FC1CE114 /* BuildQueueView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildQueueView.swift; sourceTree = "<group>"; };
 		BB69D6CB5EE2903F1755F2BD /* PromptView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptView.swift; sourceTree = "<group>"; };
 		C3EE70BE829D987076CBC625 /* PluginDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginDetailView.swift; sourceTree = "<group>"; };
 		C3FB52A3FEB7D539EBDFF7FD /* ProjectAssembler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectAssembler.swift; sourceTree = "<group>"; };
@@ -185,6 +187,7 @@
 				FD87798E4D6622F313640CB5 /* RefineProgressView.swift */,
 				B7B720FD5B7CCC0031786F1D /* RefineView.swift */,
 				BB4CE5638194D3E319878858 /* ResultView.swift */,
+				E8641B562F8D0835FC1CE114 /* BuildQueueView.swift */,
 				F75004640D40807A6FE43589 /* SettingsView.swift */,
 				11F0B8ACE372F6DC5016FB8C /* SetupView.swift */,
 			);
@@ -391,6 +394,7 @@
 				090AF414F35582CB7DBA8CA3 /* RefineProgressView.swift in Sources */,
 				07CDA240F28CA4F534693A2A /* RefineView.swift in Sources */,
 				8502215EAB71ADC5A00BED70 /* ResultView.swift in Sources */,
+				3644C7D01E89D3AA4153B08B /* BuildQueueView.swift in Sources */,
 				AF2D89AC5EED252B56D3D793 /* SettingsView.swift in Sources */,
 				46F97EDD013A980C36506FC2 /* SetupView.swift in Sources */,
 				1DB09B2440A1B060E3CABF0C /* StepListView.swift in Sources */,

@@ -32,6 +32,21 @@ struct PluginLibraryView: View {
         }
         .navigationTitle("Foundry")
         .toolbar {
+            ToolbarItem(placement: .automatic) {
+                Button {
+                    appState.push(.queue)
+                } label: {
+                    ZStack(alignment: .topTrailing) {
+                        Label("Builds", systemImage: "hammer")
+                        if appState.activeBuild?.pipeline.isRunning == true {
+                            Circle()
+                                .fill(.orange)
+                                .frame(width: 7, height: 7)
+                                .offset(x: 3, y: -3)
+                        }
+                    }
+                }
+            }
             ToolbarItem(placement: .primaryAction) {
                 Button {
                     appState.push(.prompt)

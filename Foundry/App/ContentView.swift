@@ -15,29 +15,25 @@ struct ContentView: View {
                 }
             }
             .navigationDestination(for: Route.self) { route in
-                    switch route {
-                    case .prompt:
-                        PromptView()
-
-                    case .quickOptions(let prompt):
-                        QuickOptionsView(prompt: prompt)
-
-                    case .generation(let config):
-                        GenerationProgressView(config: config)
-
-                    case .refinement(let config):
-                        RefineProgressView(config: config)
-
-                    case .refine(let plugin):
-                        RefineView(plugin: plugin)
-
-                    case .result(let plugin):
-                        ResultView(plugin: plugin)
-
-                    case .error(let message, let config):
-                        ErrorView(message: message, config: config)
-                    }
+                switch route {
+                case .prompt:
+                    PromptView()
+                case .quickOptions(let prompt):
+                    QuickOptionsView(prompt: prompt)
+                case .generation(let config):
+                    GenerationProgressView(config: config)
+                case .refinement(let config):
+                    RefineProgressView(config: config)
+                case .refine(let plugin):
+                    RefineView(plugin: plugin)
+                case .result(let plugin):
+                    ResultView(plugin: plugin)
+                case .error(let message, let config):
+                    ErrorView(message: message, config: config)
+                case .queue:
+                    BuildQueueView()
                 }
+            }
         }
         .sheet(isPresented: $state.showSetup) {
             SetupView()

@@ -42,6 +42,7 @@ final class GenerationPipeline {
     private var task: Task<Void, Never>?
     private var lastRealEventDate = Date()  // only updated by real Claude events, not the watcher itself
     private var silenceTask: Task<Void, Never>?
+    private weak var appStateRef: AppState?
 
     private func log(_ message: String, style: PipelineLogLine.Style = .normal) {
         let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -94,6 +95,7 @@ final class GenerationPipeline {
     func run(config: GenerationConfig, appState: AppState) {
         guard !isRunning else { return }
 
+        appStateRef = appState
         isRunning = true
         currentStep = .preparingProject
         buildAttempt = 0
@@ -108,10 +110,18 @@ final class GenerationPipeline {
                 // Add plugin to library
                 PluginManager.add(plugin, to: &appState.plugins)
 
+                appState.finishBuild()
                 appState.push(.result(plugin: plugin))
+            } catch is CancellationError {
+                // User cancelled — silent cleanup, no error screen
+                self.stopSilenceWatcher()
+                self.isRunning = false
+                return
             } catch let error as GenerationError {
+                appState.finishBuild()
                 appState.push(.error(message: error.localizedDescription, config: config))
             } catch {
+                appState.finishBuild()
                 appState.push(.error(message: error.localizedDescription, config: config))
             }
 
@@ -123,6 +133,7 @@ final class GenerationPipeline {
     func refine(config: RefineConfig, appState: AppState) {
         guard !isRunning else { return }
 
+        appStateRef = appState
         isRunning = true
         currentStep = .generatingDSP
         buildAttempt = 0
@@ -136,13 +147,19 @@ final class GenerationPipeline {
 
                 PluginManager.update(plugin, in: &appState.plugins)
 
+                appState.finishBuild()
                 appState.push(.result(plugin: plugin))
+            } catch is CancellationError {
+                self.stopSilenceWatcher()
+                self.isRunning = false
+                return
             } catch let error as GenerationError {
-                // Build a GenerationConfig so the error view can retry
                 let genConfig = GenerationConfig(prompt: config.plugin.prompt)
+                appState.finishBuild()
                 appState.push(.error(message: error.localizedDescription, config: genConfig))
             } catch {
                 let genConfig = GenerationConfig(prompt: config.plugin.prompt)
+                appState.finishBuild()
                 appState.push(.error(message: error.localizedDescription, config: genConfig))
             }
 
@@ -406,6 +423,12 @@ final class GenerationPipeline {
                 log(msg, style: .success)
             }
             log("START: \(step.logLabel)...", style: .active)
+
+            // Keep global progress in sync even when the generation view isn't visible
+            if let appState = appStateRef, let build = appState.activeBuild {
+                build.updateStep(from: prev, to: step)
+                appState.buildProgress = build.progress
+            }
         }
     }
 
