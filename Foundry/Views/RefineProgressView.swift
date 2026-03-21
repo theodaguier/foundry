@@ -4,56 +4,55 @@ struct RefineProgressView: View {
     @Environment(AppState.self) private var appState
     let config: RefineConfig
 
-    @State private var pipeline = GenerationPipeline()
-    @State private var elapsedSeconds: Int = 0
-    @State private var completedSteps: Set<Int> = []
-
+    private var build: ActiveBuild? { appState.activeBuild }
     private let refineSteps: [GenerationStep] = [.generatingDSP, .generatingUI, .compiling, .installing]
 
     var body: some View {
         VStack(spacing: 0) {
             Spacer()
 
-            VStack(alignment: .leading, spacing: 24) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(pipeline.currentStep.label)
-                        .font(.title2)
-                        .fontWeight(.medium)
-                        .contentTransition(.numericText())
+            if let build {
+                VStack(alignment: .leading, spacing: 24) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(build.pipeline.currentStep.label)
+                            .font(.title2)
+                            .fontWeight(.medium)
+                            .contentTransition(.numericText())
 
-                    Text(config.modification)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                }
-
-                VStack(alignment: .leading, spacing: 8) {
-                    ProgressView(value: progress)
-                        .tint(.accentColor)
-
-                    HStack {
-                        if pipeline.buildAttempt > 1 {
-                            Text("Build attempt \(pipeline.buildAttempt)/3")
-                                .font(.caption)
-                                .foregroundStyle(.orange)
-                        }
-
-                        Spacer()
-
-                        Text("Step \(currentStepIndex + 1) of \(refineSteps.count)")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
+                        Text(config.modification)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
                     }
-                }
 
-                StepListView(
-                    steps: refineSteps,
-                    currentStep: pipeline.currentStep,
-                    completedSteps: completedSteps,
-                    buildAttempt: pipeline.buildAttempt
-                )
+                    VStack(alignment: .leading, spacing: 8) {
+                        ProgressView(value: build.progress)
+                            .tint(.accentColor)
+
+                        HStack {
+                            if build.pipeline.buildAttempt > 1 {
+                                Text("Build attempt \(build.pipeline.buildAttempt)/3")
+                                    .font(.caption)
+                                    .foregroundStyle(.orange)
+                            }
+
+                            Spacer()
+
+                            Text("Step \(currentStepIndex + 1) of \(refineSteps.count)")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+
+                    StepListView(
+                        steps: refineSteps,
+                        currentStep: build.pipeline.currentStep,
+                        completedSteps: build.completedSteps,
+                        buildAttempt: build.pipeline.buildAttempt
+                    )
+                }
+                .frame(maxWidth: 440)
             }
-            .frame(maxWidth: 440)
 
             Spacer()
         }
@@ -67,39 +66,51 @@ struct RefineProgressView: View {
             }
             ToolbarItem(placement: .cancellationAction) {
                 Button("Cancel") {
-                    pipeline.cancel()
+                    build?.pipeline.cancel()
+                    build?.stopTimer()
+                    appState.activeBuild = nil
+                    appState.buildProgress = 0
                     appState.popToRoot()
                 }
             }
+            ToolbarItem(placement: .automatic) {
+                Button {
+                    appState.popToRoot()
+                } label: {
+                    Label("Back to Library", systemImage: "square.grid.2x2")
+                }
+                .help("Continue in background")
+            }
         }
         .onAppear {
-            pipeline.refine(config: config, appState: appState)
-        }
-        .task {
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(1))
-                elapsedSeconds += 1
+            if appState.activeBuild == nil {
+                let newBuild = ActiveBuild(kind: .refinement(config))
+                appState.activeBuild = newBuild
+                newBuild.pipeline.refine(config: config, appState: appState)
+                newBuild.startTimer()
             }
+            appState.activeBuild?.isViewingProgress = true
         }
-        .onChange(of: pipeline.currentStep) { oldValue, newValue in
-            if newValue.rawValue > oldValue.rawValue {
-                _ = completedSteps.insert(oldValue.rawValue)
-            }
+        .onDisappear {
+            appState.activeBuild?.isViewingProgress = false
+        }
+        .onChange(of: build?.pipeline.currentStep) { oldValue, newValue in
+            guard let oldValue, let newValue, let build else { return }
+            build.updateStep(from: oldValue, to: newValue)
+            appState.buildProgress = build.progress
         }
     }
 
     private var currentStepIndex: Int {
-        refineSteps.firstIndex(of: pipeline.currentStep) ?? 0
-    }
-
-    private var progress: Double {
-        Double(currentStepIndex) / Double(refineSteps.count)
+        guard let build else { return 0 }
+        return refineSteps.firstIndex(of: build.pipeline.currentStep) ?? 0
     }
 
     private var formattedTime: String {
-        let minutes = elapsedSeconds / 60
-        let seconds = elapsedSeconds % 60
-        return String(format: "%d:%02d", minutes, seconds)
+        let seconds = build?.elapsedSeconds ?? 0
+        let minutes = seconds / 60
+        let secs = seconds % 60
+        return String(format: "%d:%02d", minutes, secs)
     }
 }
 

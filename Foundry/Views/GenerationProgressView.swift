@@ -48,26 +48,21 @@ struct GenerationProgressView: View {
     @Environment(AppState.self) private var appState
     let config: GenerationConfig
 
-    @State private var pipeline = GenerationPipeline()
-    @State private var elapsedSeconds: Int = 0
-    @State private var completedSteps: Set<Int> = []
-    @State private var highWaterStep: Int = 0
-
-    @State private var showConsole = false
+    private var build: ActiveBuild? { appState.activeBuild }
 
     var body: some View {
         HStack(spacing: 0) {
             leftPanel
                 .frame(maxWidth: .infinity)
 
-            if showConsole {
+            if build?.showConsole == true, let build {
                 Divider()
 
                 TerminalView(
                     title: "Build Log",
-                    logLines: pipeline.logLines,
+                    logLines: build.pipeline.logLines,
                     elapsedTime: formattedTime,
-                    streamingText: pipeline.streamingText
+                    streamingText: build.pipeline.streamingText
                 )
                 .frame(maxWidth: .infinity)
             }
@@ -77,14 +72,25 @@ struct GenerationProgressView: View {
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("Cancel") {
-                    pipeline.cancel()
+                    build?.pipeline.cancel()
+                    build?.stopTimer()
+                    appState.activeBuild = nil
+                    appState.buildProgress = 0
                     appState.popToRoot()
                 }
             }
             ToolbarItem(placement: .automatic) {
+                Button {
+                    appState.popToRoot()
+                } label: {
+                    Label("Back to Library", systemImage: "square.grid.2x2")
+                }
+                .help("Continue in background")
+            }
+            ToolbarItem(placement: .automatic) {
                 Toggle(isOn: Binding(
-                    get: { showConsole },
-                    set: { newValue in withAnimation { showConsole = newValue } }
+                    get: { build?.showConsole ?? false },
+                    set: { newValue in withAnimation { build?.showConsole = newValue } }
                 )) {
                     Label("Console", systemImage: "terminal")
                 }
@@ -92,24 +98,23 @@ struct GenerationProgressView: View {
             }
         }
         .onAppear {
-            pipeline.run(config: config, appState: appState)
-            appState.buildProgress = 0
+            // Only start a new build if there isn't one already running for this config
+            if appState.activeBuild == nil {
+                let newBuild = ActiveBuild(kind: .generation(config))
+                appState.activeBuild = newBuild
+                appState.buildProgress = 0
+                newBuild.pipeline.run(config: config, appState: appState)
+                newBuild.startTimer()
+            }
+            appState.activeBuild?.isViewingProgress = true
         }
         .onDisappear {
-            appState.buildProgress = 0
+            appState.activeBuild?.isViewingProgress = false
         }
-        .task {
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(1))
-                elapsedSeconds += 1
-            }
-        }
-        .onChange(of: pipeline.currentStep) { oldValue, newValue in
-            if newValue.rawValue > highWaterStep {
-                highWaterStep = newValue.rawValue
-                _ = completedSteps.insert(oldValue.rawValue)
-            }
-            appState.buildProgress = progress
+        .onChange(of: build?.pipeline.currentStep) { oldValue, newValue in
+            guard let oldValue, let newValue, let build else { return }
+            build.updateStep(from: oldValue, to: newValue)
+            appState.buildProgress = build.progress
         }
     }
 
@@ -120,15 +125,17 @@ struct GenerationProgressView: View {
             Spacer()
 
             VStack(spacing: 24) {
-                GenerationStepList(
-                    currentStep: pipeline.currentStep,
-                    completedSteps: completedSteps
-                )
-                .frame(maxWidth: 360)
-
-                ProgressView(value: progress)
-                    .tint(.accentColor)
+                if let build {
+                    GenerationStepList(
+                        currentStep: build.pipeline.currentStep,
+                        completedSteps: build.completedSteps
+                    )
                     .frame(maxWidth: 360)
+
+                    ProgressView(value: build.progress)
+                        .tint(.accentColor)
+                        .frame(maxWidth: 360)
+                }
             }
 
             Spacer()
@@ -138,13 +145,10 @@ struct GenerationProgressView: View {
 
     // MARK: - Helpers
 
-    private var progress: Double {
-        Double(max(pipeline.currentStep.rawValue, highWaterStep)) / Double(GenerationStep.allCases.count)
-    }
-
     private var formattedTime: String {
-        let m = elapsedSeconds / 60
-        let s = elapsedSeconds % 60
+        let seconds = build?.elapsedSeconds ?? 0
+        let m = seconds / 60
+        let s = seconds % 60
         return String(format: "%d:%02d", m, s)
     }
 }

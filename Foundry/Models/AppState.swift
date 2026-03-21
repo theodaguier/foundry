@@ -25,6 +25,7 @@ enum Route: Hashable {
     case refine(plugin: Plugin)
     case result(plugin: Plugin)
     case error(message: String, config: GenerationConfig)
+    case queue
 }
 
 // MARK: - Generation config
@@ -68,6 +69,82 @@ enum PresetCount: Int, CaseIterable, Hashable {
     }
 }
 
+// MARK: - Active Build
+
+/// Tracks an in-progress generation or refinement so the user can navigate away and return.
+@Observable
+@MainActor
+final class ActiveBuild {
+    enum Kind {
+        case generation(GenerationConfig)
+        case refinement(RefineConfig)
+    }
+
+    let kind: Kind
+    let pipeline = GenerationPipeline()
+    var elapsedSeconds: Int = 0
+    var completedSteps: Set<Int> = []
+    var highWaterStep: Int = 0
+    var showConsole: Bool = false
+    /// Set to true while the generation/refine progress view is visible.
+    var isViewingProgress: Bool = false
+    private var timerTask: Task<Void, Never>?
+
+    var displayName: String {
+        switch kind {
+        case .generation(let config):
+            String(config.prompt.prefix(40))
+        case .refinement(let config):
+            config.plugin.name
+        }
+    }
+
+    var route: Route {
+        switch kind {
+        case .generation(let config): .generation(config: config)
+        case .refinement(let config): .refinement(config: config)
+        }
+    }
+
+    var progress: Double {
+        let step = max(pipeline.currentStep.rawValue, highWaterStep)
+        switch kind {
+        case .generation:
+            return Double(step) / Double(GenerationStep.allCases.count)
+        case .refinement:
+            let refineSteps: [GenerationStep] = [.generatingDSP, .generatingUI, .compiling, .installing]
+            let idx = refineSteps.firstIndex(of: pipeline.currentStep) ?? 0
+            return Double(idx) / Double(refineSteps.count)
+        }
+    }
+
+    init(kind: Kind) {
+        self.kind = kind
+    }
+
+    func startTimer() {
+        timerTask?.cancel()
+        timerTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1))
+                self?.elapsedSeconds += 1
+            }
+        }
+    }
+
+    func stopTimer() {
+        timerTask?.cancel()
+        timerTask = nil
+    }
+
+    func updateStep(from oldValue: GenerationStep, to newValue: GenerationStep) {
+        if newValue.rawValue > highWaterStep {
+            highWaterStep = newValue.rawValue
+            completedSteps.insert(oldValue.rawValue)
+        }
+    }
+}
+
 // MARK: - App state
 
 @Observable
@@ -77,6 +154,7 @@ final class AppState {
     var plugins: [Plugin] = []
     var showSetup: Bool = false
     var buildProgress: Double = 0
+    var activeBuild: ActiveBuild?
 
     func push(_ route: Route) {
         path.append(route)
@@ -84,6 +162,14 @@ final class AppState {
 
     func popToRoot() {
         path = NavigationPath()
+    }
+
+    /// Called when a build finishes (success or error). Cleans up active build and resets navigation.
+    func finishBuild() {
+        activeBuild?.stopTimer()
+        activeBuild = nil
+        buildProgress = 0
+        popToRoot()
     }
 
     func loadPlugins() {
