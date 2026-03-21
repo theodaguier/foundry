@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.3.0](https://github.com/theodaguier/foundry/compare/v1.2.1...v1.3.0) (2026-03-21)
+
+
+### Features
+
+* enrich instrument generation with synthesis knowledge and improve terminal observability ([#29](https://github.com/theodaguier/foundry/issues/29)) ([0cfa77a](https://github.com/theodaguier/foundry/commit/0cfa77aac205ca1084bd165330769e8e8c15c404))
+
 ## [1.2.1](https://github.com/theodaguier/foundry/compare/v1.2.0...v1.2.1) (2026-03-20)
 
 
