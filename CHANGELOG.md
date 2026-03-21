@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.8.0](https://github.com/theodaguier/foundry/compare/v1.7.0...v1.8.0) (2026-03-21)
+
+
+### Features
+
+* multi-agent support — switch between Claude Code and Codex at generation time ([#43](https://github.com/theodaguier/foundry/issues/43)) ([afbdb32](https://github.com/theodaguier/foundry/commit/afbdb32e339c29716a9426a45fe98dfbcae86f03)), closes [#38](https://github.com/theodaguier/foundry/issues/38)
+
 ## [1.7.0](https://github.com/theodaguier/foundry/compare/v1.6.0...v1.7.0) (2026-03-21)
 
 
