@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct SettingsView: View {
+    @Environment(AppState.self) private var appState
     @AppStorage("appearance") private var appearance: String = AppAppearance.system.rawValue
 
     @State private var model = DependencyListModel()
@@ -22,8 +23,13 @@ struct SettingsView: View {
                 .tabItem {
                     Label("Dependencies", systemImage: "shippingbox")
                 }
+
+            AccountView()
+                .tabItem {
+                    Label("Account", systemImage: "person.circle")
+                }
         }
-        .frame(width: 480, height: 360)
+        .frame(width: 480, height: 420)
     }
 
     // MARK: - General
@@ -149,5 +155,6 @@ struct SettingsView: View {
 
 #Preview {
     SettingsView()
+        .environment(AppState())
         .preferredColorScheme(.dark)
 }

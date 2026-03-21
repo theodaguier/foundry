@@ -40,6 +40,7 @@ struct FoundryApp: App {
 
         Settings {
             SettingsView()
+                .environment(appState)
                 .preferredColorScheme(colorScheme)
         }
     }

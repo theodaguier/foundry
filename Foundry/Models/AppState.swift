@@ -26,6 +26,7 @@ enum Route: Hashable {
     case result(plugin: Plugin)
     case error(message: String, config: GenerationConfig)
     case queue
+    case account
 }
 
 // MARK: - Generation config
@@ -145,6 +146,14 @@ final class ActiveBuild {
     }
 }
 
+// MARK: - Auth state
+
+enum AuthState {
+    case checking
+    case unauthenticated
+    case authenticated
+}
+
 // MARK: - App state
 
 @Observable
@@ -155,6 +164,14 @@ final class AppState {
     var showSetup: Bool = false
     var buildProgress: Double = 0
     var activeBuild: ActiveBuild?
+
+    // Auth
+    var authState: AuthState = .checking
+    var userProfile: UserProfile?
+
+    var isAuthenticated: Bool {
+        authState == .authenticated
+    }
 
     func push(_ route: Route) {
         path.append(route)
@@ -193,6 +210,66 @@ final class AppState {
         }
 
         showSetup = false
+    }
+
+    // MARK: - Auth
+
+    /// Check for existing session on app launch
+    func checkExistingSession() async {
+        authState = .checking
+        if let session = await AuthService.shared.currentSession {
+            authState = .authenticated
+            await loadProfile(userId: session.user.id)
+        } else {
+            authState = .unauthenticated
+        }
+    }
+
+    /// Listen for auth state changes (sign in, sign out, token refresh)
+    func observeAuthChanges() async {
+        for await (event, session) in AuthService.shared.authStateChanges {
+            switch event {
+            case .signedIn:
+                authState = .authenticated
+                if let user = session?.user {
+                    await loadProfile(userId: user.id)
+                }
+            case .signedOut:
+                authState = .unauthenticated
+                userProfile = nil
+                path = NavigationPath()
+            default:
+                break
+            }
+        }
+    }
+
+    /// Called after successful sign in from auth views
+    func handleSignIn() async {
+        authState = .authenticated
+        if let userId = await AuthService.shared.currentUser?.id {
+            await loadProfile(userId: userId)
+        }
+    }
+
+    func signOut() async {
+        do {
+            try await AuthService.shared.signOut()
+        } catch {
+            // Force local sign out even if network fails
+        }
+        authState = .unauthenticated
+        userProfile = nil
+        path = NavigationPath()
+    }
+
+    private func loadProfile(userId: UUID) async {
+        do {
+            userProfile = try await AuthService.shared.getProfile(userId: userId)
+        } catch {
+            // Profile may not exist yet (first sign in with Apple)
+            userProfile = nil
+        }
     }
 }
 

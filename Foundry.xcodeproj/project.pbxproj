@@ -7,56 +7,63 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		01F37677E449EE3F4DEBE142 /* CustomShapes.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0C2EFB36179BED2E4B7ED28 /* CustomShapes.swift */; };
 		07CDA240F28CA4F534693A2A /* RefineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7B720FD5B7CCC0031786F1D /* RefineView.swift */; };
 		090AF414F35582CB7DBA8CA3 /* RefineProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD87798E4D6622F313640CB5 /* RefineProgressView.swift */; };
+		0999688336F8F3F19BC9758A /* WindowChromeBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D722796F5D831D535D6A65D /* WindowChromeBar.swift */; };
+		12591BEA5F2CEE1399BC0267 /* BuildDirectoryCleaner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 351A8ADCEE3C0DCA8827570F /* BuildDirectoryCleaner.swift */; };
 		1DB09B2440A1B060E3CABF0C /* StepListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D859FA6E1B937AA29A392942 /* StepListView.swift */; };
 		23D67101A4F2137DD885B032 /* DependencyChecker.swift in Sources */ = {isa = PBXBuildFile; fileRef = B69E79AA8740BF14CDC02F3E /* DependencyChecker.swift */; };
+		26345C80184373AE25B3E2B9 /* AbstractArtwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28DAFA1AA9AB66909EB0D0B8 /* AbstractArtwork.swift */; };
 		28D3A8EA6152BD5E3B3656FE /* StableDiffusion in Frameworks */ = {isa = PBXBuildFile; productRef = 078D7B01F8D516A260C47C7D /* StableDiffusion */; };
 		2F9FCED647AE1F3260B3AE3E /* ClaudeCodeService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAA4AA1400D0A8005F16FC9D /* ClaudeCodeService.swift */; };
 		301815F14418B44F12D68E6E /* ProjectAssembler.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3FB52A3FEB7D539EBDFF7FD /* ProjectAssembler.swift */; };
 		35EDBA20A32AE39CA31D493F /* FoundryApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 062329561A5C9490BE3CADA5 /* FoundryApp.swift */; };
 		393A7A9567D8321B5D64581D /* PluginCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D573C52800A8C21F640C8EC /* PluginCard.swift */; };
 		3AE99668365C08959FB76B1F /* PluginLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9861DA9A7D015E767E7908D5 /* PluginLibraryView.swift */; };
-		BCEA59E113057D8400522A73 /* WelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 330DA4467113497C40DE0744 /* WelcomeView.swift */; };
 		46F97EDD013A980C36506FC2 /* SetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11F0B8ACE372F6DC5016FB8C /* SetupView.swift */; };
+		53E7A205686C925E02E73CBF /* ClaudeCodeServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25793F22A5B128B5AF28080D /* ClaudeCodeServiceTests.swift */; };
 		5C1CFA77E9C4E3D9AB009A51 /* FoundryPaths.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1040BD9D4DE4D2A55075D593 /* FoundryPaths.swift */; };
+		60935EA2D941E98946B69044 /* ArchitypeStedelijkW00.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 25DB3CF91BD315DAC65C67B2 /* ArchitypeStedelijkW00.ttf */; };
 		618695CF77938A4C12B11984 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 272AA57049A5DC372AA93659 /* Assets.xcassets */; };
+		61EFEEF4BAE0BA15883F8DA2 /* WelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF7904717B748692AD11E195 /* WelcomeView.swift */; };
+		6B3E282F16EC3EEFC14DA240 /* TerminalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDFFCFF53441CB9A66D851F4 /* TerminalView.swift */; };
 		6D6AEFE51B6FDC1DFB20C16F /* GenerationPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C1774C2EE1F0C15BF39B1E7 /* GenerationPipeline.swift */; };
 		7256639E17819BF99D5BAA78 /* DependencyListModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B757385330BAAD1CC592BB96 /* DependencyListModel.swift */; };
 		8502215EAB71ADC5A00BED70 /* ResultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB4CE5638194D3E319878858 /* ResultView.swift */; };
-		3644C7D01E89D3AA4153B08B /* BuildQueueView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8641B562F8D0835FC1CE114 /* BuildQueueView.swift */; };
+		857D4926F8E12953F12CF62E /* FontLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F5C7F2EC4F5187C6C359DF1 /* FontLoader.swift */; };
+		85E92584F8FCD2C8C131CA3E /* ProfileToolbarButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67FBF6C39F67F56942308312 /* ProfileToolbarButton.swift */; };
 		86791B8E09C59944FF09FDE1 /* BuildLoopTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E4FA286AB0BFE6410D00E84 /* BuildLoopTests.swift */; };
 		86DC86F9E65EB121BAAA6E4B /* PromptView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB69D6CB5EE2903F1755F2BD /* PromptView.swift */; };
+		8C82C9C9AD6384EF67E6ECAC /* BuildQueueView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66399C3CC0236FB56927AA7D /* BuildQueueView.swift */; };
 		8F62055B3F66E39E34698C84 /* Plugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = C806DCDABFBFF5C60F776E68 /* Plugin.swift */; };
+		926D11D3E503F228CFDA9D87 /* Auth in Frameworks */ = {isa = PBXBuildFile; productRef = 14718A2156B7E64A3F2BD01C /* Auth */; };
+		9489D3CFDF2D5DD10C7F5012 /* FoundryStatusBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98D6DE81D324C92DD7EDA5A5 /* FoundryStatusBar.swift */; };
+		95B493EB4569AFD395E1D89E /* PromptContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3924307C09E0DCD615023608 /* PromptContractTests.swift */; };
 		9BABB46CC5D63214A68CDB54 /* ErrorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 412BC7CF60DC740C3DE4DFB1 /* ErrorView.swift */; };
 		9DFDEA818E8C4F10CD83C6E9 /* BuildLoop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59721C7CB1B123A16D085022 /* BuildLoop.swift */; };
+		9F7FFC3FE7AF26DDF03947B5 /* AccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAAE3C84062FF54693756C36 /* AccountView.swift */; };
 		A1265A86DB463593D54DE32F /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87DAC6800229A279E461E577 /* AppState.swift */; };
+		A4DB172E18D8D94CEF49D4B1 /* FoundryTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50087A0398BC8F1AACA91041 /* FoundryTheme.swift */; };
 		A944A4D0305412243F43C75B /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 782AB7F195D49E942815B984 /* ContentView.swift */; };
+		AB389D3D990A3C56632F6B0C /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = B01021D321A0E32551D2CB04 /* Supabase */; };
 		AF2D89AC5EED252B56D3D793 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F75004640D40807A6FE43589 /* SettingsView.swift */; };
+		B283BC14544273E54C25C185 /* FoundryConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2036784D50E37D2544AB8FE9 /* FoundryConfig.swift */; };
+		B5AECFBA5D81C85A106B4466 /* UserProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE0EC88CC891B12B83FEC0A3 /* UserProfile.swift */; };
 		B5F2D7D605AF8A718025987B /* PluginDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3EE70BE829D987076CBC625 /* PluginDetailView.swift */; };
+		BC01B2917C2EC63721AB4FBB /* BadgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B93FC59B6720FF8F28735600 /* BadgeView.swift */; };
 		C20595A79857CCEA7F4B232B /* PluginManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 719F23E3AE94C69D68B3847B /* PluginManager.swift */; };
 		CB4E222D4684ECCB9453B609 /* PluginArtworkView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA3D84E0F9B66518AA9B05F8 /* PluginArtworkView.swift */; };
 		D3CFF3BB8CB2AA0D1C23CAFA /* QuickOptionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD63B0B69B661DD62739C874 /* QuickOptionsView.swift */; };
+		D75DE1137C819F63AB736501 /* FoundryHeaderBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78725F0A09F7ADE5C0B8048D /* FoundryHeaderBar.swift */; };
+		DCD09E9B98FE151938E4C1F6 /* BorderedContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F7784E698C18DDDC5D8674A /* BorderedContainer.swift */; };
 		E02EC21CA9ABD9D13A3CE1E6 /* PluginBundleInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57B605714B9F34F6DF7C8931 /* PluginBundleInspector.swift */; };
-
+		E531035A872637ADB356E97C /* AzeretMono.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AECCCCB996D860783459DD1D /* AzeretMono.ttf */; };
 		E9B4B7650C26B7875EDF66F5 /* PluginLogoService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86B86FC5AD40A7F02F1CC6DD /* PluginLogoService.swift */; };
+		EDA5F60E033219075F235313 /* AuthContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36300BCF7B25B1084721B00E /* AuthContainerView.swift */; };
+		F1162DD1E8734992B4A40F3A /* AuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C1E252BC980C1F831A796D3 /* AuthService.swift */; };
 		F5792873BBD9760CE5F175CD /* BuildRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38B4DABF3C7AF6853CB160E3 /* BuildRunner.swift */; };
 		FF2CD908198CBA2E80A3013D /* GenerationProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AABD14C81BD24623C0607BB /* GenerationProgressView.swift */; };
-		FA1B2C3D4E5F6A7B8C9D0E1F /* BuildDirectoryCleaner.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA1B2C3D4E5F6A7B8C9D0E10 /* BuildDirectoryCleaner.swift */; };
-		AB1234560000000000000001 /* ClaudeCodeServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB1234560000000000000002 /* ClaudeCodeServiceTests.swift */; };
-		AB1234560000000000000003 /* PromptContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB1234560000000000000004 /* PromptContractTests.swift */; };
-		C0A1000000000000000000A1 /* FoundryTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0A1000000000000000000B1 /* FoundryTheme.swift */; };
-		C0A1000000000000000000A2 /* FoundryHeaderBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0A1000000000000000000B2 /* FoundryHeaderBar.swift */; };
-		C0A1000000000000000000A3 /* FoundryStatusBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0A1000000000000000000B3 /* FoundryStatusBar.swift */; };
-		C0A1000000000000000000A4 /* WindowChromeBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0A1000000000000000000B4 /* WindowChromeBar.swift */; };
-		C0A1000000000000000000A5 /* BadgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0A1000000000000000000B5 /* BadgeView.swift */; };
-		C0A1000000000000000000A6 /* BorderedContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0A1000000000000000000B6 /* BorderedContainer.swift */; };
-		C0A1000000000000000000A7 /* CustomShapes.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0A1000000000000000000B7 /* CustomShapes.swift */; };
-		C0A1000000000000000000A8 /* AbstractArtwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0A1000000000000000000B8 /* AbstractArtwork.swift */; };
-		C0A1000000000000000000A9 /* TerminalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0A1000000000000000000B9 /* TerminalView.swift */; };
-		D1F0A2B3C4E5F6A7B8C9D0E2 /* FontLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1F0A2B3C4E5F6A7B8C9D0E1 /* FontLoader.swift */; };
-		D1F0A2B3C4E5F6A7B8C9D0E4 /* ArchitypeStedelijkW00.ttf in Resources */ = {isa = PBXBuildFile; fileRef = D1F0A2B3C4E5F6A7B8C9D0E3 /* ArchitypeStedelijkW00.ttf */; };
-		A3B7C2D4E5F6A1B2C3D4E5F7 /* AzeretMono.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A3B7C2D4E5F6A1B2C3D4E5F6 /* AzeretMono.ttf */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -71,56 +78,61 @@
 
 /* Begin PBXFileReference section */
 		062329561A5C9490BE3CADA5 /* FoundryApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoundryApp.swift; sourceTree = "<group>"; };
+		0D722796F5D831D535D6A65D /* WindowChromeBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowChromeBar.swift; sourceTree = "<group>"; };
 		1040BD9D4DE4D2A55075D593 /* FoundryPaths.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoundryPaths.swift; sourceTree = "<group>"; };
 		11F0B8ACE372F6DC5016FB8C /* SetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupView.swift; sourceTree = "<group>"; };
 		1D573C52800A8C21F640C8EC /* PluginCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginCard.swift; sourceTree = "<group>"; };
+		2036784D50E37D2544AB8FE9 /* FoundryConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoundryConfig.swift; sourceTree = "<group>"; };
+		25793F22A5B128B5AF28080D /* ClaudeCodeServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeCodeServiceTests.swift; sourceTree = "<group>"; };
+		25DB3CF91BD315DAC65C67B2 /* ArchitypeStedelijkW00.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = ArchitypeStedelijkW00.ttf; sourceTree = "<group>"; };
 		272AA57049A5DC372AA93659 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		28DAFA1AA9AB66909EB0D0B8 /* AbstractArtwork.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AbstractArtwork.swift; sourceTree = "<group>"; };
 		2B4EF4CA927624959E2563C5 /* Foundry.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Foundry.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		351A8ADCEE3C0DCA8827570F /* BuildDirectoryCleaner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildDirectoryCleaner.swift; sourceTree = "<group>"; };
+		36300BCF7B25B1084721B00E /* AuthContainerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthContainerView.swift; sourceTree = "<group>"; };
 		38B4DABF3C7AF6853CB160E3 /* BuildRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildRunner.swift; sourceTree = "<group>"; };
-		FA1B2C3D4E5F6A7B8C9D0E10 /* BuildDirectoryCleaner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildDirectoryCleaner.swift; sourceTree = "<group>"; };
+		3924307C09E0DCD615023608 /* PromptContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptContractTests.swift; sourceTree = "<group>"; };
 		3AABD14C81BD24623C0607BB /* GenerationProgressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GenerationProgressView.swift; sourceTree = "<group>"; };
 		412BC7CF60DC740C3DE4DFB1 /* ErrorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorView.swift; sourceTree = "<group>"; };
+		50087A0398BC8F1AACA91041 /* FoundryTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoundryTheme.swift; sourceTree = "<group>"; };
 		515C8F264CF27EAF3CAD8EE9 /* FoundryTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FoundryTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		57B605714B9F34F6DF7C8931 /* PluginBundleInspector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginBundleInspector.swift; sourceTree = "<group>"; };
 		59721C7CB1B123A16D085022 /* BuildLoop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildLoop.swift; sourceTree = "<group>"; };
+		5C1E252BC980C1F831A796D3 /* AuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthService.swift; sourceTree = "<group>"; };
 		5E4FA286AB0BFE6410D00E84 /* BuildLoopTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildLoopTests.swift; sourceTree = "<group>"; };
-		AB1234560000000000000002 /* ClaudeCodeServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeCodeServiceTests.swift; sourceTree = "<group>"; };
-		AB1234560000000000000004 /* PromptContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptContractTests.swift; sourceTree = "<group>"; };
+		66399C3CC0236FB56927AA7D /* BuildQueueView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildQueueView.swift; sourceTree = "<group>"; };
+		67FBF6C39F67F56942308312 /* ProfileToolbarButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileToolbarButton.swift; sourceTree = "<group>"; };
+		6F7784E698C18DDDC5D8674A /* BorderedContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BorderedContainer.swift; sourceTree = "<group>"; };
 		719F23E3AE94C69D68B3847B /* PluginManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginManager.swift; sourceTree = "<group>"; };
 		782AB7F195D49E942815B984 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		78725F0A09F7ADE5C0B8048D /* FoundryHeaderBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoundryHeaderBar.swift; sourceTree = "<group>"; };
 		7C1774C2EE1F0C15BF39B1E7 /* GenerationPipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GenerationPipeline.swift; sourceTree = "<group>"; };
+		7F5C7F2EC4F5187C6C359DF1 /* FontLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FontLoader.swift; sourceTree = "<group>"; };
 		86B86FC5AD40A7F02F1CC6DD /* PluginLogoService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginLogoService.swift; sourceTree = "<group>"; };
 		87DAC6800229A279E461E577 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		9861DA9A7D015E767E7908D5 /* PluginLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginLibraryView.swift; sourceTree = "<group>"; };
-		330DA4467113497C40DE0744 /* WelcomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeView.swift; sourceTree = "<group>"; };
-
+		98D6DE81D324C92DD7EDA5A5 /* FoundryStatusBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoundryStatusBar.swift; sourceTree = "<group>"; };
 		AA3D84E0F9B66518AA9B05F8 /* PluginArtworkView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginArtworkView.swift; sourceTree = "<group>"; };
+		AECCCCB996D860783459DD1D /* AzeretMono.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = AzeretMono.ttf; sourceTree = "<group>"; };
 		B69E79AA8740BF14CDC02F3E /* DependencyChecker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DependencyChecker.swift; sourceTree = "<group>"; };
 		B757385330BAAD1CC592BB96 /* DependencyListModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DependencyListModel.swift; sourceTree = "<group>"; };
 		B7B720FD5B7CCC0031786F1D /* RefineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefineView.swift; sourceTree = "<group>"; };
+		B93FC59B6720FF8F28735600 /* BadgeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BadgeView.swift; sourceTree = "<group>"; };
 		BAA4AA1400D0A8005F16FC9D /* ClaudeCodeService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeCodeService.swift; sourceTree = "<group>"; };
 		BB4CE5638194D3E319878858 /* ResultView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultView.swift; sourceTree = "<group>"; };
-		E8641B562F8D0835FC1CE114 /* BuildQueueView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildQueueView.swift; sourceTree = "<group>"; };
 		BB69D6CB5EE2903F1755F2BD /* PromptView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptView.swift; sourceTree = "<group>"; };
+		C0C2EFB36179BED2E4B7ED28 /* CustomShapes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomShapes.swift; sourceTree = "<group>"; };
 		C3EE70BE829D987076CBC625 /* PluginDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginDetailView.swift; sourceTree = "<group>"; };
 		C3FB52A3FEB7D539EBDFF7FD /* ProjectAssembler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectAssembler.swift; sourceTree = "<group>"; };
 		C806DCDABFBFF5C60F776E68 /* Plugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Plugin.swift; sourceTree = "<group>"; };
+		CF7904717B748692AD11E195 /* WelcomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeView.swift; sourceTree = "<group>"; };
 		D859FA6E1B937AA29A392942 /* StepListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StepListView.swift; sourceTree = "<group>"; };
 		DD63B0B69B661DD62739C874 /* QuickOptionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickOptionsView.swift; sourceTree = "<group>"; };
+		EAAE3C84062FF54693756C36 /* AccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountView.swift; sourceTree = "<group>"; };
+		EDFFCFF53441CB9A66D851F4 /* TerminalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalView.swift; sourceTree = "<group>"; };
+		EE0EC88CC891B12B83FEC0A3 /* UserProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserProfile.swift; sourceTree = "<group>"; };
 		F75004640D40807A6FE43589 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		FD87798E4D6622F313640CB5 /* RefineProgressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefineProgressView.swift; sourceTree = "<group>"; };
-		C0A1000000000000000000B1 /* FoundryTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoundryTheme.swift; sourceTree = "<group>"; };
-		C0A1000000000000000000B2 /* FoundryHeaderBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoundryHeaderBar.swift; sourceTree = "<group>"; };
-		C0A1000000000000000000B3 /* FoundryStatusBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoundryStatusBar.swift; sourceTree = "<group>"; };
-		C0A1000000000000000000B4 /* WindowChromeBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowChromeBar.swift; sourceTree = "<group>"; };
-		C0A1000000000000000000B5 /* BadgeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BadgeView.swift; sourceTree = "<group>"; };
-		C0A1000000000000000000B6 /* BorderedContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BorderedContainer.swift; sourceTree = "<group>"; };
-		C0A1000000000000000000B7 /* CustomShapes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomShapes.swift; sourceTree = "<group>"; };
-		C0A1000000000000000000B8 /* AbstractArtwork.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AbstractArtwork.swift; sourceTree = "<group>"; };
-		C0A1000000000000000000B9 /* TerminalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalView.swift; sourceTree = "<group>"; };
-		D1F0A2B3C4E5F6A7B8C9D0E1 /* FontLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FontLoader.swift; sourceTree = "<group>"; };
-		D1F0A2B3C4E5F6A7B8C9D0E3 /* ArchitypeStedelijkW00.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = ArchitypeStedelijkW00.ttf; sourceTree = "<group>"; };
-		A3B7C2D4E5F6A1B2C3D4E5F6 /* AzeretMono.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = AzeretMono.ttf; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -129,6 +141,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				28D3A8EA6152BD5E3B3656FE /* StableDiffusion in Frameworks */,
+				AB389D3D990A3C56632F6B0C /* Supabase in Frameworks */,
+				926D11D3E503F228CFDA9D87 /* Auth in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -148,8 +162,8 @@
 			isa = PBXGroup;
 			children = (
 				5E4FA286AB0BFE6410D00E84 /* BuildLoopTests.swift */,
-				AB1234560000000000000002 /* ClaudeCodeServiceTests.swift */,
-				AB1234560000000000000004 /* PromptContractTests.swift */,
+				25793F22A5B128B5AF28080D /* ClaudeCodeServiceTests.swift */,
+				3924307C09E0DCD615023608 /* PromptContractTests.swift */,
 			);
 			path = FoundryTests;
 			sourceTree = "<group>";
@@ -157,41 +171,62 @@
 		55C30D0A6DF15677590182EE /* Components */ = {
 			isa = PBXGroup;
 			children = (
-				C0A1000000000000000000B8 /* AbstractArtwork.swift */,
-				C0A1000000000000000000B5 /* BadgeView.swift */,
-				C0A1000000000000000000B6 /* BorderedContainer.swift */,
-				C0A1000000000000000000B7 /* CustomShapes.swift */,
+				28DAFA1AA9AB66909EB0D0B8 /* AbstractArtwork.swift */,
+				B93FC59B6720FF8F28735600 /* BadgeView.swift */,
+				6F7784E698C18DDDC5D8674A /* BorderedContainer.swift */,
+				C0C2EFB36179BED2E4B7ED28 /* CustomShapes.swift */,
 				B757385330BAAD1CC592BB96 /* DependencyListModel.swift */,
-				C0A1000000000000000000B2 /* FoundryHeaderBar.swift */,
-				C0A1000000000000000000B3 /* FoundryStatusBar.swift */,
-				C0A1000000000000000000B1 /* FoundryTheme.swift */,
+				78725F0A09F7ADE5C0B8048D /* FoundryHeaderBar.swift */,
+				98D6DE81D324C92DD7EDA5A5 /* FoundryStatusBar.swift */,
+				50087A0398BC8F1AACA91041 /* FoundryTheme.swift */,
 				AA3D84E0F9B66518AA9B05F8 /* PluginArtworkView.swift */,
 				1D573C52800A8C21F640C8EC /* PluginCard.swift */,
+				67FBF6C39F67F56942308312 /* ProfileToolbarButton.swift */,
 				D859FA6E1B937AA29A392942 /* StepListView.swift */,
-				C0A1000000000000000000B9 /* TerminalView.swift */,
-				C0A1000000000000000000B4 /* WindowChromeBar.swift */,
+				EDFFCFF53441CB9A66D851F4 /* TerminalView.swift */,
+				0D722796F5D831D535D6A65D /* WindowChromeBar.swift */,
 			);
 			path = Components;
+			sourceTree = "<group>";
+		};
+		5A0AFCEFB418CA9E17553857 /* Fonts */ = {
+			isa = PBXGroup;
+			children = (
+				25DB3CF91BD315DAC65C67B2 /* ArchitypeStedelijkW00.ttf */,
+				AECCCCB996D860783459DD1D /* AzeretMono.ttf */,
+				7F5C7F2EC4F5187C6C359DF1 /* FontLoader.swift */,
+			);
+			path = Fonts;
 			sourceTree = "<group>";
 		};
 		5C297B163F503F4367B07CAD /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				66399C3CC0236FB56927AA7D /* BuildQueueView.swift */,
 				412BC7CF60DC740C3DE4DFB1 /* ErrorView.swift */,
 				3AABD14C81BD24623C0607BB /* GenerationProgressView.swift */,
 				C3EE70BE829D987076CBC625 /* PluginDetailView.swift */,
 				9861DA9A7D015E767E7908D5 /* PluginLibraryView.swift */,
-				330DA4467113497C40DE0744 /* WelcomeView.swift */,
 				BB69D6CB5EE2903F1755F2BD /* PromptView.swift */,
 				DD63B0B69B661DD62739C874 /* QuickOptionsView.swift */,
 				FD87798E4D6622F313640CB5 /* RefineProgressView.swift */,
 				B7B720FD5B7CCC0031786F1D /* RefineView.swift */,
 				BB4CE5638194D3E319878858 /* ResultView.swift */,
-				E8641B562F8D0835FC1CE114 /* BuildQueueView.swift */,
 				F75004640D40807A6FE43589 /* SettingsView.swift */,
 				11F0B8ACE372F6DC5016FB8C /* SetupView.swift */,
+				CF7904717B748692AD11E195 /* WelcomeView.swift */,
+				5FB26B4D01B527288C684991 /* Auth */,
 			);
 			path = Views;
+			sourceTree = "<group>";
+		};
+		5FB26B4D01B527288C684991 /* Auth */ = {
+			isa = PBXGroup;
+			children = (
+				EAAE3C84062FF54693756C36 /* AccountView.swift */,
+				36300BCF7B25B1084721B00E /* AuthContainerView.swift */,
+			);
+			path = Auth;
 			sourceTree = "<group>";
 		};
 		7F23104490434BFC76E45BA7 /* App */ = {
@@ -210,7 +245,7 @@
 				7F23104490434BFC76E45BA7 /* App */,
 				55C30D0A6DF15677590182EE /* Components */,
 				CFB7510603FB0FCA9F67A2F8 /* Models */,
-				D1F0A2B3C4E5F6A7B8C9D0E6 /* Resources */,
+				D701F84C97BEE361E011ED31 /* Resources */,
 				AF6AAB9DD2AED4A73CF86AFE /* Services */,
 				5C297B163F503F4367B07CAD /* Views */,
 			);
@@ -220,14 +255,15 @@
 		AF6AAB9DD2AED4A73CF86AFE /* Services */ = {
 			isa = PBXGroup;
 			children = (
-				FA1B2C3D4E5F6A7B8C9D0E10 /* BuildDirectoryCleaner.swift */,
+				5C1E252BC980C1F831A796D3 /* AuthService.swift */,
+				351A8ADCEE3C0DCA8827570F /* BuildDirectoryCleaner.swift */,
 				59721C7CB1B123A16D085022 /* BuildLoop.swift */,
 				38B4DABF3C7AF6853CB160E3 /* BuildRunner.swift */,
 				BAA4AA1400D0A8005F16FC9D /* ClaudeCodeService.swift */,
 				B69E79AA8740BF14CDC02F3E /* DependencyChecker.swift */,
+				2036784D50E37D2544AB8FE9 /* FoundryConfig.swift */,
 				1040BD9D4DE4D2A55075D593 /* FoundryPaths.swift */,
 				7C1774C2EE1F0C15BF39B1E7 /* GenerationPipeline.swift */,
-
 				57B605714B9F34F6DF7C8931 /* PluginBundleInspector.swift */,
 				86B86FC5AD40A7F02F1CC6DD /* PluginLogoService.swift */,
 				719F23E3AE94C69D68B3847B /* PluginManager.swift */,
@@ -250,24 +286,15 @@
 			children = (
 				87DAC6800229A279E461E577 /* AppState.swift */,
 				C806DCDABFBFF5C60F776E68 /* Plugin.swift */,
+				EE0EC88CC891B12B83FEC0A3 /* UserProfile.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
 		};
-		D1F0A2B3C4E5F6A7B8C9D0E5 /* Fonts */ = {
+		D701F84C97BEE361E011ED31 /* Resources */ = {
 			isa = PBXGroup;
 			children = (
-				D1F0A2B3C4E5F6A7B8C9D0E1 /* FontLoader.swift */,
-				D1F0A2B3C4E5F6A7B8C9D0E3 /* ArchitypeStedelijkW00.ttf */,
-				A3B7C2D4E5F6A1B2C3D4E5F6 /* AzeretMono.ttf */,
-			);
-			path = Fonts;
-			sourceTree = "<group>";
-		};
-		D1F0A2B3C4E5F6A7B8C9D0E6 /* Resources */ = {
-			isa = PBXGroup;
-			children = (
-				D1F0A2B3C4E5F6A7B8C9D0E5 /* Fonts */,
+				5A0AFCEFB418CA9E17553857 /* Fonts */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -308,6 +335,8 @@
 			name = Foundry;
 			packageProductDependencies = (
 				078D7B01F8D516A260C47C7D /* StableDiffusion */,
+				B01021D321A0E32551D2CB04 /* Supabase */,
+				14718A2156B7E64A3F2BD01C /* Auth */,
 			);
 			productName = Foundry;
 			productReference = 2B4EF4CA927624959E2563C5 /* Foundry.app */;
@@ -335,6 +364,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				3542F2D3101DCCD50036EC85 /* XCRemoteSwiftPackageReference "ml-stable-diffusion" */,
+				D0A8085DD9D201CA6AE6C94D /* XCRemoteSwiftPackageReference "supabase-swift" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = C9003C9EFED114768A3BEE3B /* Products */;
@@ -352,9 +382,9 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				60935EA2D941E98946B69044 /* ArchitypeStedelijkW00.ttf in Resources */,
 				618695CF77938A4C12B11984 /* Assets.xcassets in Resources */,
-				D1F0A2B3C4E5F6A7B8C9D0E4 /* ArchitypeStedelijkW00.ttf in Resources */,
-				A3B7C2D4E5F6A1B2C3D4E5F7 /* AzeretMono.ttf in Resources */,
+				E531035A872637ADB356E97C /* AzeretMono.ttf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -365,49 +395,54 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				26345C80184373AE25B3E2B9 /* AbstractArtwork.swift in Sources */,
+				9F7FFC3FE7AF26DDF03947B5 /* AccountView.swift in Sources */,
 				A1265A86DB463593D54DE32F /* AppState.swift in Sources */,
-				FA1B2C3D4E5F6A7B8C9D0E1F /* BuildDirectoryCleaner.swift in Sources */,
+				EDA5F60E033219075F235313 /* AuthContainerView.swift in Sources */,
+				F1162DD1E8734992B4A40F3A /* AuthService.swift in Sources */,
+				BC01B2917C2EC63721AB4FBB /* BadgeView.swift in Sources */,
+				DCD09E9B98FE151938E4C1F6 /* BorderedContainer.swift in Sources */,
+				12591BEA5F2CEE1399BC0267 /* BuildDirectoryCleaner.swift in Sources */,
 				9DFDEA818E8C4F10CD83C6E9 /* BuildLoop.swift in Sources */,
+				8C82C9C9AD6384EF67E6ECAC /* BuildQueueView.swift in Sources */,
 				F5792873BBD9760CE5F175CD /* BuildRunner.swift in Sources */,
 				2F9FCED647AE1F3260B3AE3E /* ClaudeCodeService.swift in Sources */,
 				A944A4D0305412243F43C75B /* ContentView.swift in Sources */,
+				01F37677E449EE3F4DEBE142 /* CustomShapes.swift in Sources */,
 				23D67101A4F2137DD885B032 /* DependencyChecker.swift in Sources */,
 				7256639E17819BF99D5BAA78 /* DependencyListModel.swift in Sources */,
 				9BABB46CC5D63214A68CDB54 /* ErrorView.swift in Sources */,
+				857D4926F8E12953F12CF62E /* FontLoader.swift in Sources */,
 				35EDBA20A32AE39CA31D493F /* FoundryApp.swift in Sources */,
+				B283BC14544273E54C25C185 /* FoundryConfig.swift in Sources */,
+				D75DE1137C819F63AB736501 /* FoundryHeaderBar.swift in Sources */,
 				5C1CFA77E9C4E3D9AB009A51 /* FoundryPaths.swift in Sources */,
+				9489D3CFDF2D5DD10C7F5012 /* FoundryStatusBar.swift in Sources */,
+				A4DB172E18D8D94CEF49D4B1 /* FoundryTheme.swift in Sources */,
 				6D6AEFE51B6FDC1DFB20C16F /* GenerationPipeline.swift in Sources */,
 				FF2CD908198CBA2E80A3013D /* GenerationProgressView.swift in Sources */,
-
 				8F62055B3F66E39E34698C84 /* Plugin.swift in Sources */,
 				CB4E222D4684ECCB9453B609 /* PluginArtworkView.swift in Sources */,
 				E02EC21CA9ABD9D13A3CE1E6 /* PluginBundleInspector.swift in Sources */,
 				393A7A9567D8321B5D64581D /* PluginCard.swift in Sources */,
 				B5F2D7D605AF8A718025987B /* PluginDetailView.swift in Sources */,
 				3AE99668365C08959FB76B1F /* PluginLibraryView.swift in Sources */,
-				BCEA59E113057D8400522A73 /* WelcomeView.swift in Sources */,
 				E9B4B7650C26B7875EDF66F5 /* PluginLogoService.swift in Sources */,
 				C20595A79857CCEA7F4B232B /* PluginManager.swift in Sources */,
+				85E92584F8FCD2C8C131CA3E /* ProfileToolbarButton.swift in Sources */,
 				301815F14418B44F12D68E6E /* ProjectAssembler.swift in Sources */,
 				86DC86F9E65EB121BAAA6E4B /* PromptView.swift in Sources */,
 				D3CFF3BB8CB2AA0D1C23CAFA /* QuickOptionsView.swift in Sources */,
 				090AF414F35582CB7DBA8CA3 /* RefineProgressView.swift in Sources */,
 				07CDA240F28CA4F534693A2A /* RefineView.swift in Sources */,
 				8502215EAB71ADC5A00BED70 /* ResultView.swift in Sources */,
-				3644C7D01E89D3AA4153B08B /* BuildQueueView.swift in Sources */,
 				AF2D89AC5EED252B56D3D793 /* SettingsView.swift in Sources */,
 				46F97EDD013A980C36506FC2 /* SetupView.swift in Sources */,
 				1DB09B2440A1B060E3CABF0C /* StepListView.swift in Sources */,
-				C0A1000000000000000000A1 /* FoundryTheme.swift in Sources */,
-				C0A1000000000000000000A2 /* FoundryHeaderBar.swift in Sources */,
-				C0A1000000000000000000A3 /* FoundryStatusBar.swift in Sources */,
-				C0A1000000000000000000A4 /* WindowChromeBar.swift in Sources */,
-				C0A1000000000000000000A5 /* BadgeView.swift in Sources */,
-				C0A1000000000000000000A6 /* BorderedContainer.swift in Sources */,
-				C0A1000000000000000000A7 /* CustomShapes.swift in Sources */,
-				C0A1000000000000000000A8 /* AbstractArtwork.swift in Sources */,
-				C0A1000000000000000000A9 /* TerminalView.swift in Sources */,
-				D1F0A2B3C4E5F6A7B8C9D0E2 /* FontLoader.swift in Sources */,
+				6B3E282F16EC3EEFC14DA240 /* TerminalView.swift in Sources */,
+				B5AECFBA5D81C85A106B4466 /* UserProfile.swift in Sources */,
+				61EFEEF4BAE0BA15883F8DA2 /* WelcomeView.swift in Sources */,
+				0999688336F8F3F19BC9758A /* WindowChromeBar.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -416,8 +451,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				86791B8E09C59944FF09FDE1 /* BuildLoopTests.swift in Sources */,
-				AB1234560000000000000001 /* ClaudeCodeServiceTests.swift in Sources */,
-				AB1234560000000000000003 /* PromptContractTests.swift in Sources */,
+				53E7A205686C925E02E73CBF /* ClaudeCodeServiceTests.swift in Sources */,
+				95B493EB4569AFD395E1D89E /* PromptContractTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -464,7 +499,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 1.5.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.foundry.app;
 				PRODUCT_NAME = Foundry;
 				SDKROOT = macosx;
@@ -623,7 +658,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 1.5.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.foundry.app;
 				PRODUCT_NAME = Foundry;
 				SDKROOT = macosx;
@@ -672,6 +707,14 @@
 				revision = e12202c1f6405b83918b58a5d097cd61e3e1f702;
 			};
 		};
+		D0A8085DD9D201CA6AE6C94D /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/supabase/supabase-swift.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.0.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -679,6 +722,16 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 3542F2D3101DCCD50036EC85 /* XCRemoteSwiftPackageReference "ml-stable-diffusion" */;
 			productName = StableDiffusion;
+		};
+		14718A2156B7E64A3F2BD01C /* Auth */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D0A8085DD9D201CA6AE6C94D /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Auth;
+		};
+		B01021D321A0E32551D2CB04 /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D0A8085DD9D201CA6AE6C94D /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

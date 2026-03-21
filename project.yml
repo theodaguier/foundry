@@ -13,6 +13,9 @@ packages:
   StableDiffusion:
     url: https://github.com/apple/ml-stable-diffusion.git
     revision: e12202c1f6405b83918b58a5d097cd61e3e1f702
+  Supabase:
+    url: https://github.com/supabase/supabase-swift.git
+    from: '2.0.0'
 targets:
   Foundry:
     type: application
@@ -22,6 +25,10 @@ targets:
     dependencies:
       - package: StableDiffusion
         product: StableDiffusion
+      - package: Supabase
+        product: Supabase
+      - package: Supabase
+        product: Auth
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.foundry.app
