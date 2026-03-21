@@ -3,7 +3,7 @@ import Foundation
 struct PipelineCallbacks: Sendable {
     let onBuildAttempt: @MainActor @Sendable (Int) -> Void
     let onStepChange: @MainActor @Sendable (GenerationStep) -> Void
-    let onClaudeEvent: @MainActor @Sendable (ClaudeCodeService.ClaudeEvent) -> Void
+    let onAgentEvent: @MainActor @Sendable (AgentEvent) -> Void
 }
 
 enum BuildLoop {
@@ -13,35 +13,42 @@ enum BuildLoop {
         let smokeTest: @Sendable (URL) async -> Bool
         let fix: @Sendable (String, URL, Int, PipelineCallbacks) async -> Void
 
-        static let live = Dependencies(
-            build: { projectDir, skipConfigure in
-                try await BuildRunner.build(projectDir: projectDir, skipConfigure: skipConfigure)
-            },
-            smokeTest: { projectDir in
-                await BuildRunner.smokeTest(projectDir: projectDir)
-            },
-            fix: { errors, projectDir, attempt, callbacks in
-                let _ = await ClaudeCodeService.fix(
-                    errors: errors,
-                    projectDir: projectDir,
-                    attempt: attempt,
-                    onEvent: { event in
-                        Task { @MainActor in
-                            callbacks.onClaudeEvent(event)
+        static func live(agent: GenerationAgent, model: AgentModel) -> Dependencies {
+            Dependencies(
+                build: { projectDir, skipConfigure in
+                    try await BuildRunner.build(projectDir: projectDir, skipConfigure: skipConfigure)
+                },
+                smokeTest: { projectDir in
+                    await BuildRunner.smokeTest(projectDir: projectDir)
+                },
+                fix: { errors, projectDir, attempt, callbacks in
+                    let _ = await AgentResolver.fix(
+                        agent: agent,
+                        model: model,
+                        errors: errors,
+                        projectDir: projectDir,
+                        attempt: attempt,
+                        onEvent: { event in
+                            Task { @MainActor in
+                                callbacks.onAgentEvent(event)
+                            }
                         }
-                    }
-                )
-            }
-        )
+                    )
+                }
+            )
+        }
     }
 
     /// Build loop with no artificial attempt limit.
     /// Exits on success or task cancellation — the compiler is the only judge.
     static func run(
         projectDir: URL,
+        agent: GenerationAgent = .claudeCode,
+        model: AgentModel = ModelCatalog.defaultModel,
         callbacks: PipelineCallbacks,
-        dependencies: Dependencies = .live
+        dependencies: Dependencies? = nil
     ) async throws {
+        let dependencies = dependencies ?? .live(agent: agent, model: model)
         var lastErrors = ""
         var attempt = 0
 

@@ -17,6 +17,9 @@
 		26345C80184373AE25B3E2B9 /* AbstractArtwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28DAFA1AA9AB66909EB0D0B8 /* AbstractArtwork.swift */; };
 		28D3A8EA6152BD5E3B3656FE /* StableDiffusion in Frameworks */ = {isa = PBXBuildFile; productRef = 078D7B01F8D516A260C47C7D /* StableDiffusion */; };
 		2F9FCED647AE1F3260B3AE3E /* ClaudeCodeService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAA4AA1400D0A8005F16FC9D /* ClaudeCodeService.swift */; };
+		A1B2C3D4E5F60718293A4B5C /* AgentService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B5D /* AgentService.swift */; };
+		A1B2C3D4E5F60718293A4B5E /* CodexService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B5F /* CodexService.swift */; };
+		A1B2C3D4E5F60718293A4B60 /* models.json in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B61 /* models.json */; };
 		301815F14418B44F12D68E6E /* ProjectAssembler.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3FB52A3FEB7D539EBDFF7FD /* ProjectAssembler.swift */; };
 		35EDBA20A32AE39CA31D493F /* FoundryApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 062329561A5C9490BE3CADA5 /* FoundryApp.swift */; };
 		393A7A9567D8321B5D64581D /* PluginCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D573C52800A8C21F640C8EC /* PluginCard.swift */; };
@@ -118,6 +121,9 @@
 		B757385330BAAD1CC592BB96 /* DependencyListModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DependencyListModel.swift; sourceTree = "<group>"; };
 		B7B720FD5B7CCC0031786F1D /* RefineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefineView.swift; sourceTree = "<group>"; };
 		B93FC59B6720FF8F28735600 /* BadgeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BadgeView.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F60718293A4B5D /* AgentService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentService.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F60718293A4B5F /* CodexService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexService.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F60718293A4B61 /* models.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = models.json; sourceTree = "<group>"; };
 		BAA4AA1400D0A8005F16FC9D /* ClaudeCodeService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeCodeService.swift; sourceTree = "<group>"; };
 		BB4CE5638194D3E319878858 /* ResultView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultView.swift; sourceTree = "<group>"; };
 		BB69D6CB5EE2903F1755F2BD /* PromptView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptView.swift; sourceTree = "<group>"; };
@@ -255,11 +261,13 @@
 		AF6AAB9DD2AED4A73CF86AFE /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				A1B2C3D4E5F60718293A4B5D /* AgentService.swift */,
 				5C1E252BC980C1F831A796D3 /* AuthService.swift */,
 				351A8ADCEE3C0DCA8827570F /* BuildDirectoryCleaner.swift */,
 				59721C7CB1B123A16D085022 /* BuildLoop.swift */,
 				38B4DABF3C7AF6853CB160E3 /* BuildRunner.swift */,
 				BAA4AA1400D0A8005F16FC9D /* ClaudeCodeService.swift */,
+				A1B2C3D4E5F60718293A4B5F /* CodexService.swift */,
 				B69E79AA8740BF14CDC02F3E /* DependencyChecker.swift */,
 				2036784D50E37D2544AB8FE9 /* FoundryConfig.swift */,
 				1040BD9D4DE4D2A55075D593 /* FoundryPaths.swift */,
@@ -295,6 +303,7 @@
 			isa = PBXGroup;
 			children = (
 				5A0AFCEFB418CA9E17553857 /* Fonts */,
+				A1B2C3D4E5F60718293A4B61 /* models.json */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -385,6 +394,7 @@
 				60935EA2D941E98946B69044 /* ArchitypeStedelijkW00.ttf in Resources */,
 				618695CF77938A4C12B11984 /* Assets.xcassets in Resources */,
 				E531035A872637ADB356E97C /* AzeretMono.ttf in Resources */,
+				A1B2C3D4E5F60718293A4B60 /* models.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -406,7 +416,9 @@
 				9DFDEA818E8C4F10CD83C6E9 /* BuildLoop.swift in Sources */,
 				8C82C9C9AD6384EF67E6ECAC /* BuildQueueView.swift in Sources */,
 				F5792873BBD9760CE5F175CD /* BuildRunner.swift in Sources */,
+				A1B2C3D4E5F60718293A4B5C /* AgentService.swift in Sources */,
 				2F9FCED647AE1F3260B3AE3E /* ClaudeCodeService.swift in Sources */,
+				A1B2C3D4E5F60718293A4B5E /* CodexService.swift in Sources */,
 				A944A4D0305412243F43C75B /* ContentView.swift in Sources */,
 				01F37677E449EE3F4DEBE142 /* CustomShapes.swift in Sources */,
 				23D67101A4F2137DD885B032 /* DependencyChecker.swift in Sources */,

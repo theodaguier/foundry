@@ -7,6 +7,7 @@ enum DependencyChecker {
         case cmake = "CMake"
         case juce = "JUCE SDK"
         case claudeCode = "Claude Code CLI"
+        case codex = "Codex CLI"
 
         var detail: String {
             switch self {
@@ -14,7 +15,24 @@ enum DependencyChecker {
             case .cmake: "Build system"
             case .juce: "Audio framework (~200 MB)"
             case .claudeCode: "npm i -g @anthropic-ai/claude-code"
+            case .codex: "npm i -g @openai/codex"
             }
+        }
+
+        /// Whether this dependency is required for app startup or optional (per-agent).
+        var isRequired: Bool {
+            switch self {
+            case .xcodeTools, .cmake, .juce: true
+            case .claudeCode, .codex: false
+            }
+        }
+    }
+
+    /// Dependencies required for a given agent.
+    static func dependencies(for agent: GenerationAgent) -> [Dependency] {
+        switch agent {
+        case .claudeCode: [.xcodeTools, .cmake, .juce, .claudeCode]
+        case .codex: [.xcodeTools, .cmake, .juce, .codex]
         }
     }
 
@@ -28,6 +46,8 @@ enum DependencyChecker {
             return FileManager.default.fileExists(atPath: jucePath)
         case .claudeCode:
             return resolveCommandPath("claude") != nil
+        case .codex:
+            return resolveCommandPath("codex") != nil
         }
     }
 

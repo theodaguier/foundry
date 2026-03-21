@@ -7,24 +7,24 @@ struct ErrorView: View {
 
     private var failureTitle: String {
         if message.localizedCaseInsensitiveContains("incomplete") || message.localizedCaseInsensitiveContains("insufficient") {
-            return "Implementation Incomplete"
+            return "IMPLEMENTATION INCOMPLETE"
         }
         if message.localizedCaseInsensitiveContains("timed out") {
-            return "Generation Timed Out"
+            return "GENERATION TIMED OUT"
         }
         if message.localizedCaseInsensitiveContains("compile") || message.localizedCaseInsensitiveContains("error:") {
-            return "Build Failed"
+            return "BUILD FAILED"
         }
-        return "Generation Failed"
+        return "GENERATION FAILED"
     }
 
     private var failureSubtitle: String {
         switch failureTitle {
-        case "Implementation Incomplete":
+        case "IMPLEMENTATION INCOMPLETE":
             return "The generated plugin was missing key implementations (parameters, DSP, or UI controls)."
-        case "Generation Timed Out":
+        case "GENERATION TIMED OUT":
             return "The code generator did not finish within the allowed time."
-        case "Build Failed":
+        case "BUILD FAILED":
             return "Foundry could not compile the plugin after multiple attempts."
         default:
             return "Foundry could not finish a usable plugin from this brief."
@@ -32,78 +32,101 @@ struct ErrorView: View {
     }
 
     var body: some View {
+        HStack(spacing: 0) {
+            Spacer(minLength: 80)
+            content
+                .frame(maxWidth: 640)
+            Spacer(minLength: 80)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .navigationTitle("Error")
+        .navigationBarBackButtonHidden(true)
+    }
+
+    private var content: some View {
         VStack(spacing: 0) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(failureTitle)
-                            .font(.title)
-                            .fontWeight(.bold)
+            Spacer()
 
-                        Text(failureSubtitle)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
+            // Icon
+            Image(systemName: "xmark.circle")
+                .font(.system(size: 36, weight: .thin))
+                .foregroundStyle(FoundryTheme.Colors.textMuted)
+                .padding(.bottom, FoundryTheme.Spacing.lg)
 
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Error Log")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
+            // Title
+            Text(failureTitle)
+                .font(FoundryTheme.Fonts.azeretMono(13, weight: .medium))
+                .tracking(2.4)
+                .foregroundStyle(FoundryTheme.Colors.textPrimary)
+                .padding(.bottom, FoundryTheme.Spacing.xs)
 
-                        ScrollView {
-                            Text(message)
-                                .font(.system(.body, design: .monospaced))
-                                .foregroundStyle(.red)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .textSelection(.enabled)
-                                .fixedSize(horizontal: false, vertical: true)
-                                .padding(12)
-                        }
-                        .frame(maxHeight: 200)
-                        .background(Color(.controlBackgroundColor).opacity(0.5), in: .rect(cornerRadius: 6))
-                    }
+            // Subtitle
+            Text(failureSubtitle)
+                .font(FoundryTheme.Fonts.azeretMono(12))
+                .foregroundStyle(FoundryTheme.Colors.textSecondary)
+                .multilineTextAlignment(.center)
+                .padding(.bottom, FoundryTheme.Spacing.xl)
+
+            // Error log
+            VStack(alignment: .leading, spacing: FoundryTheme.Spacing.xs) {
+                Text("ERROR LOG")
+                    .font(FoundryTheme.Fonts.azeretMono(10, weight: .medium))
+                    .tracking(1.5)
+                    .foregroundStyle(FoundryTheme.Colors.textMuted)
+
+                ScrollView {
+                    Text(message)
+                        .font(FoundryTheme.Fonts.azeretMono(11))
+                        .foregroundStyle(.red.opacity(0.8))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(FoundryTheme.Spacing.md)
                 }
-                .frame(maxWidth: 600)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(24)
+                .frame(maxHeight: 160)
+                .background(Color(.textBackgroundColor), in: .rect(cornerRadius: 6))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .strokeBorder(FoundryTheme.Colors.border.opacity(0.6), lineWidth: 1)
+                )
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.bottom, FoundryTheme.Spacing.xl)
 
-            HStack(spacing: 12) {
-                Button {
+            // Actions
+            HStack(spacing: FoundryTheme.Spacing.sm) {
+                Button("Library") {
                     appState.popToRoot()
-                } label: {
-                    Label("Library", systemImage: "square.grid.2x2")
                 }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
 
-                Button {
+                Button("Edit Prompt") {
                     appState.popToRoot()
                     Task {
                         try? await Task.sleep(for: .milliseconds(100))
                         appState.push(.prompt)
                     }
-                } label: {
-                    Label("Edit Prompt", systemImage: "pencil")
                 }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
 
                 Button("Retry") {
                     appState.push(.generation(config: config))
                 }
                 .buttonStyle(.borderedProminent)
+                .controlSize(.large)
             }
-            .padding(16)
-            .frame(maxWidth: .infinity)
-            .background(.bar)
+
+            Spacer()
         }
-        .navigationTitle("Build Failed")
-        .navigationBarBackButtonHidden(true)
     }
 }
 
 #Preview {
     NavigationStack {
         ErrorView(
-            message: "Code generation failed: Generation finished but the plugin implementation is incomplete:\n– no parameters defined in createParameterLayout()\n– editor has fewer than 2 visible controls",
+            message: "Code generation failed: Claude did not create the required source files",
             config: GenerationConfig(prompt: "A warm analog synth")
         )
     }

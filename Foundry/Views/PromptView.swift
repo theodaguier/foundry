@@ -5,7 +5,12 @@ import SwiftUI
 struct PromptView: View {
     @Environment(AppState.self) private var appState
     @State private var prompt = ""
+    @State private var selectedModel: AgentModel = ModelCatalog.defaultModel
     @FocusState private var isFocused: Bool
+
+    private var promptEmpty: Bool {
+        prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
 
     private let suggestions: [SuggestionCategory] = [
         SuggestionCategory(
@@ -52,8 +57,11 @@ struct PromptView: View {
     // MARK: - Content Canvas
 
     private var contentCanvas: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(spacing: 0) {
             Spacer()
+
+            heroSection
+                .padding(.bottom, 32)
 
             promptSection
                 .padding(.bottom, 24)
@@ -64,24 +72,57 @@ struct PromptView: View {
         }
     }
 
+    // MARK: - Hero
+
+    private var heroSection: some View {
+        VStack(spacing: 10) {
+            Image("FoundryLogo")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 48, height: 48)
+                .foregroundStyle(.primary.opacity(0.7))
+
+            Text("Describe your plugin, Foundry builds it.")
+                .font(.system(size: 14))
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
     // MARK: - Prompt Section
 
     private var promptSection: some View {
         VStack(alignment: .leading, spacing: 0) {
-            TextEditor(text: $prompt)
-                .font(.system(size: 14))
-                .focused($isFocused)
-                .frame(height: 100)
+            TextField(
+                "A warm analog synth with detuned oscillators…",
+                text: $prompt,
+                axis: .vertical
+            )
+            .font(.system(size: 14))
+            .focused($isFocused)
+            .lineLimit(5...10)
+            .textFieldStyle(.plain)
+            .padding(12)
+            .frame(minHeight: 100, alignment: .topLeading)
+            .background(Color(.textBackgroundColor).opacity(0.5), in: .rect(cornerRadius: 8))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .strokeBorder(Color(.separatorColor).opacity(0.6), lineWidth: 1)
+            )
 
-            HStack {
+            HStack(spacing: 10) {
+                modelPicker
+
                 Spacer()
+
                 Button("Generate") { generate() }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.regular)
-                    .disabled(prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    .keyboardShortcut(.return, modifiers: .command)
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .tint(promptEmpty ? Color.gray.opacity(0.3) : Color.accentColor)
+                .disabled(promptEmpty)
+                .keyboardShortcut(.return, modifiers: .command)
             }
-            .padding(.top, 8)
+            .padding(.top, 10)
         }
     }
 
@@ -102,13 +143,63 @@ struct PromptView: View {
         )
     }
 
+    // MARK: - Model Picker
+
+    private var selectedProvider: AgentProvider {
+        ModelCatalog.provider(for: selectedModel)
+    }
+
+    private var modelPicker: some View {
+        Menu {
+            ForEach(ModelCatalog.providers) { provider in
+                Section {
+                    ForEach(provider.models) { model in
+                        Button {
+                            selectedModel = model
+                        } label: {
+                            HStack {
+                                Text(model.displayName)
+                                Text("— \(model.subtitle)")
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                } header: {
+                    Label(provider.name, image: provider.icon)
+                }
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Image(selectedProvider.icon)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 14, height: 14)
+
+                Text(selectedModel.displayName)
+                    .font(.system(size: 12, weight: .medium))
+
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.system(size: 8, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(Color(.controlBackgroundColor), in: .rect(cornerRadius: 6))
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+    }
+
     private func generate() {
-        guard !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        guard !promptEmpty else { return }
+        let agent = GenerationAgent(providerId: selectedProvider.id) ?? .claudeCode
         appState.push(.generation(config: GenerationConfig(
             prompt: prompt,
             format: .both,
             channelLayout: .stereo,
-            presetCount: .five
+            presetCount: .five,
+            agent: agent,
+            model: selectedModel
         )))
     }
 }

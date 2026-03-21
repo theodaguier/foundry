@@ -50,6 +50,10 @@ struct SetupView: View {
                                     }
                                     .buttonStyle(.glass)
                                     .controlSize(.small)
+                                } else if dep.isOptional {
+                                    Text("Optional")
+                                        .font(.caption)
+                                        .foregroundStyle(.tertiary)
                                 } else {
                                     Text(dep.detail)
                                         .font(.caption)

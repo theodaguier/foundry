@@ -25,6 +25,7 @@ enum ClaudeCodeService {
     static func run(
         prompt: String,
         projectDir: URL,
+        model: AgentModel,
         onEvent: @escaping @Sendable (ClaudeEvent) -> Void
     ) async -> RunResult {
         guard let claudePath = DependencyChecker.resolveCommandPath("claude") else {
@@ -38,7 +39,7 @@ enum ClaudeCodeService {
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: claudePath)
-        process.arguments = Self.buildArguments(prompt: prompt)
+        process.arguments = Self.buildArguments(prompt: prompt, model: model)
 
         process.currentDirectoryURL = projectDir
         process.environment = DependencyChecker.shellEnvironment
@@ -157,6 +158,7 @@ enum ClaudeCodeService {
         errors: String,
         projectDir: URL,
         attempt: Int,
+        model: AgentModel,
         onEvent: @escaping @Sendable (ClaudeEvent) -> Void
     ) async -> RunResult {
         let prompt = """
@@ -176,6 +178,7 @@ enum ClaudeCodeService {
         return await run(
             prompt: prompt,
             projectDir: projectDir,
+            model: model,
             onEvent: onEvent
         )
     }
@@ -185,6 +188,7 @@ enum ClaudeCodeService {
         projectDir: URL,
         userIntent: String,
         pluginType: String,
+        model: AgentModel,
         onEvent: @escaping @Sendable (ClaudeEvent) -> Void
     ) async -> RunResult {
         let prompt = """
@@ -201,13 +205,14 @@ enum ClaudeCodeService {
         return await run(
             prompt: prompt,
             projectDir: projectDir,
+            model: model,
             onEvent: onEvent
         )
     }
 
     // MARK: - Argument builder
 
-    static func buildArguments(prompt: String) -> [String] {
+    static func buildArguments(prompt: String, model: AgentModel) -> [String] {
         [
             "-p",
             prompt,
@@ -215,7 +220,7 @@ enum ClaudeCodeService {
             "--output-format", "stream-json",
             "--verbose",
             "--max-turns", "25",
-            "--model", "sonnet",
+            "--model", model.cliFlag,
             "--strict-mcp-config",
             "--disallowedTools", "Bash,Grep,Glob,WebSearch,WebFetch,NotebookEdit,Skill,EnterPlanMode,ExitPlanMode,EnterWorktree,ExitWorktree,CronCreate,CronDelete,CronList,Task,TaskCreate,TaskGet,TaskUpdate,TaskList,TaskOutput,TaskStop,AskUserQuestion,ToolSearch",
             "--append-system-prompt",
@@ -338,6 +343,60 @@ enum ClaudeCodeService {
         }
         if let s = json["output"] as? String { return s }
         return ""
+    }
+}
+
+// MARK: - AgentService bridge
+
+extension ClaudeCodeService {
+
+    /// Converts ClaudeEvent → AgentEvent.
+    private static func bridgeEvent(_ event: ClaudeEvent) -> AgentEvent {
+        switch event {
+        case .toolUse(let tool, let filePath, let detail):
+            return .toolUse(tool: tool, filePath: filePath, detail: detail)
+        case .toolResult(let tool, let output):
+            return .toolResult(tool: tool, output: output)
+        case .text(let t):
+            return .text(t)
+        case .result(let success):
+            return .result(success: success)
+        case .error(let msg):
+            return .error(msg)
+        }
+    }
+
+    private static func bridgeResult(_ r: RunResult) -> AgentRunResult {
+        AgentRunResult(success: r.success, output: r.output, error: r.error)
+    }
+
+    static func agentRun(
+        prompt: String,
+        projectDir: URL,
+        model: AgentModel,
+        onEvent: @escaping @Sendable (AgentEvent) -> Void
+    ) async -> AgentRunResult {
+        bridgeResult(await run(prompt: prompt, projectDir: projectDir, model: model) { onEvent(bridgeEvent($0)) })
+    }
+
+    static func agentFix(
+        errors: String,
+        projectDir: URL,
+        attempt: Int,
+        model: AgentModel,
+        onEvent: @escaping @Sendable (AgentEvent) -> Void
+    ) async -> AgentRunResult {
+        bridgeResult(await fix(errors: errors, projectDir: projectDir, attempt: attempt, model: model) { onEvent(bridgeEvent($0)) })
+    }
+
+    static func agentAudit(
+        projectDir: URL,
+        userIntent: String,
+        pluginType: String,
+        model: AgentModel,
+        onEvent: @escaping @Sendable (AgentEvent) -> Void
+    ) async -> AgentRunResult {
+        bridgeResult(await audit(projectDir: projectDir, userIntent: userIntent, pluginType: pluginType, model: model) { onEvent(bridgeEvent($0)) })
     }
 }
 

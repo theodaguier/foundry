@@ -7,6 +7,7 @@ struct QuickOptionsView: View {
     @State private var format: FormatOption = .both
     @State private var channelLayout: ChannelLayout = .stereo
     @State private var presetCount: PresetCount = .five
+    @State private var selectedModel: AgentModel = ModelCatalog.defaultModel
 
     var body: some View {
         ScrollView {
@@ -64,6 +65,21 @@ struct QuickOptionsView: View {
                     } detail: {
                         Text("Presets push the generator toward more intentional, reusable results.")
                     }
+
+                    Divider().padding(.leading, 44)
+
+                    optionRow("Model", icon: "cpu") {
+                        Picker("Model", selection: $selectedModel) {
+                            ForEach(ModelCatalog.providers) { provider in
+                                ForEach(provider.models) { model in
+                                    Text("\(provider.name) · \(model.displayName)").tag(model)
+                                }
+                            }
+                        }
+                        .frame(width: 200)
+                    } detail: {
+                        Text("\(ModelCatalog.provider(for: selectedModel).name) — \(selectedModel.subtitle)")
+                    }
                 }
                 .padding(4)
                 .background(Color(.controlBackgroundColor).opacity(0.3), in: .rect(cornerRadius: 10))
@@ -119,7 +135,9 @@ struct QuickOptionsView: View {
             prompt: prompt,
             format: format,
             channelLayout: channelLayout,
-            presetCount: presetCount
+            presetCount: presetCount,
+            agent: GenerationAgent(providerId: ModelCatalog.provider(for: selectedModel).id) ?? .claudeCode,
+            model: selectedModel
         )
         appState.push(.generation(config: config))
     }
