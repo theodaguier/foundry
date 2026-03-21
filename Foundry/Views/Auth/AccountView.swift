@@ -92,8 +92,6 @@ struct AccountView: View {
 
     private var infoSection: some View {
         VStack(spacing: 0) {
-            sectionHeader("PROFILE")
-
             row(label: "DISPLAY NAME") {
                 if isEditingName {
                     HStack(spacing: 8) {
@@ -144,8 +142,6 @@ struct AccountView: View {
                 }
             }
 
-            rowDivider
-
             row(label: "EMAIL") {
                 Text(appState.userProfile?.email ?? "—")
                     .font(FoundryTheme.Fonts.azeretMono(12))
@@ -153,8 +149,6 @@ struct AccountView: View {
                     .textSelection(.enabled)
                 Spacer()
             }
-
-            rowDivider
 
             row(label: "MEMBER SINCE") {
                 if let date = appState.userProfile?.createdAt {
@@ -183,8 +177,6 @@ struct AccountView: View {
                     .foregroundStyle(FoundryTheme.Colors.textPrimary)
                 Spacer()
             }
-
-            rowDivider
 
             row(label: "PLUGINS GENERATED") {
                 Text("\(appState.userProfile?.pluginsGenerated ?? 0)")
@@ -217,8 +209,6 @@ struct AccountView: View {
                 .background(Color(.textBackgroundColor))
             }
             .buttonStyle(.plain)
-
-            rowDivider
 
             // Delete account
             Button {

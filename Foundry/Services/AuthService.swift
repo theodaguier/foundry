@@ -2,6 +2,26 @@ import Foundation
 import Supabase
 import Auth
 
+// MARK: - UserDefaults Auth Storage
+
+/// Stores Supabase auth tokens in UserDefaults instead of Keychain
+/// to avoid the macOS Keychain access prompt on every launch.
+struct UserDefaultsAuthStorage: AuthLocalStorage {
+    private let prefix = "supabase.auth."
+
+    func store(key: String, value: Data) throws {
+        UserDefaults.standard.set(value, forKey: prefix + key)
+    }
+
+    func retrieve(key: String) throws -> Data? {
+        UserDefaults.standard.data(forKey: prefix + key)
+    }
+
+    func remove(key: String) throws {
+        UserDefaults.standard.removeObject(forKey: prefix + key)
+    }
+}
+
 @MainActor
 final class AuthService {
     static let shared = AuthService()
@@ -11,7 +31,12 @@ final class AuthService {
     private init() {
         client = SupabaseClient(
             supabaseURL: FoundryConfig.supabaseURL,
-            supabaseKey: FoundryConfig.supabaseAnonKey
+            supabaseKey: FoundryConfig.supabaseAnonKey,
+            options: SupabaseClientOptions(
+                auth: SupabaseClientOptions.AuthOptions(
+                    storage: UserDefaultsAuthStorage()
+                )
+            )
         )
     }
 

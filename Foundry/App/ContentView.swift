@@ -25,8 +25,10 @@ struct ContentView: View {
 
     private var launchScreen: some View {
         VStack(spacing: FoundryTheme.Spacing.md) {
-            Image(systemName: "waveform.badge.plus")
-                .font(.system(size: 40, weight: .thin))
+            Image("FoundryLogo")
+                .resizable()
+                .scaledToFit()
+                .frame(height: 40)
                 .foregroundStyle(.secondary)
 
             ProgressView()
