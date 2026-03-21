@@ -4,9 +4,43 @@ struct ContentView: View {
     @Environment(AppState.self) private var appState
 
     var body: some View {
+        Group {
+            switch appState.authState {
+            case .checking:
+                launchScreen
+            case .unauthenticated:
+                AuthContainerView()
+            case .authenticated:
+                authenticatedContent
+            }
+        }
+        .frame(minWidth: 900, minHeight: 620)
+        .task {
+            await appState.checkExistingSession()
+            await appState.observeAuthChanges()
+        }
+    }
+
+    // MARK: - Launch Screen
+
+    private var launchScreen: some View {
+        VStack(spacing: FoundryTheme.Spacing.md) {
+            Image(systemName: "waveform.badge.plus")
+                .font(.system(size: 40, weight: .thin))
+                .foregroundStyle(.secondary)
+
+            ProgressView()
+                .controlSize(.small)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    // MARK: - Authenticated Content
+
+    private var authenticatedContent: some View {
         @Bindable var state = appState
 
-        NavigationStack(path: $state.path) {
+        return NavigationStack(path: $state.path) {
             Group {
                 if appState.plugins.isEmpty && !state.showSetup {
                     WelcomeView()
@@ -32,6 +66,8 @@ struct ContentView: View {
                     ErrorView(message: message, config: config)
                 case .queue:
                     BuildQueueView()
+                case .account:
+                    AccountView()
                 }
             }
         }
@@ -42,7 +78,6 @@ struct ContentView: View {
             appState.loadPlugins()
             BuildDirectoryCleaner.sweepStaleDirectories()
         }
-        .frame(minWidth: 900, minHeight: 620)
         .task {
             await appState.refreshSetupState()
         }

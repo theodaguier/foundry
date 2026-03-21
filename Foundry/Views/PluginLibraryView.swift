@@ -47,6 +47,9 @@ struct PluginLibraryView: View {
                     }
                 }
             }
+            ToolbarItem(placement: .automatic) {
+                ProfileToolbarButton()
+            }
             ToolbarItem(placement: .primaryAction) {
                 Button {
                     appState.push(.prompt)
