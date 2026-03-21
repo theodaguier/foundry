@@ -32,23 +32,34 @@ struct BuildQueueView: View {
     // MARK: - Empty State
 
     private var emptyState: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 20) {
             Spacer()
 
             Image(systemName: "hammer")
-                .font(.system(size: 36, weight: .thin))
-                .foregroundStyle(.quaternary)
+                .font(.system(size: 40, weight: .thin))
+                .foregroundStyle(.secondary)
 
-            VStack(spacing: 4) {
-                Text("NO ACTIVE BUILDS")
-                    .font(FoundryTheme.Fonts.azeretMono(12))
-                    .tracking(1.5)
-                    .foregroundStyle(.secondary)
+            VStack(spacing: 6) {
+                Text("No Active Builds")
+                    .font(.title2)
+                    .fontWeight(.medium)
 
-                Text("Generated plugins will appear here while building.")
+                Text("Plugins will appear here\nwhile they are being built.")
                     .font(.subheadline)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
             }
+
+            Button("Build a Plugin") {
+                appState.popToRoot()
+                Task {
+                    try? await Task.sleep(for: .milliseconds(100))
+                    appState.push(.prompt)
+                }
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .padding(.top, 8)
 
             Spacer()
         }

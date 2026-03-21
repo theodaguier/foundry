@@ -5,7 +5,9 @@ enum PluginDetailAction {
     case delete
     case rename
     case regenerate
+    case refine
     case showInFinder
+    case restoreVersion(PluginVersion)
 }
 
 struct PluginDetailView: View {
@@ -19,6 +21,7 @@ struct PluginDetailView: View {
     @State private var logoProgress: PluginLogoProgress?
     @State private var logoTask: Task<Void, Never>?
     @State private var logoError: String?
+    @State private var showingVersionHistory = false
 
     init(plugin: Plugin, onAction: ((PluginDetailAction) -> Void)? = nil) {
         self.pluginID = plugin.id
@@ -36,10 +39,20 @@ struct PluginDetailView: View {
 
             infoSection
 
+            if !plugin.versions.isEmpty {
+                versionSection
+            }
+
             actionSection
         }
         .frame(width: 520)
         .background(FoundryTheme.Colors.background)
+        .sheet(isPresented: $showingVersionHistory) {
+            VersionHistoryView(plugin: plugin) { version in
+                onAction?(.restoreVersion(version))
+            }
+            .environment(appState)
+        }
         .overlay {
             if let logoProgress {
                 LogoProgressOverlay(progress: logoProgress) {
@@ -130,6 +143,46 @@ struct PluginDetailView: View {
         }
     }
 
+    // MARK: - Version
+
+    private var versionSection: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("VERSION")
+                    .font(FoundryTheme.Fonts.azeretMono(9))
+                    .tracking(1.2)
+                    .foregroundStyle(FoundryTheme.Colors.textMuted)
+
+                Spacer()
+
+                Button {
+                    showingVersionHistory = true
+                } label: {
+                    HStack(spacing: 4) {
+                        Text("v\(plugin.currentVersion)")
+                            .font(FoundryTheme.Fonts.azeretMono(11))
+                            .foregroundStyle(FoundryTheme.Colors.textSecondary)
+                        Text("·")
+                            .foregroundStyle(FoundryTheme.Colors.textFaint)
+                        Text("\(plugin.versions.count) version\(plugin.versions.count == 1 ? "" : "s")")
+                            .font(FoundryTheme.Fonts.azeretMono(11))
+                            .foregroundStyle(FoundryTheme.Colors.textMuted)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundStyle(FoundryTheme.Colors.textFaint)
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 12)
+        }
+        .background(FoundryTheme.Colors.backgroundCard)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(FoundryTheme.Colors.border).frame(height: 1)
+        }
+    }
+
     // MARK: - Actions
 
     private var actionSection: some View {
@@ -140,6 +193,9 @@ struct PluginDetailView: View {
                 }
                 Button("Rename", systemImage: "pencil") {
                     onAction?(.rename)
+                }
+                Button("Refine", systemImage: "slider.horizontal.below.rectangle") {
+                    onAction?(.refine)
                 }
                 Button("Regenerate", systemImage: "arrow.counterclockwise") {
                     onAction?(.regenerate)

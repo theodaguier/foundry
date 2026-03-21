@@ -39,6 +39,8 @@ final class GenerationPipeline {
     /// Live streaming text from Claude — updated on every delta, shown in real-time in the terminal.
     /// Committed to logLines when Claude starts a new tool use or finishes a content block.
     var streamingText: String = ""
+    /// The AI-generated plugin name — set during the preparingProject step.
+    var generatedPluginName: String?
     private var task: Task<Void, Never>?
     private var lastRealEventDate = Date()  // only updated by real Claude events, not the watcher itself
     private var silenceTask: Task<Void, Never>?
@@ -180,9 +182,17 @@ final class GenerationPipeline {
     private func execute(config: GenerationConfig) async throws -> Plugin {
         setStep(.preparingProject)
 
+        let existingNames = Set((appStateRef?.plugins ?? []).map(\.name))
+        let pluginName = await AgentResolver.generatePluginName(
+            agent: config.agent,
+            prompt: config.prompt,
+            existingNames: existingNames
+        )
+        generatedPluginName = pluginName
+
         let project: ProjectAssembler.AssembledProject
         do {
-            project = try ProjectAssembler.assemble(config: config)
+            project = try ProjectAssembler.assemble(config: config, pluginName: pluginName)
         } catch {
             throw GenerationError.assemblyFailed(error.localizedDescription)
         }
@@ -278,6 +288,19 @@ final class GenerationPipeline {
         let iconColor = colors.randomElement()!
         let pluginID = UUID()
 
+        // Archive build directory to versioned storage before cleanup
+        let archivedBuildDir: String?
+        do {
+            archivedBuildDir = try PluginManager.archiveBuild(
+                from: project.directory,
+                pluginID: pluginID,
+                version: 1
+            )
+        } catch {
+            print("[Pipeline] Failed to archive build: \(error)")
+            archivedBuildDir = nil
+        }
+
         // Persist generation log to AppSupport before temp dir is cleaned up
         let tempLog = project.directory.appendingPathComponent("generation.log")
         var generationLogPath: String? = nil
@@ -289,6 +312,20 @@ final class GenerationPipeline {
             generationLogPath = destLog.path
         }
 
+        let version = PluginVersion(
+            id: UUID(),
+            pluginId: pluginID,
+            versionNumber: 1,
+            prompt: config.prompt,
+            createdAt: Date(),
+            buildDirectory: archivedBuildDir,
+            installPaths: installPaths,
+            iconColor: iconColor,
+            isActive: true,
+            agent: config.agent,
+            model: config.model
+        )
+
         let plugin = Plugin(
             id: pluginID,
             name: project.pluginName,
@@ -299,10 +336,12 @@ final class GenerationPipeline {
             installPaths: installPaths,
             iconColor: iconColor,
             status: .installed,
-            buildDirectory: project.directory.path,
+            buildDirectory: archivedBuildDir,
             generationLogPath: generationLogPath,
             agent: config.agent,
-            model: config.model
+            model: config.model,
+            currentVersion: 1,
+            versions: [version]
         )
 
         BuildDirectoryCleaner.cleanAfterInstall(project.directory)
@@ -317,11 +356,27 @@ final class GenerationPipeline {
             throw GenerationError.assemblyFailed("No build directory found - cannot refine this plugin")
         }
 
-        let projectDir = URL(fileURLWithPath: buildDir)
+        let archivedDir = URL(fileURLWithPath: buildDir)
 
         guard FileManager.default.fileExists(atPath: buildDir) else {
             throw GenerationError.assemblyFailed("Build directory no longer exists: \(buildDir)")
         }
+
+        // Copy archived build to a fresh temp directory for refining
+        let uuid = UUID().uuidString.prefix(8).lowercased()
+        let projectDir = URL(fileURLWithPath: "/tmp/foundry-build-\(uuid)")
+        do {
+            try FileManager.default.copyItem(at: archivedDir, to: projectDir)
+        } catch {
+            throw GenerationError.assemblyFailed("Failed to restore build for refining: \(error.localizedDescription)")
+        }
+
+        // Lock CMakeLists.txt so Claude cannot modify it (prevents plugin rename)
+        let cmakePath = projectDir.appendingPathComponent("CMakeLists.txt").path
+        try? FileManager.default.setAttributes(
+            [.immutable: true],
+            ofItemAtPath: cmakePath
+        )
 
         let callbacks = makeCallbacks()
 
@@ -337,7 +392,14 @@ final class GenerationPipeline {
         let model = config.plugin.model ?? agent.defaultModel
 
         let refinePrompt = """
-        You are modifying an existing JUCE \(pluginRole) plugin. Use your tools to read and edit files directly.
+        You are modifying an existing JUCE \(pluginRole) plugin called "\(config.plugin.name)".
+
+        CRITICAL RULES:
+        - Do NOT modify CMakeLists.txt — it is locked.
+        - Do NOT rename the plugin or change class names.
+        - Do NOT create new files — only edit existing Source/ files.
+        - Do NOT rewrite files from scratch — only change what's needed.
+        - Use your Edit tool to make targeted changes.
 
         Read these source files first:
         1. Source/PluginProcessor.h
@@ -347,9 +409,7 @@ final class GenerationPipeline {
 
         The user wants this modification: \(config.modification)
 
-        Use your Edit tool to make targeted changes. Keep everything else working.
-        Do NOT rewrite files from scratch — only change what's needed.
-        Keep class names unchanged. The plugin must compile with C++17 and JUCE.
+        The plugin must compile with C++17 and JUCE. Keep everything else working.
         """
 
         let genResult = await AgentResolver.run(
@@ -378,12 +438,21 @@ final class GenerationPipeline {
 
         try Task.checkCancellation()
 
+        // Unlock CMakeLists.txt before build (cmake needs to read it)
+        try? FileManager.default.setAttributes(
+            [.immutable: false],
+            ofItemAtPath: cmakePath
+        )
+
         setStep(.compiling)
         try await BuildLoop.run(projectDir: projectDir, agent: agent, model: model, callbacks: callbacks)
 
         try Task.checkCancellation()
 
         setStep(.installing)
+
+        // Uninstall old version first to prevent conflicts
+        try? PluginManager.uninstallPlugin(config.plugin)
 
         let formats = config.plugin.formats
         let installPaths: Plugin.InstallPaths
@@ -408,12 +477,54 @@ final class GenerationPipeline {
             try? FileManager.default.copyItem(at: tempLog, to: destLog)
         }
 
+        // Create new version
+        let versionNumber = config.plugin.nextVersionNumber
+        let archivedBuildDir: String?
+        do {
+            archivedBuildDir = try PluginManager.archiveBuild(
+                from: projectDir,
+                pluginID: config.plugin.id,
+                version: versionNumber
+            )
+        } catch {
+            print("[Pipeline] Failed to archive refine build: \(error)")
+            archivedBuildDir = nil
+        }
+
+        let newVersion = PluginVersion(
+            id: UUID(),
+            pluginId: config.plugin.id,
+            versionNumber: versionNumber,
+            prompt: config.modification,
+            createdAt: Date(),
+            buildDirectory: archivedBuildDir,
+            installPaths: installPaths,
+            iconColor: config.plugin.iconColor,
+            isActive: true,
+            agent: agent,
+            model: model
+        )
+
         // Return updated plugin, preserving identity
         var updated = config.plugin
         updated.installPaths = installPaths
         updated.prompt = config.plugin.prompt + "\n-> " + config.modification
         updated.status = .installed
         updated.generationLogPath = FoundryPaths.generationLogFile(for: config.plugin.id).path
+        updated.buildDirectory = archivedBuildDir
+        updated.currentVersion = versionNumber
+
+        // Deactivate previous versions
+        var versions = updated.versions.map { v -> PluginVersion in
+            var copy = v
+            copy.isActive = false
+            return copy
+        }
+        versions.append(newVersion)
+        updated.versions = versions
+
+        // Clean up the temp working directory
+        BuildDirectoryCleaner.cleanAfterInstall(projectDir)
 
         return updated
     }

@@ -175,10 +175,15 @@ struct PluginLibraryView: View {
         case .rename:
             pluginToRename = plugin
             renameText = plugin.name
+        case .refine:
+            appState.push(.refine(plugin: plugin))
         case .regenerate:
             appState.push(.quickOptions(prompt: plugin.prompt))
         case .showInFinder:
             showInFinder(plugin)
+        case .restoreVersion:
+            // Restore is handled directly by VersionHistoryView — no action needed here
+            break
         }
     }
 }
