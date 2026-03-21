@@ -21,25 +21,25 @@ enum FoundryTheme {
     // MARK: Colors
 
     enum Colors {
-        static let background = Color.black
-        static let backgroundDeep = Color(hex: 0x0A0A0A)
-        static let backgroundCard = Color(hex: 0x0E0E0E)
-        static let backgroundElevated = Color(hex: 0x131313)
-        static let backgroundToolbar = Color(hex: 0x1B1B1B)
-        static let backgroundSubtle = Color(hex: 0x1A1A1A)
+        static let background = Color(.windowBackgroundColor)
+        static let backgroundDeep = Color(.controlBackgroundColor)
+        static let backgroundCard = Color(.controlBackgroundColor)
+        static let backgroundElevated = Color(.underPageBackgroundColor)
+        static let backgroundToolbar = Color(.windowBackgroundColor)
+        static let backgroundSubtle = Color(.controlBackgroundColor)
 
-        static let border = Color(hex: 0x333333)
-        static let borderSubtle = Color(hex: 0x474747)
+        static let border = Color(.separatorColor)
+        static let borderSubtle = Color(.tertiaryLabelColor).opacity(0.3)
 
-        static let textPrimary = Color.white
-        static let textSecondary = Color(hex: 0x919191)
-        static let textMuted = Color(hex: 0x666666)
-        static let textDimmed = Color(hex: 0x555555)
-        static let textFaint = Color(hex: 0x444444)
+        static let textPrimary = Color(.labelColor)
+        static let textSecondary = Color(.secondaryLabelColor)
+        static let textMuted = Color(.tertiaryLabelColor)
+        static let textDimmed = Color(.quaternaryLabelColor)
+        static let textFaint = Color(.quaternaryLabelColor).opacity(0.6)
 
-        static let trafficRed = Color(hex: 0xFF5F56)
-        static let trafficYellow = Color(hex: 0xFFBD2E)
-        static let trafficGreen = Color(hex: 0x27C93F)
+        static let trafficRed = Color.red
+        static let trafficYellow = Color.yellow
+        static let trafficGreen = Color.green
     }
 
     // MARK: Fonts

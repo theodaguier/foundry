@@ -32,8 +32,6 @@ struct PluginDetailView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            WindowChromeBar(title: "PLUGIN_INFO.SH")
-
             artworkSection
 
             infoSection
@@ -88,7 +86,7 @@ struct PluginDetailView: View {
                 Text(plugin.name.uppercased())
                     .font(FoundryTheme.Fonts.spaceGrotesk(32))
                     .tracking(1)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(.primary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
             }
@@ -135,39 +133,46 @@ struct PluginDetailView: View {
     // MARK: - Actions
 
     private var actionSection: some View {
-        HStack(spacing: 0) {
-            DetailAction(label: "FINDER", icon: "folder") {
-                onAction?(.showInFinder)
-            }
-            VerticalSeparator()
-            DetailAction(label: "RENAME", icon: "pencil") {
-                onAction?(.rename)
-            }
-            VerticalSeparator()
-            DetailAction(label: "REGENERATE", icon: "arrow.counterclockwise") {
-                onAction?(.regenerate)
-            }
-            VerticalSeparator()
-            DetailAction(label: "LOGO", icon: "photo.badge.sparkles", disabled: logoTask != nil) {
-                startLogoGeneration()
-            }
-            VerticalSeparator()
-            DetailAction(label: "LOGS", icon: "doc.text", disabled: plugin.generationLogPath == nil) {
-                if let path = plugin.generationLogPath {
-                    NSWorkspace.shared.open(URL(fileURLWithPath: path))
+        HStack {
+            Menu {
+                Button("Show in Finder", systemImage: "folder") {
+                    onAction?(.showInFinder)
                 }
+                Button("Rename", systemImage: "pencil") {
+                    onAction?(.rename)
+                }
+                Button("Regenerate", systemImage: "arrow.counterclockwise") {
+                    onAction?(.regenerate)
+                }
+                Button("Generate Logo", systemImage: "photo.badge.sparkles") {
+                    startLogoGeneration()
+                }
+                .disabled(logoTask != nil)
+                if plugin.generationLogPath != nil {
+                    Button("View Logs", systemImage: "doc.text") {
+                        if let path = plugin.generationLogPath {
+                            NSWorkspace.shared.open(URL(fileURLWithPath: path))
+                        }
+                    }
+                }
+                Divider()
+                Button("Delete", systemImage: "trash", role: .destructive) {
+                    onAction?(.delete)
+                }
+            } label: {
+                Label("Actions", systemImage: "ellipsis.circle")
             }
-            VerticalSeparator()
-            DetailAction(label: "CLOSE", icon: "xmark") {
+            .menuStyle(.borderlessButton)
+
+            Spacer()
+
+            Button("Done") {
                 dismiss()
             }
-            VerticalSeparator()
-            DetailAction(label: "DELETE", icon: "trash", destructive: true) {
-                onAction?(.delete)
-            }
+            .buttonStyle(.borderedProminent)
+            .keyboardShortcut(.cancelAction)
         }
-        .frame(height: 64)
-        .background(FoundryTheme.Colors.backgroundToolbar)
+        .padding(16)
     }
 
     // MARK: - Helpers
@@ -242,11 +247,11 @@ private struct DetailAction: View {
             VStack(spacing: 5) {
                 Image(systemName: icon)
                     .font(.system(size: 11, weight: .light))
-                    .foregroundStyle(destructive ? Color(hex: 0xFF5F56) : (disabled ? FoundryTheme.Colors.textFaint : FoundryTheme.Colors.textSecondary))
+                    .foregroundStyle(destructive ? Color.red : (disabled ? FoundryTheme.Colors.textFaint : FoundryTheme.Colors.textSecondary))
                 Text(label)
                     .font(FoundryTheme.Fonts.azeretMono(8))
                     .tracking(1.2)
-                    .foregroundStyle(destructive ? Color(hex: 0xFF5F56) : (disabled ? FoundryTheme.Colors.textFaint : FoundryTheme.Colors.textMuted))
+                    .foregroundStyle(destructive ? Color.red : (disabled ? FoundryTheme.Colors.textFaint : FoundryTheme.Colors.textMuted))
             }
             .frame(maxWidth: .infinity)
             .frame(height: 64)
@@ -279,12 +284,12 @@ struct LogoProgressOverlay: View {
 
     var body: some View {
         ZStack {
-            Color.black.opacity(0.7).ignoresSafeArea()
+            Color(.windowBackgroundColor).opacity(0.85).ignoresSafeArea()
 
             VStack(spacing: FoundryTheme.Spacing.md) {
                 ProgressView()
                     .progressViewStyle(.circular)
-                    .tint(.white)
+                    .tint(.primary)
 
                 Text(progress.message.uppercased())
                     .font(FoundryTheme.Fonts.azeretMono(10))

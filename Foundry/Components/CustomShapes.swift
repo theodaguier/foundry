@@ -61,24 +61,3 @@ extension View {
     }
 }
 
-// MARK: - Semi Arc
-
-/// Half-circle arc used for progress indicators.
-struct SemiArc: Shape {
-    var progress: Double
-
-    var animatableData: Double {
-        get { progress }
-        set { progress = newValue }
-    }
-
-    func path(in rect: CGRect) -> Path {
-        var p = Path()
-        let center = CGPoint(x: rect.midX, y: rect.midY)
-        let radius = min(rect.width, rect.height) / 2
-        let startAngle = Angle(degrees: 180)
-        let endAngle = Angle(degrees: 180 + progress * 180)
-        p.addArc(center: center, radius: radius, startAngle: startAngle, endAngle: endAngle, clockwise: false)
-        return p
-    }
-}

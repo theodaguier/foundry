@@ -83,9 +83,7 @@ struct RefineProgressView: View {
         }
         .onChange(of: pipeline.currentStep) { oldValue, newValue in
             if newValue.rawValue > oldValue.rawValue {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    _ = completedSteps.insert(oldValue.rawValue)
-                }
+                _ = completedSteps.insert(oldValue.rawValue)
             }
         }
     }

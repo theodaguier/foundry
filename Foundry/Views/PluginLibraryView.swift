@@ -25,29 +25,21 @@ struct PluginLibraryView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            FoundryHeaderBar(
-                activeFilter: filter,
-                onFilterTap: { filter = $0 },
-                onLogoTap: {}
-            ) {
-                HStack(spacing: FoundryTheme.Spacing.md) {
-                    FoundryActionButton(title: "+ NEW") {
-                        appState.push(.prompt)
-                    }
-
-                    if let building = appState.plugins.first(where: { $0.status == .building }) {
-                        BuildingIndicator(name: building.name)
-                    }
-                }
-            }
-
+            filterBar
             ScrollView {
                 pluginGrid
             }
-            .background(FoundryTheme.Colors.backgroundElevated)
-
         }
-        .background(FoundryTheme.Colors.backgroundElevated)
+        .navigationTitle("Foundry")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    appState.push(.prompt)
+                } label: {
+                    Label("New Plugin", systemImage: "plus")
+                }
+            }
+        }
         .sheet(item: $selectedPlugin) { plugin in
             PluginDetailView(plugin: plugin) { action in
                 handleDetailAction(action, for: plugin)
@@ -90,6 +82,20 @@ struct PluginLibraryView: View {
         }
     }
 
+    // MARK: - Filter Bar
+
+    private var filterBar: some View {
+        HStack(spacing: 0) {
+            FilterTabBar(activeFilter: filter, onTap: { filter = $0 })
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .background(.bar)
+        .overlay(alignment: .bottom) {
+            Divider()
+        }
+    }
+
     // MARK: - Plugin Grid
 
     private var pluginGrid: some View {
@@ -109,7 +115,7 @@ struct PluginLibraryView: View {
                 }
             }
         }
-        .background(FoundryTheme.Colors.backgroundSubtle)
+        .background(FoundryTheme.Colors.border)
     }
 
     // MARK: - Actions
@@ -168,12 +174,12 @@ struct BuildingIndicator: View {
     var body: some View {
         HStack(spacing: FoundryTheme.Spacing.xs) {
             Circle()
-                .fill(Color.white)
+                .fill(Color.accentColor)
                 .frame(width: 6, height: 6)
             Text("BUILDING · \(Int(appState.buildProgress * 100))%")
                 .font(FoundryTheme.Fonts.jetBrainsMono(9))
                 .tracking(0.9)
-                .foregroundStyle(.white)
+                .foregroundStyle(.primary)
         }
     }
 }
@@ -195,15 +201,7 @@ struct NewPluginCard: View {
                     .foregroundStyle(FoundryTheme.Colors.textSecondary)
             }
             .frame(maxWidth: .infinity, minHeight: 340)
-            .background(FoundryTheme.Colors.backgroundCard)
-            .overlay(
-                Rectangle()
-                    .strokeBorder(
-                        FoundryTheme.Colors.borderSubtle,
-                        style: StrokeStyle(lineWidth: 1, dash: [4, 4])
-                    )
-                    .padding(1)
-            )
+            .background(Color(.textBackgroundColor))
         }
         .buttonStyle(.plain)
     }
@@ -241,7 +239,8 @@ struct LibraryPluginCard: View {
     @ViewBuilder
     private var artworkArea: some View {
         ZStack {
-            FoundryTheme.Colors.backgroundCard
+            Color(.textBackgroundColor)
+            plugin.color.opacity(0.07)
             if plugin.status == .building {
                 buildingArtwork
             } else if let img = loadLogoImage() {
@@ -271,29 +270,29 @@ struct LibraryPluginCard: View {
 
     private var infoArea: some View {
         ZStack(alignment: .bottomLeading) {
-            (plugin.status == .building ? Color(hex: 0x1F1F1F) : FoundryTheme.Colors.backgroundToolbar)
+            Color(.windowBackgroundColor)
             VStack(alignment: .leading, spacing: 3) {
                 if plugin.status == .building {
                     Text(plugin.name.uppercased())
                         .font(FoundryTheme.Fonts.spaceGrotesk(20))
                         .tracking(1)
-                        .foregroundStyle(.white.opacity(0.4))
+                        .foregroundStyle(.secondary)
                         .lineLimit(1)
                     Text("BUILDING... \(Int(appState.buildProgress * 100))%")
                         .font(FoundryTheme.Fonts.jetBrainsMono(9))
                         .tracking(1.8)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(.primary)
                 } else {
                     Text(plugin.name.uppercased())
                         .font(FoundryTheme.Fonts.spaceGrotesk(24))
                         .tracking(1)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(.primary)
                         .lineLimit(1)
                 }
                 Text(formatSubtitle())
                     .font(FoundryTheme.Fonts.jetBrainsMono(9))
                     .tracking(0.9)
-                    .foregroundStyle(FoundryTheme.Colors.textSecondary)
+                    .foregroundStyle(.secondary)
                     .textCase(.uppercase)
             }
             .padding(.horizontal, 20)
@@ -304,8 +303,8 @@ struct LibraryPluginCard: View {
                     Spacer()
                     GeometryReader { geo in
                         ZStack(alignment: .leading) {
-                            Color(hex: 0x353535).frame(height: 4)
-                            Color.white.frame(width: geo.size.width * appState.buildProgress, height: 4)
+                            Color(.separatorColor).frame(height: 4)
+                            Color.accentColor.frame(width: geo.size.width * appState.buildProgress, height: 4)
                         }
                     }
                     .frame(height: 4)

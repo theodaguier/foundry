@@ -10,19 +10,10 @@ struct TerminalView: View {
     var streamingText: String = ""
     var showCursor: Bool = true
 
-    @State private var cursorVisible = true
-
     var body: some View {
         VStack(spacing: 0) {
             terminalHeader
             terminalBody
-        }
-        .task {
-            guard showCursor else { return }
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .milliseconds(600))
-                cursorVisible.toggle()
-            }
         }
     }
 
@@ -48,12 +39,49 @@ struct TerminalView: View {
                 .tracking(1)
                 .foregroundStyle(FoundryTheme.Colors.textMuted)
                 .monospacedDigit()
+
+            Menu {
+                Button("Copy Logs", systemImage: "doc.on.doc") {
+                    copyLogs()
+                }
+                Button("Export as .txt…", systemImage: "square.and.arrow.up") {
+                    exportLogs()
+                }
+            } label: {
+                Image(systemName: "ellipsis.circle")
+                    .font(.system(size: 12))
+                    .foregroundStyle(FoundryTheme.Colors.textMuted)
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
         }
         .padding(.horizontal, FoundryTheme.Spacing.lg)
         .frame(height: 40)
-        .background(Color.black.opacity(0.4))
+        .background(Color(.controlBackgroundColor))
         .overlay(alignment: .bottom) {
-            Rectangle().fill(Color.white.opacity(0.1)).frame(height: 1)
+            Rectangle().fill(Color(.separatorColor)).frame(height: 1)
+        }
+    }
+
+    // MARK: - Actions
+
+    private var logsText: String {
+        logLines.map { "[\($0.timestamp)] \($0.message)" }.joined(separator: "\n")
+    }
+
+    private func copyLogs() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(logsText, forType: .string)
+    }
+
+    private func exportLogs() {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.plainText]
+        panel.nameFieldStringValue = "build-log.txt"
+        panel.begin { response in
+            if response == .OK, let url = panel.url {
+                try? logsText.write(to: url, atomically: true, encoding: .utf8)
+            }
         }
     }
 
@@ -79,7 +107,7 @@ struct TerminalView: View {
                                 .padding(.top, 1)
                             Text(streamingText)
                                 .font(FoundryTheme.Fonts.jetBrainsMono(11))
-                                .foregroundStyle(Color.white.opacity(0.35))
+                                .foregroundStyle(Color.primary.opacity(0.35))
                                 .fixedSize(horizontal: false, vertical: true)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
@@ -88,9 +116,9 @@ struct TerminalView: View {
                     }
 
                     if showCursor {
-                        Text(cursorVisible ? "_" : " ")
+                        Text("_")
                             .font(FoundryTheme.Fonts.jetBrainsMono(11))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(.primary)
                             .id("cursor")
                     }
                 }
@@ -125,7 +153,7 @@ struct TerminalLineView: View {
                     .padding(.top, 1)
                 Text(line.message)
                     .font(FoundryTheme.Fonts.jetBrainsMono(11))
-                    .foregroundStyle(Color.white.opacity(0.6))
+                    .foregroundStyle(Color.primary.opacity(0.6))
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
             case .success:
@@ -137,32 +165,32 @@ struct TerminalLineView: View {
                     .padding(.top, 1)
                 Text(line.message)
                     .font(FoundryTheme.Fonts.jetBrainsMono(11))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(.primary)
                     .fontWeight(.bold)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
             case .active:
                 Text("->")
                     .font(FoundryTheme.Fonts.jetBrainsMono(11))
-                    .foregroundStyle(Color.white.opacity(0.6))
+                    .foregroundStyle(Color.primary.opacity(0.6))
                     .lineLimit(1)
                     .frame(width: 82, alignment: .leading)
                     .padding(.top, 1)
                 Text(line.message)
                     .font(FoundryTheme.Fonts.jetBrainsMono(11))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(.primary)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
             case .error:
                 Text("[ERR]")
                     .font(FoundryTheme.Fonts.jetBrainsMono(11))
-                    .foregroundStyle(Color(hex: 0xFF5F56))
+                    .foregroundStyle(Color.red)
                     .lineLimit(1)
                     .frame(width: 82, alignment: .leading)
                     .padding(.top, 1)
                 Text(line.message)
                     .font(FoundryTheme.Fonts.jetBrainsMono(11))
-                    .foregroundStyle(Color(hex: 0xFF5F56))
+                    .foregroundStyle(Color.red)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }

@@ -28,7 +28,7 @@ struct WaveformBarsArtwork: View {
             HStack(alignment: .bottom, spacing: 2) {
                 ForEach(Array(bars.enumerated()), id: \.offset) { _, bar in
                     Rectangle()
-                        .fill(Color.white.opacity(bar.opacity))
+                        .fill(Color.primary.opacity(bar.opacity))
                         .frame(width: 3, height: geo.size.height * bar.height * 0.85)
                 }
             }
@@ -38,7 +38,7 @@ struct WaveformBarsArtwork: View {
         }
         .overlay(
             LinearGradient(
-                colors: [FoundryTheme.Colors.backgroundCard, FoundryTheme.Colors.backgroundCard.opacity(0)],
+                colors: [Color.clear.opacity(0.5), Color.clear],
                 startPoint: .top,
                 endPoint: .center
             )
@@ -55,7 +55,7 @@ struct ConcentricRingsArtwork: View {
                 .strokeBorder(FoundryTheme.Colors.borderSubtle, lineWidth: 1)
                 .frame(width: 96, height: 96)
             Circle()
-                .strokeBorder(Color.white.opacity(0.8), lineWidth: 2)
+                .strokeBorder(Color.primary.opacity(0.8), lineWidth: 2)
                 .frame(width: 64, height: 64)
             Circle()
                 .strokeBorder(FoundryTheme.Colors.textSecondary.opacity(0.4), lineWidth: 1)

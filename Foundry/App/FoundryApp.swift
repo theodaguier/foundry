@@ -35,7 +35,7 @@ struct FoundryApp: App {
                 .preferredColorScheme(colorScheme)
         }
         .defaultSize(width: 900, height: 620)
-        .windowResizability(.contentSize)
+        .windowResizability(.contentMinSize)
         .windowToolbarStyle(.unified)
 
         Settings {
