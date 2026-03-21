@@ -184,6 +184,11 @@ enum PluginManager {
             ])
         }
 
+        // Give AudioComponentRegistrar time to restart and re-scan after being killed
+        if formats.contains(.au) {
+            Thread.sleep(forTimeInterval: 3.0)
+        }
+
         if let auPath = paths.au {
             try PluginBundleInspector.validateInstalledBundle(
                 at: URL(fileURLWithPath: auPath),

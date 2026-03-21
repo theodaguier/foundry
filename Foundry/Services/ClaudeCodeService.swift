@@ -16,12 +16,15 @@ enum ClaudeCodeService {
         var error: String?
     }
 
+    /// 15-minute watchdog — safety net for silent crashes, not a functional timeout.
+    /// Claude advances the pipeline via the `result` event; this only fires if something hangs.
+    private static let watchdogSeconds = 900
+
     // MARK: - Generate
 
     static func run(
         prompt: String,
         projectDir: URL,
-        timeoutSeconds: Int = 600,
         onEvent: @escaping @Sendable (ClaudeEvent) -> Void
     ) async -> RunResult {
         guard let claudePath = DependencyChecker.resolveCommandPath("claude") else {
@@ -83,17 +86,17 @@ enum ClaudeCodeService {
             return RunResult(success: false, output: "", error: "Failed to launch Claude Code: \(error.localizedDescription)")
         }
 
-        // Simple approach: waitUntilExit on a background thread.
-        // A DispatchSource timer sends terminate() on timeout.
-        // After terminate(), waitUntilExit completes naturally.
-        let timeoutTimer = DispatchSource.makeTimerSource(queue: .global())
-        timeoutTimer.schedule(deadline: .now() + .seconds(timeoutSeconds))
-        timeoutTimer.setEventHandler { [process] in
+        // 15-minute watchdog — safety net only. Claude emits a `result` event when done,
+        // which causes waitUntilExit to return naturally. This timer only fires if the
+        // process hangs silently (crash, deadlock, etc.).
+        let watchdog = DispatchSource.makeTimerSource(queue: .global())
+        watchdog.schedule(deadline: .now() + .seconds(watchdogSeconds))
+        watchdog.setEventHandler { [process] in
             if process.isRunning {
                 process.terminate()
             }
         }
-        timeoutTimer.resume()
+        watchdog.resume()
 
         // Block a background thread until process exits
         await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in
@@ -103,7 +106,7 @@ enum ClaudeCodeService {
             }
         }
 
-        timeoutTimer.cancel()
+        watchdog.cancel()
 
         // Small delay to let readability handlers drain
         try? await Task.sleep(for: .milliseconds(200))
@@ -120,7 +123,7 @@ enum ClaudeCodeService {
         // Append raw output to generation.log (accumulates all Claude phases)
         let logFile = projectDir.appendingPathComponent("generation.log")
         let separator = "\n" + String(repeating: "=", count: 80) + "\n"
-        let header = "DATE: \(Date())\nPROMPT: \(String(prompt.prefix(200)))\nEXIT: \(exitCode)\(timedOut ? " (TIMEOUT)" : "")\n" + String(repeating: "-", count: 80) + "\n"
+        let header = "DATE: \(Date())\nPROMPT: \(String(prompt.prefix(200)))\nEXIT: \(exitCode)\(timedOut ? " (WATCHDOG)" : "")\n" + String(repeating: "-", count: 80) + "\n"
         let section = separator + header + "\n--- STDOUT ---\n\(allOutput)\n\n--- STDERR ---\n\(stderrOutput)\n"
         if let data = section.data(using: .utf8) {
             if FileManager.default.fileExists(atPath: logFile.path),
@@ -134,7 +137,7 @@ enum ClaudeCodeService {
         }
 
         if timedOut {
-            onEvent(.error("Generation timed out after \(timeoutSeconds / 60) minutes"))
+            onEvent(.error("Process killed by 15-minute watchdog"))
         }
         onEvent(.result(success: exitCode == 0))
 
@@ -142,7 +145,7 @@ enum ClaudeCodeService {
             success: exitCode == 0,
             output: allOutput,
             error: exitCode == 0 ? nil : timedOut
-                ? "Generation timed out after \(timeoutSeconds / 60) minutes"
+                ? "Process killed by 15-minute watchdog"
                 : stderrOutput.isEmpty
                     ? "Claude Code exited with code \(exitCode)"
                     : stderrOutput
@@ -157,28 +160,47 @@ enum ClaudeCodeService {
         onEvent: @escaping @Sendable (ClaudeEvent) -> Void
     ) async -> RunResult {
         let prompt = """
-        The JUCE plugin build failed (attempt \(attempt)/3). Fix ALL errors.
-        Read the source files in Source/ to understand the current state, then fix.
+        Build failed (attempt \(attempt)). Fix ALL errors in 3 turns max.
+        Turn 1: Read ALL Source/ files in PARALLEL.
+        Turn 2: Fix with PARALLEL Edit calls.
+        Turn 3: Only if needed.
 
-        ## Compiler errors:
+        Errors:
         \(errors)
 
-        ## CRITICAL RULES:
-        - ONLY edit files in Source/: PluginProcessor.h, PluginProcessor.cpp, PluginEditor.h, PluginEditor.cpp, FoundryLookAndFeel.h
-        - ABSOLUTELY DO NOT touch CMakeLists.txt — it is correct and must not be modified
-        - Use only JUCE built-in classes, no external dependencies
-        - C++17 standard
-        - Fully qualify all JUCE types with juce:: namespace
-        - All method signatures in .cpp must match .h declarations exactly
-        - Do not use juce::Font(float) — use juce::Font(juce::FontOptions(float)) instead
-        - All parameters in createParameterLayout() must have matching UI controls
-        - If a linker error mentions undefined symbols, the issue is in your source code, NOT in CMakeLists.txt
+        Rules: ONLY edit Source/ files. Do NOT touch CMakeLists.txt. C++17, juce:: prefix everywhere,
+        juce::Font(juce::FontOptions(float)) not juce::Font(float), .h/.cpp signatures must match.
+        Linker errors = your source code, NOT CMakeLists.txt.
         """
 
         return await run(
             prompt: prompt,
             projectDir: projectDir,
-            timeoutSeconds: 180,
+            onEvent: onEvent
+        )
+    }
+
+    /// Runs Claude Code to audit and fix generated code before build
+    static func audit(
+        projectDir: URL,
+        userIntent: String,
+        pluginType: String,
+        onEvent: @escaping @Sendable (ClaudeEvent) -> Void
+    ) async -> RunResult {
+        let prompt = """
+        Audit the plugin code. SPEED IS CRITICAL — do this in 3 turns max.
+        Turn 1: Read ALL 5 Source/ files in PARALLEL.
+        Turn 2: Fix any issues with PARALLEL Edit calls.
+        Turn 3: Only if needed.
+
+        Check: parameter/UI mismatches, missing juce:: prefixes, .h/.cpp signature mismatches,
+        juce::Font(float) (must be juce::FontOptions), LookAndFeel lifecycle, DSP matches "\(userIntent)".
+        Plugin type: \(pluginType). Do NOT touch CMakeLists.txt.
+        """
+
+        return await run(
+            prompt: prompt,
+            projectDir: projectDir,
             onEvent: onEvent
         )
     }
@@ -192,17 +214,17 @@ enum ClaudeCodeService {
             "--dangerously-skip-permissions",
             "--output-format", "stream-json",
             "--verbose",
-            "--max-turns", "50",
+            "--max-turns", "25",
             "--model", "sonnet",
-            "--disallowedTools", "Bash",
+            "--strict-mcp-config",
+            "--disallowedTools", "Bash,Grep,Glob,WebSearch,WebFetch,NotebookEdit,Skill,EnterPlanMode,ExitPlanMode,EnterWorktree,ExitWorktree,CronCreate,CronDelete,CronList,Task,TaskCreate,TaskGet,TaskUpdate,TaskList,TaskOutput,TaskStop,AskUserQuestion,ToolSearch",
             "--append-system-prompt",
             """
-            You MUST use tools (Read, Edit, Write, MultiEdit) on every turn. Never respond with only text.
-            Read CLAUDE.md first — it is your complete reference. Follow its phases in order.
-            Use Edit to modify existing method stubs. NEVER add duplicate method definitions.
-            Your output is automatically validated — empty stubs will be rejected.
-            CRITICAL: Do NOT use Bash. Do NOT run grep, echo, or any shell command to verify your work.
-            Trust your edits. If you need to check a file, use Read.
+            SPEED IS CRITICAL. Minimize the number of turns.
+            Turn 1: Read CLAUDE.md AND all juce-kit/*.md files in PARALLEL (one Read call per file, all in the same turn).
+            Turn 2-4: Write ALL 5 source files. Use PARALLEL Write calls — write multiple files in the same turn.
+            Do NOT verify your work with extra Read calls after writing. Trust your output.
+            Never respond with only text — always use tools.
             """,
         ]
     }
@@ -227,7 +249,6 @@ enum ClaudeCodeService {
 
         case "system":
             if json["subtype"] as? String == "init" {
-                let tools = (json["tools"] as? [String]) ?? []
                 let mcpServers = (json["mcp_servers"] as? [[String: Any]]) ?? []
                 let connected = mcpServers.filter { $0["status"] as? String == "connected" }
                 let needsAuth = mcpServers.filter { $0["status"] as? String == "needs-auth" }
@@ -263,7 +284,6 @@ enum ClaudeCodeService {
             }
 
         case "tool", "tool_result":
-            // Tool results: what Claude got back (Read file contents, Write confirmation, etc.)
             let output = extractToolOutput(from: json)
             let toolName = json["tool_name"] as? String ?? json["name"] as? String ?? "tool"
             if !output.isEmpty {
@@ -272,7 +292,6 @@ enum ClaudeCodeService {
 
         case "result":
             let isError = json["is_error"] as? Bool ?? false
-            // Show cost and turn count if available
             if let cost = json["total_cost_usd"] as? Double, let turns = json["num_turns"] as? Int {
                 events.append(.text(String(format: "Done — %d turns, $%.4f", turns, cost)))
             }

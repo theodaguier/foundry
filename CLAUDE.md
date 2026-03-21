@@ -27,11 +27,10 @@ Foundry/
 | File | Role |
 |---|---|
 | `GenerationPipeline` | Orchestrates generate and refine flows |
-| `ProjectAssembler` | Writes minimal C++ stubs + expert CLAUDE.md to `/tmp/foundry-build-<uuid>/` |
-| `ClaudeCodeService` | Launches Claude CLI subprocess, parses stdout stream-json |
-| `BuildLoop` | CMake build with retry loop and Claude fix passes |
+| `ProjectAssembler` | Writes CMakeLists.txt + CLAUDE.md + juce-kit/ knowledge files to `/tmp/foundry-build-<uuid>/` |
+| `ClaudeCodeService` | Launches Claude CLI subprocess, parses stdout stream-json, event-driven completion |
+| `BuildLoop` | CMake build with unlimited retry loop and Claude fix passes |
 | `BuildRunner` | Low-level CMake process runner + smoke test |
-| `GenerationQualityEnforcer` | Validates generated code has real implementation, triggers rewrite if insufficient |
 | `BuildDirectoryCleaner` | Cleans `/tmp/foundry-build-*` after install and on launch |
 | `PluginManager` | Persists `plugins.json`, handles install/uninstall via AppleScript |
 | `PluginLogoService` | Local Stable Diffusion logo generation (Apple CoreML) |
@@ -41,21 +40,23 @@ Foundry/
 
 ## Key Design Decisions
 
-- **Agent-expert architecture:** `ProjectAssembler` writes minimal compilable C++ stubs (correct class names, empty method bodies) + an expert `CLAUDE.md` with JUCE skills. Claude writes all plugin code from scratch using expert knowledge — no templates to edit.
-- **Expert knowledge via CLAUDE.md:** Written into the temp project dir per generation. Contains SKILL sections (Parameter System, DSP, Interface, Presets) with JUCE patterns and constraints.
+- **Knowledge kit architecture:** `ProjectAssembler` writes only `CMakeLists.txt` (build config) + `CLAUDE.md` (mission brief) + `juce-kit/*.md` (API reference, DSP patterns, UI patterns, build rules). No C++ stubs — Claude creates all source files from scratch.
+- **JUCE knowledge kit:** Separate markdown files in `juce-kit/` directory: `juce-api.md`, `dsp-patterns.md`, `ui-patterns.md`, `look-and-feel.md`, `build-rules.md`, `presets.md`. Claude reads what it needs based on the plugin description.
+- **Event-driven execution:** Claude CLI emits a `result` event when finished. The pipeline advances immediately on that event — no functional timeouts. Only a 15-minute watchdog remains as a safety net for silent crashes.
+- **Audit pass before build:** After code generation, a second Claude invocation reviews the code for semantic issues (parameter/UI mismatches, architecture errors, missing includes) before the compiler sees it.
+- **Build loop with no limit:** The build loop retries until success or user cancellation. No `maxAttempts` — the compiler is the only judge.
 - **Claude invocation:** `claude -p "<prompt>" --dangerously-skip-permissions --output-format stream-json --verbose --max-turns 50 --model sonnet --append-system-prompt "..."`
 - **Refine flow:** Modifies an existing plugin using its preserved `buildDirectory`. Full build loop runs again.
-- **Quality enforcement:** `GenerationQualityEnforcer` + `GeneratedPluginValidator` check content presence (parameters exist, DSP implemented, UI controls present). Triggers up to 2 rewrite passes if insufficient.
 - **Install path:** `/Library/Audio/Plug-Ins/` (system-level) via AppleScript with admin. Ensures DAW visibility.
 - **Cleanup:** `BuildDirectoryCleaner.cleanAfterInstall()` removes temp dirs 10s after install. `sweepStaleDirectories()` runs on launch for dirs older than 24h.
 
 ## Plugin Types
 
-| Type | Keywords | Stub base |
-|---|---|---|
-| `instrument` | synth, keys, pad, oscillator | Processor + Voice/Sound classes with renderNextBlock |
-| `effect` | reverb, delay, distortion, filter | Processor with processBlock stub |
-| `utility` | analyzer, meter, width, gain staging | Processor with processBlock stub |
+| Type | Keywords |
+|---|---|
+| `instrument` | synth, keys, pad, oscillator |
+| `effect` | reverb, delay, distortion, filter |
+| `utility` | analyzer, meter, width, gain staging |
 
 ## Data Model
 
@@ -85,29 +86,44 @@ struct Plugin: Identifiable, Codable {
 └── ImageModels/               # CoreML Stable Diffusion model
 
 /tmp/foundry-build-<uuid>/     # Per-generation temp dir (auto-cleaned)
+├── CMakeLists.txt             # Build config (never modified by Claude)
+├── CLAUDE.md                  # Mission brief + kit references
+├── juce-kit/                  # Knowledge kit (markdown reference files)
+│   ├── juce-api.md
+│   ├── dsp-patterns.md
+│   ├── ui-patterns.md
+│   ├── look-and-feel.md
+│   ├── build-rules.md
+│   └── presets.md
+└── Source/                    # Created by Claude from scratch
+    ├── PluginProcessor.h
+    ├── PluginProcessor.cpp
+    ├── PluginEditor.h
+    ├── PluginEditor.cpp
+    └── FoundryLookAndFeel.h
 ```
 
 ## Generation Pipeline (in order)
 
-1. `ProjectAssembler.assemble()` → writes stubs + expert CLAUDE.md to `/tmp/foundry-build-<uuid>/`
-2. `ClaudeCodeService.run()` → Claude writes plugin code from scratch using expert knowledge
-3. `BuildLoop.run()` → cmake build, up to 3 attempts with Claude fix passes
-4. `GenerationQualityEnforcer.enforce()` → validates implementation quality, rewrites if insufficient
+1. `ProjectAssembler.assemble()` → writes CMakeLists.txt + CLAUDE.md + juce-kit/ to `/tmp/foundry-build-<uuid>/`
+2. `ClaudeCodeService.run()` → Claude reads knowledge kit, creates all source files from scratch
+3. `ClaudeCodeService.audit()` → Claude reviews its own code for semantic issues before build
+4. `BuildLoop.run()` → cmake build, unlimited retries with Claude fix passes until success
 5. `PluginManager.installPlugin()` → copies to `/Library`, codesigns
 6. `BuildDirectoryCleaner.cleanAfterInstall()` → removes temp dir
 
 ## Timeouts
 
-| Step | Timeout |
-|---|---|
-| Claude generation | 300s |
-| Claude fix pass | 180s |
-| Claude quality rewrite | 240s |
-| CMake build | 360s per attempt |
+| Step | Timeout | Type |
+|---|---|---|
+| All Claude invocations | 900s (15min) | Watchdog only — advances on `result` event |
+| CMake configure | 60s | Hard timeout |
+| CMake build | 120s per attempt | Hard timeout |
 
 ## Known Issues
 
 - **#7** Smoke test only checks bundle existence, not audio validity
 - **#8** Build-fix loop refactor (done — `BuildLoop` extracted)
-- **#10** Build timeout is 360s; target is 120s
+- **#10** Build timeout is 120s (fixed)
 - **#17** Fixed — agent-expert architecture, `--model sonnet`, `--max-turns 50`, `--append-system-prompt`
+- **#27** Fixed — JUCE knowledge kit, event-driven flow, audit pass, no templates

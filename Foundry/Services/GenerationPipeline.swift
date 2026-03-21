@@ -6,7 +6,6 @@ enum GenerationError: Error, LocalizedError {
     case generationFailed(String)
     case buildFailed(String)
     case installFailed(String)
-    case timeout
 
     var errorDescription: String? {
         switch self {
@@ -14,7 +13,6 @@ enum GenerationError: Error, LocalizedError {
         case .generationFailed(let msg): "Code generation failed: \(msg)"
         case .buildFailed(let msg): msg
         case .installFailed(let msg): "Plugin installation failed: \(msg)"
-        case .timeout: "Generation timed out"
         }
     }
 }
@@ -71,7 +69,6 @@ final class GenerationPipeline {
                 guard let self, !Task.isCancelled else { return }
                 let elapsed = Int(-self.lastRealEventDate.timeIntervalSinceNow)
                 if elapsed >= 12 {
-                    // Direct append — bypass log() to avoid touching lastRealEventDate
                     let now = Date()
                     let h = Calendar.current.component(.hour, from: now)
                     let m = Calendar.current.component(.minute, from: now)
@@ -176,7 +173,6 @@ final class GenerationPipeline {
         try Task.checkCancellation()
 
         let callbacks = makeCallbacks()
-        let initialEditorSnapshot = captureEditorSnapshot(in: project.directory)
 
         setStep(.generatingDSP)
 
@@ -185,38 +181,19 @@ final class GenerationPipeline {
         case .effect: "audio effect"
         case .utility: "utility or analysis tool"
         }
-        let presetCount = config.presetCount.rawValue
-        let presetInstruction = presetCount > 0
-            ? "\n- Implement exactly \(presetCount) presets with a ComboBox selector in the UI (see CLAUDE.md Presets section)"
-            : ""
-        let instrumentNote = project.pluginType == .instrument ? """
-
-        IMPORTANT: The source files contain a minimal sine oscillator stub — this is just
-        scaffolding to make the project compile. You MUST completely redesign the voice,
-        parameters, and UI to build a real, complete instrument. Think about what would make
-        this instrument worth playing: what sound sources, what controls, what makes it unique.
-        The stub is a starting point, not the answer.
-        """ : ""
 
         let genPrompt = """
-        Build a JUCE \(pluginRole) plugin: \(config.prompt)
+        Build a JUCE \(pluginRole) plugin from scratch: \(config.prompt)
 
-        Follow the implementation guide in CLAUDE.md exactly. It contains everything you need:
-        architecture, DSP patterns, UI wiring, validation criteria, and fatal mistakes to avoid.
-        \(instrumentNote)
-        ## Your workflow:
-        1. Read CLAUDE.md (your expert reference — read it fully before writing any code)
-        2. Read all Source/ files to understand the stubs
-        3. Follow Phases 1→2→3→4 from CLAUDE.md in strict order\(presetInstruction.isEmpty ? "" : "\n        4. Phase 5: Presets (see CLAUDE.md)")
-        4. Use Edit to modify existing methods — never add duplicate definitions
+        Read CLAUDE.md first — it is your mission brief and references the knowledge kit files
+        in juce-kit/. There are no existing source files — you create everything in Source/.
 
         Start by reading CLAUDE.md now.
         """
-        log("── Claude Run 1: Initial code generation (timeout 5min) ──", style: .active)
+        log("── Claude: Code generation ──", style: .active)
         let genResult = await ClaudeCodeService.run(
             prompt: genPrompt,
             projectDir: project.directory,
-            timeoutSeconds: 300,
             onEvent: { [weak self] event in
                 Task { @MainActor in
                     self?.handleClaudeEvent(event)
@@ -228,81 +205,39 @@ final class GenerationPipeline {
             throw GenerationError.generationFailed(genResult.error ?? "Claude Code CLI is unavailable")
         }
 
-        // Capture initial file snapshots to detect if Claude modified them.
-        // The stubs now contain a minimal viable implementation (parameters, DSP, UI)
-        // so even if Claude does nothing, the plugin compiles and passes validation.
-        // But we still want Claude to customize the plugin for the user's prompt.
+        // Check that Claude created the source files
         let processorFile = project.directory.appendingPathComponent("Source/PluginProcessor.cpp")
         let editorFile = project.directory.appendingPathComponent("Source/PluginEditor.cpp")
-        let initialProcessor = (try? String(contentsOf: processorFile, encoding: .utf8)) ?? ""
-        let initialEditor = (try? String(contentsOf: editorFile, encoding: .utf8)) ?? ""
+        let processorExists = FileManager.default.fileExists(atPath: processorFile.path)
+        let editorExists = FileManager.default.fileExists(atPath: editorFile.path)
 
-        func filesWereModified() -> Bool {
-            let currentProcessor = (try? String(contentsOf: processorFile, encoding: .utf8)) ?? ""
-            let currentEditor = (try? String(contentsOf: editorFile, encoding: .utf8)) ?? ""
-            return currentProcessor != initialProcessor || currentEditor != initialEditor
-        }
-
-        if !genResult.success && !filesWereModified() {
-            // Claude failed AND didn't modify files — retry with a more direct prompt
-            log("Generation incomplete — retrying with direct instructions...")
-            setStep(.generatingDSP)
-
-            let retryPrompt = """
-            The source files have a starter implementation but you need to customize them
-            for this specific plugin: \(config.prompt)
-            Type: \(pluginRole)
-
-            The starter code has basic gain/mix parameters. You must REPLACE them with
-            parameters appropriate for this plugin. Read CLAUDE.md for the full guide.
-
-            1. Read CLAUDE.md (expert reference)
-            2. Read all Source/ files
-            3. Replace createParameterLayout() with parameters specific to: \(config.prompt)
-            4. Replace processBlock() with DSP logic matching the plugin concept
-            5. Update the editor: new sliders/controls for each new parameter
-            6. Update resized() layout
-
-            Start by reading CLAUDE.md now.
-            """
-
-            log("── Claude Run 2: Retry (files unmodified) ──", style: .active)
-            let _ = await ClaudeCodeService.run(
-                prompt: retryPrompt,
-                projectDir: project.directory,
-                timeoutSeconds: 300,
-                onEvent: { [weak self] event in
-                    Task { @MainActor in
-                        self?.handleClaudeEvent(event)
-                    }
-                }
-            )
-            // Whether retry succeeds or not, proceed — stubs already pass validation
+        if !processorExists || !editorExists {
+            throw GenerationError.generationFailed("Claude did not create the required source files")
         }
 
         try Task.checkCancellation()
 
-        try await ensureUIStepIsVisible(
+        // Phase 3: Audit pass — Claude reviews its own code before build
+        setStep(.generatingUI)
+        log("── Claude: Audit pass ──", style: .active)
+        let _ = await ClaudeCodeService.audit(
             projectDir: project.directory,
-            initialSnapshot: initialEditorSnapshot
+            userIntent: config.prompt,
+            pluginType: pluginRole,
+            onEvent: { [weak self] event in
+                Task { @MainActor in
+                    self?.handleClaudeEvent(event)
+                }
+            }
         )
 
+        try Task.checkCancellation()
+
+        // Phase 4: Build loop — compiler is the only judge
         setStep(.compiling)
         try await BuildLoop.run(projectDir: project.directory, callbacks: callbacks)
 
         try Task.checkCancellation()
-
-        do {
-            try await GenerationQualityEnforcer.enforce(
-                projectDir: project.directory,
-                pluginType: project.pluginType,
-                interfaceStyle: project.interfaceStyle.rawValue,
-                userIntent: config.prompt,
-                callbacks: callbacks
-            )
-        } catch {
-            throw GenerationError.generationFailed(error.localizedDescription)
-        }
 
         setStep(.installing)
 
@@ -366,7 +301,6 @@ final class GenerationPipeline {
         }
 
         let callbacks = makeCallbacks()
-        let initialEditorSnapshot = captureEditorSnapshot(in: projectDir)
 
         setStep(.generatingDSP)
 
@@ -394,7 +328,6 @@ final class GenerationPipeline {
         let genResult = await ClaudeCodeService.run(
             prompt: refinePrompt,
             projectDir: projectDir,
-            timeoutSeconds: 300,
             onEvent: { [weak self] event in
                 Task { @MainActor in
                     self?.handleClaudeEvent(event)
@@ -416,27 +349,10 @@ final class GenerationPipeline {
 
         try Task.checkCancellation()
 
-        try await ensureUIStepIsVisible(
-            projectDir: projectDir,
-            initialSnapshot: initialEditorSnapshot
-        )
-
         setStep(.compiling)
         try await BuildLoop.run(projectDir: projectDir, callbacks: callbacks)
 
         try Task.checkCancellation()
-
-        do {
-            try await GenerationQualityEnforcer.enforce(
-                projectDir: projectDir,
-                pluginType: config.plugin.type,
-                interfaceStyle: "Refine existing plugin",
-                userIntent: config.modification,
-                callbacks: callbacks
-            )
-        } catch {
-            throw GenerationError.generationFailed(error.localizedDescription)
-        }
 
         setStep(.installing)
 
@@ -505,7 +421,6 @@ final class GenerationPipeline {
             let filename = filePath ?? filePath.map { URL(fileURLWithPath: $0).lastPathComponent }
 
             if t == "write_complete" {
-                // Final summary after streaming write finishes
                 let target = filePath ?? "file"
                 let suffix = detail.map { " (\($0))" } ?? ""
                 log("✓ WRITE \(target)\(suffix)", style: .normal)
@@ -539,7 +454,6 @@ final class GenerationPipeline {
                 if let cmd = detail { log("$ \(cmd)", style: .normal) }
 
             } else if t == "starting…" || detail == "starting…" {
-                // content_block_start for a tool_use — show immediately
                 log("\(tool.uppercased()) …", style: .normal)
             }
 
@@ -549,20 +463,17 @@ final class GenerationPipeline {
             let isRead = t.contains("read") || t.contains("view")
 
             if isBash {
-                // Show full bash output (build errors, cmake, etc.)
                 for line in output.components(separatedBy: .newlines) {
                     let trimmed = line.trimmingCharacters(in: .whitespaces)
                     if !trimmed.isEmpty { log(trimmed, style: .normal) }
                 }
             } else if isRead {
-                // For file reads: show first 8 lines to confirm what was loaded
                 let lines = output.components(separatedBy: .newlines)
                     .map { $0.trimmingCharacters(in: .whitespaces) }
                     .filter { !$0.isEmpty }
                 for line in lines.prefix(8) { log("  \(line)", style: .normal) }
                 if lines.count > 8 { log("  … (\(lines.count) lines total)", style: .normal) }
             } else {
-                // Other tool results: last 4 non-empty lines
                 let lines = output.components(separatedBy: .newlines)
                     .map { $0.trimmingCharacters(in: .whitespaces) }
                     .filter { !$0.isEmpty }
@@ -570,7 +481,6 @@ final class GenerationPipeline {
             }
 
         case .text(let t):
-            // Claude's prose — log it directly (CLI sends complete text, no streaming deltas)
             for line in t.components(separatedBy: .newlines) {
                 let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard trimmed.count > 2 else { continue }
@@ -603,30 +513,6 @@ final class GenerationPipeline {
             || lowercased.contains("command not found")
     }
 
-    private func captureEditorSnapshot(in projectDir: URL) -> EditorSnapshot {
-        let editorH = projectDir.appendingPathComponent("Source/PluginEditor.h")
-        let editorCPP = projectDir.appendingPathComponent("Source/PluginEditor.cpp")
-        let lookAndFeel = projectDir.appendingPathComponent("Source/FoundryLookAndFeel.h")
-
-        return EditorSnapshot(
-            header: (try? String(contentsOf: editorH, encoding: .utf8)) ?? "",
-            implementation: (try? String(contentsOf: editorCPP, encoding: .utf8)) ?? "",
-            lookAndFeel: (try? String(contentsOf: lookAndFeel, encoding: .utf8)) ?? ""
-        )
-    }
-
-    private func ensureUIStepIsVisible(
-        projectDir: URL,
-        initialSnapshot: EditorSnapshot
-    ) async throws {
-        let currentSnapshot = captureEditorSnapshot(in: projectDir)
-        guard currentSnapshot != initialSnapshot else { return }
-        guard currentStep != .generatingUI else { return }
-
-        setStep(.generatingUI)
-        try await Task.sleep(for: .milliseconds(450))
-    }
-
     private func makeCallbacks() -> PipelineCallbacks {
         PipelineCallbacks(
             onBuildAttempt: { [weak self] attempt in
@@ -640,10 +526,4 @@ final class GenerationPipeline {
             }
         )
     }
-}
-
-private struct EditorSnapshot: Equatable {
-    let header: String
-    let implementation: String
-    let lookAndFeel: String
 }
