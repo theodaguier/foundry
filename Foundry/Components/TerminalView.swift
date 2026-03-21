@@ -7,6 +7,7 @@ struct TerminalView: View {
     let title: String
     let logLines: [PipelineLogLine]
     let elapsedTime: String
+    var streamingText: String = ""
     var showCursor: Bool = true
 
     @State private var cursorVisible = true
@@ -42,13 +43,11 @@ struct TerminalView: View {
 
             Spacer()
 
-            HStack(spacing: 4) {
-                ForEach(0..<3, id: \.self) { _ in
-                    Rectangle()
-                        .fill(Color.white.opacity(0.2))
-                        .frame(width: 4, height: 4)
-                }
-            }
+            Text(elapsedTime)
+                .font(FoundryTheme.Fonts.jetBrainsMono(11))
+                .tracking(1)
+                .foregroundStyle(FoundryTheme.Colors.textMuted)
+                .monospacedDigit()
         }
         .padding(.horizontal, FoundryTheme.Spacing.lg)
         .frame(height: 40)
@@ -61,43 +60,50 @@ struct TerminalView: View {
     // MARK: - Body
 
     private var terminalBody: some View {
-        ZStack(alignment: .topTrailing) {
-            ScrollViewReader { proxy in
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 3) {
-                        ForEach(logLines) { line in
-                            TerminalLineView(line: line)
-                                .id(line.id)
-                        }
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 3) {
+                    ForEach(logLines) { line in
+                        TerminalLineView(line: line)
+                            .id(line.id)
+                    }
 
-                        if showCursor {
-                            Text(cursorVisible ? "_" : " ")
+                    // Live streaming text — updates in place without creating new log entries
+                    if !streamingText.isEmpty {
+                        HStack(alignment: .top, spacing: 16) {
+                            Text("…")
                                 .font(FoundryTheme.Fonts.jetBrainsMono(11))
-                                .foregroundStyle(.white)
-                                .id("cursor")
+                                .foregroundStyle(FoundryTheme.Colors.textMuted.opacity(0.3))
+                                .lineLimit(1)
+                                .frame(width: 82, alignment: .leading)
+                                .padding(.top, 1)
+                            Text(streamingText)
+                                .font(FoundryTheme.Fonts.jetBrainsMono(11))
+                                .foregroundStyle(Color.white.opacity(0.35))
+                                .fixedSize(horizontal: false, vertical: true)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                         }
+                        .padding(.vertical, 2)
+                        .id("streaming")
                     }
-                    .padding(.horizontal, FoundryTheme.Spacing.xl)
-                    .padding(.vertical, 31)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .onChange(of: logLines.count) { _, _ in
-                    withAnimation {
-                        proxy.scrollTo("cursor", anchor: .bottom)
-                    }
-                }
-            }
 
-            // Elapsed time overlay
-            Text(elapsedTime)
-                .font(FoundryTheme.Fonts.jetBrainsMono(30))
-                .tracking(-1.5)
-                .foregroundStyle(.white)
-                .monospacedDigit()
-                .padding(.horizontal, 8)
-                .background(.black.opacity(0.5))
-                .padding(.top, 40)
-                .padding(.trailing, 40)
+                    if showCursor {
+                        Text(cursorVisible ? "_" : " ")
+                            .font(FoundryTheme.Fonts.jetBrainsMono(11))
+                            .foregroundStyle(.white)
+                            .id("cursor")
+                    }
+                }
+                .padding(.horizontal, FoundryTheme.Spacing.xl)
+                .padding(.vertical, 31)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .onChange(of: logLines.count) { _, _ in
+                withAnimation { proxy.scrollTo("cursor", anchor: .bottom) }
+            }
+            .onChange(of: streamingText) { _, _ in
+                proxy.scrollTo("streaming", anchor: .bottom)
+            }
         }
     }
 }
@@ -114,29 +120,53 @@ struct TerminalLineView: View {
                 Text(line.timestamp)
                     .font(FoundryTheme.Fonts.jetBrainsMono(11))
                     .foregroundStyle(FoundryTheme.Colors.textMuted.opacity(0.4))
-                    .frame(width: 66, alignment: .leading)
+                    .lineLimit(1)
+                    .frame(width: 82, alignment: .leading)
+                    .padding(.top, 1)
                 Text(line.message)
                     .font(FoundryTheme.Fonts.jetBrainsMono(11))
                     .foregroundStyle(Color.white.opacity(0.6))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             case .success:
                 Text("[OK]")
                     .font(FoundryTheme.Fonts.jetBrainsMono(11))
                     .foregroundStyle(FoundryTheme.Colors.textMuted.opacity(0.4))
-                    .frame(width: 66, alignment: .leading)
+                    .lineLimit(1)
+                    .frame(width: 82, alignment: .leading)
+                    .padding(.top, 1)
                 Text(line.message)
                     .font(FoundryTheme.Fonts.jetBrainsMono(11))
                     .foregroundStyle(.white)
                     .fontWeight(.bold)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             case .active:
                 Text("->")
                     .font(FoundryTheme.Fonts.jetBrainsMono(11))
                     .foregroundStyle(Color.white.opacity(0.6))
-                    .frame(width: 66, alignment: .leading)
+                    .lineLimit(1)
+                    .frame(width: 82, alignment: .leading)
+                    .padding(.top, 1)
                 Text(line.message)
                     .font(FoundryTheme.Fonts.jetBrainsMono(11))
                     .foregroundStyle(.white)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            case .error:
+                Text("[ERR]")
+                    .font(FoundryTheme.Fonts.jetBrainsMono(11))
+                    .foregroundStyle(Color(hex: 0xFF5F56))
+                    .lineLimit(1)
+                    .frame(width: 82, alignment: .leading)
+                    .padding(.top, 1)
+                Text(line.message)
+                    .font(FoundryTheme.Fonts.jetBrainsMono(11))
+                    .foregroundStyle(Color(hex: 0xFF5F56))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        .frame(height: 18)
+        .padding(.vertical, 2)
     }
 }

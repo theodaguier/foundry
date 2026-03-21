@@ -152,6 +152,12 @@ struct PluginDetailView: View {
                 startLogoGeneration()
             }
             VerticalSeparator()
+            DetailAction(label: "LOGS", icon: "doc.text", disabled: plugin.generationLogPath == nil) {
+                if let path = plugin.generationLogPath {
+                    NSWorkspace.shared.open(URL(fileURLWithPath: path))
+                }
+            }
+            VerticalSeparator()
             DetailAction(label: "CLOSE", icon: "xmark") {
                 dismiss()
             }

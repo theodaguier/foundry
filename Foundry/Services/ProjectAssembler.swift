@@ -130,7 +130,10 @@ enum ProjectAssembler {
 
         let exploratoryKeywords = [
             "advanced", "deep", "modular", "matrix", "granular", "sequencer",
-            "multi-stage", "complex", "dense", "experimental", "modulation"
+            "multi-stage", "complex", "dense", "experimental", "modulation",
+            "synth", "synthesizer", "analog", "subtractive", "fm", "wavetable",
+            "polysynth", "poly synth", "jupiter", "juno", "moog", "prophet",
+            "supersaw", "unison"
         ]
         if exploratoryKeywords.contains(where: lower.contains) {
             return .exploratory
@@ -139,7 +142,9 @@ enum ProjectAssembler {
         switch pluginType {
         case .utility:
             return .focused
-        case .instrument, .effect:
+        case .instrument:
+            return .exploratory
+        case .effect:
             return .balanced
         }
     }
@@ -232,6 +237,8 @@ enum ProjectAssembler {
 
         if isInstrument {
             processorH += """
+            class \(pluginName)Processor; // forward declaration
+
             struct \(pluginName)Sound : public juce::SynthesiserSound
             {
                 bool appliesToNote(int) override { return true; }
@@ -241,6 +248,8 @@ enum ProjectAssembler {
             class \(pluginName)Voice : public juce::SynthesiserVoice
             {
             public:
+                void setProcessor(\(pluginName)Processor* p) { processor = p; }
+
                 bool canPlaySound(juce::SynthesiserSound* sound) override
                 {
                     return dynamic_cast<\(pluginName)Sound*>(sound) != nullptr;
@@ -276,7 +285,13 @@ enum ProjectAssembler {
                     if (!adsr.isActive()) clearCurrentNote();
                 }
 
+                void prepareToPlay(double sampleRate, int /*samplesPerBlock*/)
+                {
+                    adsr.setSampleRate(sampleRate);
+                }
+
             private:
+                \(pluginName)Processor* processor = nullptr;
                 double frequency = 440.0;
                 double phase = 0.0;
                 float level = 0.0f;
@@ -1002,12 +1017,25 @@ enum ProjectAssembler {
             audio via renderNextBlock → mixed into output buffer → Host
 
             **Key principle:** The Synthesiser + Voice architecture is already set up in the stubs.
-            8 voices are pre-allocated. Your job is to implement the voice (oscillator + envelope)
-            and wire processor parameters into the voices.
+            8 voices are pre-allocated. The stubs provide a minimal sine oscillator with basic ADSR.
 
-            **Processor owns:** `juce::Synthesiser synth`, parameters, global DSP (master filter, effects).
+            ⚠️ **THE STUBS ARE SCAFFOLDING — YOU MUST REPLACE THEM.**
+            The sine oscillator stub exists only so the project compiles. It is NOT the finished
+            instrument. You must completely redesign the voice implementation, the parameter layout,
+            and the UI. If you leave the sine stub as-is, automated validation will reject your work.
+
+            Think like a synth designer. Ask yourself:
+            - What kind of instrument does the user's description suggest?
+            - What sound sources and shaping tools would make it expressive and versatile?
+            - What controls would let someone discover different sounds within this instrument?
+            - What makes this instrument unique and worth playing?
+
+            Design your own answer to these questions. A good instrument gives the user enough
+            control to explore — not just one static tone.
+
+            **Processor owns:** `juce::Synthesiser synth`, parameters, global DSP (master effects, etc.).
             processBlock calls `synth.renderNextBlock()` — do NOT generate audio directly in processBlock.
-            **Voice owns:** per-note state (phase, frequency, envelope, level). Each voice is one note.
+            **Voice owns:** per-note state (oscillators, filters, envelopes, etc.). Each voice is one note.
             **Editor owns:** sliders, labels, attachments, layout.
             **They connect through:** `apvts` for parameters. Voices access processor params via pointer.
             """
@@ -1015,98 +1043,118 @@ enum ProjectAssembler {
             dspSection = """
             ## Phase 2: DSP — Voice Rendering + Processor
 
-            ### Voice implementation (in PluginProcessor.h):
+            ⚠️ The voice stub has a bare sine oscillator — this MUST be completely replaced.
+            The starter parameters (level, attack, release) MUST be replaced with your own design.
+            If validation detects the unmodified stub, your work will be rejected.
 
-            The voice stub already exists. You must implement these methods:
+            Design the synthesis engine from scratch. Choose the techniques that fit the instrument
+            the user described. The reference material below gives you building blocks — use what
+            makes sense, combine them creatively, and make your own design decisions.
 
+            ### Synthesis knowledge reference
+
+            Use the techniques below as building blocks. Pick what fits the instrument you're building —
+            you don't need to use all of them, but a good instrument typically combines several.
+
+            #### Oscillator waveforms with anti-aliasing (polyBLEP)
+            Naive digital waveforms alias badly. PolyBLEP is cheap and effective:
             ```cpp
-            class \(pluginName)Voice : public juce::SynthesiserVoice
+            static double polyBlep(double t, double dt)
             {
-            public:
-                // Store a pointer to the processor to access parameters
-                void setProcessor(\(pluginName)Processor* p) { processor = p; }
+                if (t < dt) { t /= dt; return t + t - t * t - 1.0; }
+                if (t > 1.0 - dt) { t = (t - 1.0) / dt; return t * t + t + t + 1.0; }
+                return 0.0;
+            }
 
-                bool canPlaySound(juce::SynthesiserSound* sound) override
-                {
-                    return dynamic_cast<\(pluginName)Sound*>(sound) != nullptr;
-                }
-
-                void startNote(int midiNote, float velocity, juce::SynthesiserSound*, int) override
-                {
-                    frequency = juce::MidiMessage::getMidiNoteInHertz(midiNote);
-                    level = velocity;
-                    phase = 0.0;
-                    adsr.noteOn();
-                }
-
-                void stopNote(float, bool allowTailOff) override
-                {
-                    adsr.noteOff();
-                    if (!allowTailOff) clearCurrentNote();
-                }
-
-                void pitchWheelMoved(int) override {}
-                void controllerMoved(int, int) override {}
-
-                void renderNextBlock(juce::AudioBuffer<float>& buffer, int startSample, int numSamples) override
-                {
-                    if (!isVoiceActive()) return;
-
-                    for (int s = startSample; s < startSample + numSamples; ++s)
-                    {
-                        // Generate oscillator sample
-                        double sample = std::sin(phase * juce::MathConstants<double>::twoPi);
-                        phase += frequency / getSampleRate();
-                        if (phase >= 1.0) phase -= 1.0;
-
-                        // Apply envelope
-                        float envValue = adsr.getNextSample();
-                        float output = static_cast<float>(sample) * envValue * level;
-
-                        for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
-                            buffer.addSample(ch, s, output);
-                    }
-
-                    if (!adsr.isActive()) clearCurrentNote();
-                }
-
-                void prepareToPlay(double sampleRate, int /*samplesPerBlock*/)
-                {
-                    adsr.setSampleRate(sampleRate);
-                }
-
-            private:
-                \(pluginName)Processor* processor = nullptr;
-                double frequency = 440.0;
-                double phase = 0.0;
-                float level = 0.0f;
-                juce::ADSR adsr;
-                juce::ADSR::Parameters adsrParams { 0.01f, 0.1f, 0.8f, 0.3f };
-            };
+            // Saw: raw = 2*phase - 1, then subtract polyBlep(phase, dt)
+            // Square: raw = (phase < 0.5) ? 1 : -1, add polyBlep at 0 and 0.5
+            // Triangle: 2*fabs(2*phase - 1) - 1 (already smooth, no BLEP needed)
+            // Sine: std::sin(phase * twoPi) (alias-free)
             ```
 
-            ### Processor processBlock (already stubbed — voices handle audio):
+            #### Multiple oscillators and detuning
+            Layering oscillators creates richer sound. Detuning creates width and movement:
+            ```cpp
+            double freq2 = frequency * std::pow(2.0, detuneAmount / 12.0); // semitone detune
+            double freq2 = frequency * std::pow(2.0, detuneCents / 1200.0); // cent detune
+            float mixed = oscMix * osc1 + (1.0f - oscMix) * osc2;
+            ```
+
+            #### Per-voice filtering
+            Filters shape timbre. Per-voice filters track each note independently:
+            ```cpp
+            // StateVariableTPTFilter is ideal for per-voice use (LP/HP/BP modes)
+            juce::dsp::StateVariableTPTFilter<float> voiceFilter;
+            // Prepare with maximumBlockSize = 1 for per-sample processing
+            // setCutoffFrequency() and setResonance() can change per-sample
+            // processSample(channel, sample) for single-sample filtering
+            ```
+
+            #### Envelopes beyond basic ADSR
+            Multiple envelopes make sound evolve. Common routing:
+            - Amplitude envelope → voice volume (essential)
+            - Filter envelope → cutoff modulation (adds movement and punch)
+            - Pitch envelope → frequency (for plucks, kicks, percussive attacks)
+            ```cpp
+            juce::ADSR ampEnv, filterEnv; // independent ADSR instances
+            // Both need setSampleRate(), both trigger on noteOn/noteOff
+            ```
+
+            #### LFO modulation
+            LFOs add life and movement. Common targets: filter cutoff, pitch (vibrato), amplitude (tremolo):
+            ```cpp
+            float lfo = std::sin(lfoPhase * juce::MathConstants<float>::twoPi);
+            lfoPhase += lfoRate / sampleRate;
+            if (lfoPhase >= 1.0) lfoPhase -= 1.0;
+            // Modulate pitch: freq * std::pow(2.0, depth * lfo / 12.0)
+            // Modulate cutoff: cutoff * (1.0f + depth * lfo)
+            ```
+
+            #### FM synthesis
+            One oscillator modulates another's frequency for metallic, bell-like, evolving tones:
+            ```cpp
+            double modulator = std::sin(modPhase * twoPi) * fmDepth * modFreq;
+            double carrier = std::sin((carrierPhase + modulator / sampleRate) * twoPi);
+            ```
+
+            #### Noise and sub-oscillators
+            White noise adds texture (hi-hats, breath). Sub-oscillators add body:
+            ```cpp
+            float noise = (random.nextFloat() * 2.0f - 1.0f); // white noise
+            float sub = std::sin(phase * 0.5 * twoPi); // one octave below
+            ```
+
+            ### Available juce::dsp classes
+            | Class | Use for |
+            |---|---|
+            | `juce::dsp::StateVariableTPTFilter<float>` | Multi-mode filter (LP/HP/BP) — ideal for per-voice filters |
+            | `juce::dsp::IIR::Filter<float>` | EQ, shelving, bandpass |
+            | `juce::dsp::DelayLine<float>` | Delay, chorus, flanger, comb filtering |
+            | `juce::dsp::Reverb` | Reverb (Freeverb) |
+            | `juce::dsp::WaveShaper<float>` | Distortion, saturation, waveshaping |
+            | `juce::dsp::Oscillator<float>` | LFO, tone generation |
+            | `juce::dsp::Chorus<float>` | Chorus effect |
+            | `juce::dsp::Compressor<float>` | Dynamics compression |
+            | `juce::dsp::Limiter<float>` | Output limiting |
+            | `juce::SmoothedValue<float>` | Parameter smoothing (ALWAYS use for continuous params) |
+
+            ### Processor processBlock pattern:
             ```cpp
             void processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
             {
                 juce::ScopedNoDenormals noDenormals;
                 buffer.clear();
-
-                // Update voice parameters from apvts before rendering
-                // (e.g., update ADSR, filter cutoff, etc. on all voices)
-
                 synth.renderNextBlock(buffer, midiMessages, 0, buffer.getNumSamples());
-
-                // Optional: apply master effects (filter, reverb) to the mixed output
+                // Apply master-level processing here (level, effects, etc.)
             }
             ```
 
-            ### prepareToPlay:
+            ### prepareToPlay pattern:
             ```cpp
             void prepareToPlay(double sampleRate, int samplesPerBlock)
             {
                 synth.setCurrentPlaybackSampleRate(sampleRate);
-                // Prepare voices
+                // Reset SmoothedValues, prepare DSP objects, prepare voices
                 for (int i = 0; i < synth.getNumVoices(); ++i)
                     if (auto* voice = dynamic_cast<\(pluginName)Voice*>(synth.getVoice(i)))
                         voice->prepareToPlay(sampleRate, samplesPerBlock);
@@ -1120,6 +1168,7 @@ enum ProjectAssembler {
             - Always call `clearCurrentNote()` when the envelope finishes
             - Use `juce::ADSR` for envelopes — it handles sample-accurate note-on/off
             - Access processor parameters via the stored pointer, not globals
+            - Filters and envelopes should be per-voice for polyphonic correctness
             """
 
         case .utility:
@@ -1479,7 +1528,11 @@ enum ProjectAssembler {
         | DSP is real | processBlock contains actual audio processing (math, filters, parameter reads) |
         | UI coverage | Every parameter ID string appears in Editor.cpp (via Attachments) |
         | Visible controls | ≥2 `addAndMakeVisible()` calls in Editor.cpp |
-        \(pluginType == .instrument ? "| Voice rendering | `renderNextBlock` exists with real implementation |" : "")
+        \(pluginType == .instrument ? """
+        | Voice rendering | `renderNextBlock` exists with real implementation |
+        | Enough controls | Instruments need ≥5 parameters for sound exploration |
+        | Voice redesigned | The sine stub fingerprint must be gone — voice must be your own design |
+        """ : "")
         """
 
         try content.write(to: dir.appendingPathComponent("CLAUDE.md"), atomically: true, encoding: .utf8)

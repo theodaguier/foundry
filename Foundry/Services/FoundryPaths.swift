@@ -30,4 +30,12 @@ enum FoundryPaths {
     static func pluginLogoFile(for pluginID: UUID) -> URL {
         pluginLogoDirectory(for: pluginID).appendingPathComponent("logo.png")
     }
+
+    static var generationLogsDirectory: URL {
+        applicationSupportDirectory.appendingPathComponent("GenerationLogs", isDirectory: true)
+    }
+
+    static func generationLogFile(for pluginID: UUID) -> URL {
+        generationLogsDirectory.appendingPathComponent("\(pluginID.uuidString).log")
+    }
 }

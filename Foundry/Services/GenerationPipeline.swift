@@ -22,7 +22,7 @@ enum GenerationError: Error, LocalizedError {
 // MARK: - Log
 
 struct PipelineLogLine: Identifiable, Sendable {
-    enum Style: Sendable { case normal, success, active }
+    enum Style: Sendable { case normal, success, active, error }
     let id = UUID()
     let timestamp: String
     let message: String
@@ -38,15 +38,58 @@ final class GenerationPipeline {
     var isRunning = false
     var buildAttempt = 0
     var logLines: [PipelineLogLine] = []
+    /// Live streaming text from Claude — updated on every delta, shown in real-time in the terminal.
+    /// Committed to logLines when Claude starts a new tool use or finishes a content block.
+    var streamingText: String = ""
     private var task: Task<Void, Never>?
+    private var lastRealEventDate = Date()  // only updated by real Claude events, not the watcher itself
+    private var silenceTask: Task<Void, Never>?
 
     private func log(_ message: String, style: PipelineLogLine.Style = .normal) {
+        let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Skip empty messages and single-char JSON artifacts (], [, {, })
+        guard trimmed.count > 1,
+              !trimmed.allSatisfy({ "[]{}(),;".contains($0) }) else { return }
+
         let now = Date()
         let h = Calendar.current.component(.hour, from: now)
         let m = Calendar.current.component(.minute, from: now)
         let s = Calendar.current.component(.second, from: now)
         let ts = String(format: "[%02d:%02d:%02d]", h, m, s)
-        logLines.append(PipelineLogLine(timestamp: ts, message: message, style: style))
+        logLines.append(PipelineLogLine(timestamp: ts, message: trimmed, style: style))
+    }
+
+    /// Watches for silence and logs a "still working…" message every 20s
+    private func startSilenceWatcher() {
+        silenceTask?.cancel()
+        lastRealEventDate = Date()
+        silenceTask = Task { [weak self] in
+            // Wait a bit before starting to watch — let Claude start first
+            try? await Task.sleep(for: .seconds(10))
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(15))
+                guard let self, !Task.isCancelled else { return }
+                let elapsed = Int(-self.lastRealEventDate.timeIntervalSinceNow)
+                if elapsed >= 12 {
+                    // Direct append — bypass log() to avoid touching lastRealEventDate
+                    let now = Date()
+                    let h = Calendar.current.component(.hour, from: now)
+                    let m = Calendar.current.component(.minute, from: now)
+                    let s = Calendar.current.component(.second, from: now)
+                    let ts = String(format: "[%02d:%02d:%02d]", h, m, s)
+                    self.logLines.append(PipelineLogLine(
+                        timestamp: ts,
+                        message: "… Claude API computing (\(elapsed)s)",
+                        style: .normal
+                    ))
+                }
+            }
+        }
+    }
+
+    private func stopSilenceWatcher() {
+        silenceTask?.cancel()
+        silenceTask = nil
     }
 
     // MARK: - Run
@@ -58,6 +101,7 @@ final class GenerationPipeline {
         currentStep = .preparingProject
         buildAttempt = 0
 
+        startSilenceWatcher()
         task = Task { [weak self] in
             guard let self else { return }
 
@@ -74,6 +118,7 @@ final class GenerationPipeline {
                 appState.push(.error(message: error.localizedDescription, config: config))
             }
 
+            self.stopSilenceWatcher()
             self.isRunning = false
         }
     }
@@ -85,6 +130,7 @@ final class GenerationPipeline {
         currentStep = .generatingDSP
         buildAttempt = 0
 
+        startSilenceWatcher()
         task = Task { [weak self] in
             guard let self else { return }
 
@@ -103,11 +149,13 @@ final class GenerationPipeline {
                 appState.push(.error(message: error.localizedDescription, config: genConfig))
             }
 
+            self.stopSilenceWatcher()
             self.isRunning = false
         }
     }
 
     func cancel() {
+        stopSilenceWatcher()
         task?.cancel()
         task = nil
         isRunning = false
@@ -141,12 +189,21 @@ final class GenerationPipeline {
         let presetInstruction = presetCount > 0
             ? "\n- Implement exactly \(presetCount) presets with a ComboBox selector in the UI (see CLAUDE.md Presets section)"
             : ""
+        let instrumentNote = project.pluginType == .instrument ? """
+
+        IMPORTANT: The source files contain a minimal sine oscillator stub — this is just
+        scaffolding to make the project compile. You MUST completely redesign the voice,
+        parameters, and UI to build a real, complete instrument. Think about what would make
+        this instrument worth playing: what sound sources, what controls, what makes it unique.
+        The stub is a starting point, not the answer.
+        """ : ""
+
         let genPrompt = """
         Build a JUCE \(pluginRole) plugin: \(config.prompt)
 
         Follow the implementation guide in CLAUDE.md exactly. It contains everything you need:
         architecture, DSP patterns, UI wiring, validation criteria, and fatal mistakes to avoid.
-
+        \(instrumentNote)
         ## Your workflow:
         1. Read CLAUDE.md (your expert reference — read it fully before writing any code)
         2. Read all Source/ files to understand the stubs
@@ -155,6 +212,7 @@ final class GenerationPipeline {
 
         Start by reading CLAUDE.md now.
         """
+        log("── Claude Run 1: Initial code generation (timeout 5min) ──", style: .active)
         let genResult = await ClaudeCodeService.run(
             prompt: genPrompt,
             projectDir: project.directory,
@@ -208,6 +266,7 @@ final class GenerationPipeline {
             Start by reading CLAUDE.md now.
             """
 
+            log("── Claude Run 2: Retry (files unmodified) ──", style: .active)
             let _ = await ClaudeCodeService.run(
                 prompt: retryPrompt,
                 projectDir: project.directory,
@@ -261,9 +320,21 @@ final class GenerationPipeline {
 
         let colors = ["#C8C4BC", "#A8B4A0", "#B0A898", "#9CAAB8", "#B8A8B0", "#A0A8B0"]
         let iconColor = colors.randomElement()!
+        let pluginID = UUID()
+
+        // Persist generation log to AppSupport before temp dir is cleaned up
+        let tempLog = project.directory.appendingPathComponent("generation.log")
+        var generationLogPath: String? = nil
+        if FileManager.default.fileExists(atPath: tempLog.path) {
+            let logsDir = FoundryPaths.generationLogsDirectory
+            try? FileManager.default.createDirectory(at: logsDir, withIntermediateDirectories: true)
+            let destLog = FoundryPaths.generationLogFile(for: pluginID)
+            try? FileManager.default.copyItem(at: tempLog, to: destLog)
+            generationLogPath = destLog.path
+        }
 
         let plugin = Plugin(
-            id: UUID(),
+            id: pluginID,
             name: project.pluginName,
             type: project.pluginType,
             prompt: config.prompt,
@@ -272,7 +343,8 @@ final class GenerationPipeline {
             installPaths: installPaths,
             iconColor: iconColor,
             status: .installed,
-            buildDirectory: project.directory.path
+            buildDirectory: project.directory.path,
+            generationLogPath: generationLogPath
         )
 
         BuildDirectoryCleaner.cleanAfterInstall(project.directory)
@@ -380,11 +452,23 @@ final class GenerationPipeline {
             throw GenerationError.installFailed(error.localizedDescription)
         }
 
+        // Persist generation log to AppSupport before returning
+        let tempLog = projectDir.appendingPathComponent("generation.log")
+        let logsDir = FoundryPaths.generationLogsDirectory
+        try? FileManager.default.createDirectory(at: logsDir, withIntermediateDirectories: true)
+        if FileManager.default.fileExists(atPath: tempLog.path) {
+            let destLog = FoundryPaths.generationLogFile(for: config.plugin.id)
+            // Overwrite previous log (refine replaces the last generation)
+            try? FileManager.default.removeItem(at: destLog)
+            try? FileManager.default.copyItem(at: tempLog, to: destLog)
+        }
+
         // Return updated plugin, preserving identity
         var updated = config.plugin
         updated.installPaths = installPaths
         updated.prompt = config.plugin.prompt + "\n-> " + config.modification
         updated.status = .installed
+        updated.generationLogPath = FoundryPaths.generationLogFile(for: config.plugin.id).path
 
         return updated
     }
@@ -412,29 +496,94 @@ final class GenerationPipeline {
     }
 
     private func handleClaudeEvent(_ event: ClaudeCodeService.ClaudeEvent) {
+        lastRealEventDate = Date()
+
         switch event {
-        case .toolUse(let tool, let filePath):
-            let normalizedTool = tool.lowercased()
-            if let path = filePath {
-                let filename = URL(fileURLWithPath: path).lastPathComponent
-                if normalizedTool.contains("write") || normalizedTool.contains("edit") || normalizedTool.contains("file_activity") {
-                    log("WRITE: \(filename)", style: .normal)
-                    if path.contains("Processor") {
-                        setStep(.generatingDSP)
-                    } else if path.contains("Editor") || path.contains("LookAndFeel") {
-                        setStep(.generatingUI)
-                    }
-                } else if normalizedTool.contains("read") {
-                    log("READ: \(filename)", style: .normal)
+
+        case .toolUse(let tool, let filePath, let detail):
+            let t = tool.lowercased()
+            let filename = filePath ?? filePath.map { URL(fileURLWithPath: $0).lastPathComponent }
+
+            if t == "write_complete" {
+                // Final summary after streaming write finishes
+                let target = filePath ?? "file"
+                let suffix = detail.map { " (\($0))" } ?? ""
+                log("✓ WRITE \(target)\(suffix)", style: .normal)
+                if let p = filePath {
+                    if p.contains("Processor") { setStep(.generatingDSP) }
+                    else if p.contains("Editor") || p.contains("LookAndFeel") { setStep(.generatingUI) }
                 }
+
+            } else if t.contains("write") {
+                let target = filePath ?? "…"
+                let suffix = detail.map { " \($0)" } ?? ""
+                log("WRITE \(target)\(suffix)", style: .normal)
+                if let p = filePath {
+                    if p.contains("Processor") { setStep(.generatingDSP) }
+                    else if p.contains("Editor") || p.contains("LookAndFeel") { setStep(.generatingUI) }
+                }
+
+            } else if t.contains("edit") || t.contains("str_replace") || t.contains("multiedit") || t.contains("multi_edit") {
+                let target = filePath ?? "file"
+                let suffix = detail.map { " \($0)" } ?? ""
+                log("EDIT \(target)\(suffix)", style: .normal)
+                if let p = filePath {
+                    if p.contains("Processor") { setStep(.generatingDSP) }
+                    else if p.contains("Editor") || p.contains("LookAndFeel") { setStep(.generatingUI) }
+                }
+
+            } else if t.contains("read") {
+                if let name = filename { log("READ \(name)", style: .normal) }
+
+            } else if t.contains("bash") || t.contains("execute") {
+                if let cmd = detail { log("$ \(cmd)", style: .normal) }
+
+            } else if t == "starting…" || detail == "starting…" {
+                // content_block_start for a tool_use — show immediately
+                log("\(tool.uppercased()) …", style: .normal)
             }
+
+        case .toolResult(let tool, let output):
+            let t = tool.lowercased()
+            let isBash = t.contains("bash") || t.contains("execute") || t.contains("run")
+            let isRead = t.contains("read") || t.contains("view")
+
+            if isBash {
+                // Show full bash output (build errors, cmake, etc.)
+                for line in output.components(separatedBy: .newlines) {
+                    let trimmed = line.trimmingCharacters(in: .whitespaces)
+                    if !trimmed.isEmpty { log(trimmed, style: .normal) }
+                }
+            } else if isRead {
+                // For file reads: show first 8 lines to confirm what was loaded
+                let lines = output.components(separatedBy: .newlines)
+                    .map { $0.trimmingCharacters(in: .whitespaces) }
+                    .filter { !$0.isEmpty }
+                for line in lines.prefix(8) { log("  \(line)", style: .normal) }
+                if lines.count > 8 { log("  … (\(lines.count) lines total)", style: .normal) }
+            } else {
+                // Other tool results: last 4 non-empty lines
+                let lines = output.components(separatedBy: .newlines)
+                    .map { $0.trimmingCharacters(in: .whitespaces) }
+                    .filter { !$0.isEmpty }
+                for line in lines.suffix(4) { log(line, style: .normal) }
+            }
+
         case .text(let t):
-            let trimmed = t.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmed.isEmpty && trimmed.count < 120 {
+            // Claude's prose — log it directly (CLI sends complete text, no streaming deltas)
+            for line in t.components(separatedBy: .newlines) {
+                let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard trimmed.count > 2 else { continue }
                 log(trimmed, style: .normal)
             }
-        default:
-            break
+
+        case .error(let msg):
+            log("ERROR: \(msg)", style: .error)
+
+        case .result(let success):
+            if !success {
+                log("Claude run ended with errors", style: .active)
+            }
         }
     }
 
