@@ -7,7 +7,7 @@ enum PluginBundleInspector {
         case vst3 = "vst3"
 
         var requiredArchitectures: Set<String> {
-            ["arm64", "x86_64"]
+            ["arm64"]
         }
     }
 
@@ -142,7 +142,7 @@ enum PluginBundleInspector {
 
         var lastMessage = ""
 
-        for attempt in 1...3 {
+        for attempt in 1...5 {
             let result = runProcess(
                 "/usr/bin/auvaltool",
                 arguments: ["-v", type, subtype, manufacturer]
@@ -156,12 +156,12 @@ enum PluginBundleInspector {
                 .joined(separator: "\n")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
 
-            guard attempt < 3, isTransientAudioUnitLookupFailure(lastMessage) else {
+            guard attempt < 5, isTransientAudioUnitLookupFailure(lastMessage) else {
                 throw ValidationError.audioUnitValidationFailed(lastMessage)
             }
 
             _ = runProcess("/usr/bin/killall", arguments: ["AudioComponentRegistrar"])
-            Thread.sleep(forTimeInterval: Double(attempt) * 1.5)
+            Thread.sleep(forTimeInterval: Double(attempt) * 2.0)
         }
 
         throw ValidationError.audioUnitValidationFailed(lastMessage)

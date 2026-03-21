@@ -35,16 +35,20 @@ enum BuildLoop {
         )
     }
 
+    /// Build loop with no artificial attempt limit.
+    /// Exits on success or task cancellation — the compiler is the only judge.
     static func run(
         projectDir: URL,
-        maxAttempts: Int = 3,
         callbacks: PipelineCallbacks,
         dependencies: Dependencies = .live
     ) async throws {
         var lastErrors = ""
-        var buildSucceeded = false
+        var attempt = 0
 
-        for attempt in 1...maxAttempts {
+        while true {
+            try Task.checkCancellation()
+
+            attempt += 1
             await callbacks.onBuildAttempt(attempt)
 
             let buildResult = try await dependencies.build(projectDir, attempt > 1)
@@ -52,36 +56,23 @@ enum BuildLoop {
             if buildResult.success {
                 let smokeOK = await dependencies.smokeTest(projectDir)
                 if smokeOK {
-                    buildSucceeded = true
-                    break
+                    return // success — done
                 }
 
-                if attempt < maxAttempts {
-                    lastErrors = "Build succeeded but smoke test failed: plugin bundles are missing or invalid in the build output."
-                    await callbacks.onStepChange(.generatingDSP)
-                    await dependencies.fix(lastErrors, projectDir, attempt, callbacks)
-                    await callbacks.onStepChange(.compiling)
-                    continue
-                }
-
-                buildSucceeded = true
-                break
-            }
-
-            lastErrors = buildResult.errors
-
-            if attempt < maxAttempts {
+                // Smoke test failed — fix and retry
+                lastErrors = "Build succeeded but smoke test failed: plugin bundles are missing or invalid in the build output."
                 await callbacks.onStepChange(.generatingDSP)
-                await dependencies.fix(buildResult.errors, projectDir, attempt, callbacks)
+                await dependencies.fix(lastErrors, projectDir, attempt, callbacks)
                 await callbacks.onStepChange(.compiling)
                 continue
             }
 
-            throw GenerationError.buildFailed(lastErrors)
-        }
+            lastErrors = buildResult.errors
 
-        guard buildSucceeded else {
-            throw GenerationError.buildFailed(lastErrors)
+            // Build failed — fix and retry
+            await callbacks.onStepChange(.generatingDSP)
+            await dependencies.fix(buildResult.errors, projectDir, attempt, callbacks)
+            await callbacks.onStepChange(.compiling)
         }
     }
 }

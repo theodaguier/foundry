@@ -20,8 +20,8 @@ enum BuildRunner {
         if !skipConfigure {
             let configResult = await runProcess(
                 "/usr/bin/env", args: ["cmake", "-B", "build",
-                                        "-DCMAKE_BUILD_TYPE=Release",
-                                        "-DCMAKE_OSX_ARCHITECTURES=x86_64;arm64"],
+                                        "-DCMAKE_BUILD_TYPE=Debug",
+                                        "-DCMAKE_OSX_ARCHITECTURES=arm64"],
                 workingDirectory: projectDir,
                 timeout: configureTimeout
             )
@@ -37,7 +37,7 @@ enum BuildRunner {
 
         // 2. Build with cmake (parallel for faster compilation)
         let buildResult = await runProcess(
-            "/usr/bin/env", args: ["cmake", "--build", "build", "--config", "Release", "--parallel"],
+            "/usr/bin/env", args: ["cmake", "--build", "build", "--config", "Debug", "--parallel"],
             workingDirectory: projectDir,
             timeout: buildTimeout
         )

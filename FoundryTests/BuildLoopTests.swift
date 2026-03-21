@@ -57,40 +57,30 @@ final class BuildLoopTests: XCTestCase {
     }
 
     @MainActor
-    func testThrowsLastBuildErrorAfterMaxAttempts() async throws {
+    func testLoopRetriesUntilSuccess() async throws {
         let callbackRecorder = CallbackRecorder()
         let stub = BuildLoopStub(
             buildResults: [
                 .init(success: false, output: "", errors: "first"),
                 .init(success: false, output: "", errors: "second"),
                 .init(success: false, output: "", errors: "third"),
+                .init(success: true, output: "", errors: ""),
             ],
-            smokeResults: []
+            smokeResults: [true]
         )
 
-        do {
-            try await BuildLoop.run(
-                projectDir: URL(fileURLWithPath: "/tmp/foundry-build-loop-test"),
-                callbacks: callbackRecorder.callbacks,
-                dependencies: stub.dependencies
-            )
-            XCTFail("Expected build loop to throw after the last failed attempt")
-        } catch let error as GenerationError {
-            guard case .buildFailed(let message) = error else {
-                return XCTFail("Unexpected error: \(error)")
-            }
-            XCTAssertEqual(message, "third")
-        }
+        try await BuildLoop.run(
+            projectDir: URL(fileURLWithPath: "/tmp/foundry-build-loop-test"),
+            callbacks: callbackRecorder.callbacks,
+            dependencies: stub.dependencies
+        )
 
         let snapshot = await stub.snapshot()
-        XCTAssertEqual(snapshot.buildSkipConfigure, [false, true, true])
-        XCTAssertEqual(snapshot.fixAttempts, [1, 2])
-        XCTAssertEqual(snapshot.fixErrors, ["first", "second"])
-        XCTAssertEqual(callbackRecorder.attempts, [1, 2, 3])
-        XCTAssertEqual(
-            callbackRecorder.steps,
-            [.generatingDSP, .compiling, .generatingDSP, .compiling]
-        )
+        // No max attempts — loop kept retrying until success
+        XCTAssertEqual(snapshot.buildSkipConfigure, [false, true, true, true])
+        XCTAssertEqual(snapshot.fixAttempts, [1, 2, 3])
+        XCTAssertEqual(snapshot.fixErrors, ["first", "second", "third"])
+        XCTAssertEqual(callbackRecorder.attempts, [1, 2, 3, 4])
     }
 }
 
