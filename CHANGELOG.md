@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.7.0](https://github.com/theodaguier/foundry/compare/v1.6.0...v1.7.0) (2026-03-21)
+
+
+### Features
+
+* add Foundry logo as app icon and replace text branding with logo image ([#39](https://github.com/theodaguier/foundry/issues/39)) ([0c32cb5](https://github.com/theodaguier/foundry/commit/0c32cb5f74b091e28fdd016b93317c3862898aa9))
+
 ## [1.6.0](https://github.com/theodaguier/foundry/compare/v1.5.0...v1.6.0) (2026-03-21)
 
 
