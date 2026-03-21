@@ -29,6 +29,126 @@ enum Route: Hashable {
     case account
 }
 
+// MARK: - Agent & model selection (loaded from models.json)
+
+/// A provider (e.g. Claude Code, Codex) with its available models.
+struct AgentProvider: Codable, Hashable, Identifiable {
+    let id: String
+    let name: String
+    let icon: String
+    let command: String
+    let models: [AgentModel]
+
+    var defaultModel: AgentModel {
+        models.first(where: { $0.isDefault }) ?? models[0]
+    }
+}
+
+/// A model within a provider (e.g. Sonnet, o3).
+struct AgentModel: Codable, Hashable, Identifiable {
+    let id: String
+    let name: String
+    let subtitle: String
+    let flag: String
+    var `default`: Bool?
+
+    var isDefault: Bool { `default` ?? false }
+    var displayName: String { name }
+    var cliFlag: String { flag }
+}
+
+/// Loads the provider/model catalog from models.json (bundled or user-overridden).
+enum ModelCatalog {
+    private struct Root: Codable {
+        let providers: [AgentProvider]
+    }
+
+    /// Cached catalog, loaded once.
+    static let providers: [AgentProvider] = {
+        // 1. Check user override in Application Support
+        let userFile = FoundryPaths.applicationSupportDirectory.appendingPathComponent("models.json")
+        if let data = try? Data(contentsOf: userFile),
+           let root = try? JSONDecoder().decode(Root.self, from: data) {
+            return root.providers
+        }
+
+        // 2. Fall back to bundled resource
+        if let url = Bundle.main.url(forResource: "models", withExtension: "json"),
+           let data = try? Data(contentsOf: url),
+           let root = try? JSONDecoder().decode(Root.self, from: data) {
+            return root.providers
+        }
+
+        // 3. Hardcoded emergency fallback
+        return [
+            AgentProvider(
+                id: "claude-code", name: "Claude Code", icon: "ProviderAnthropic", command: "claude",
+                models: [AgentModel(id: "sonnet", name: "Sonnet", subtitle: "Fast & capable", flag: "sonnet", default: true)]
+            )
+        ]
+    }()
+
+    /// All models across all providers.
+    static var allModels: [AgentModel] {
+        providers.flatMap(\.models)
+    }
+
+    /// Find the provider for a given model.
+    static func provider(for model: AgentModel) -> AgentProvider {
+        providers.first(where: { $0.models.contains(model) }) ?? providers[0]
+    }
+
+    /// Find a provider by its id.
+    static func provider(byId id: String) -> AgentProvider? {
+        providers.first(where: { $0.id == id })
+    }
+
+    /// Find a model by its id.
+    static func model(byId id: String) -> AgentModel? {
+        allModels.first(where: { $0.id == id })
+    }
+
+    /// The global default model (first provider's default).
+    static var defaultModel: AgentModel {
+        providers[0].defaultModel
+    }
+}
+
+// MARK: - Legacy GenerationAgent bridging
+//
+// These keep existing code (DependencyChecker, pipeline, services) working
+// without a massive rewrite. They map to/from the dynamic catalog.
+
+enum GenerationAgent: String, CaseIterable, Codable, Hashable {
+    case claudeCode = "Claude Code"
+    case codex = "Codex"
+
+    var displayName: String { rawValue }
+
+    var providerId: String {
+        switch self {
+        case .claudeCode: "claude-code"
+        case .codex: "codex"
+        }
+    }
+
+    var provider: AgentProvider? {
+        ModelCatalog.provider(byId: providerId)
+    }
+
+    var defaultModel: AgentModel {
+        provider?.defaultModel ?? ModelCatalog.defaultModel
+    }
+
+    init?(providerId: String) {
+        switch providerId {
+        case "claude-code": self = .claudeCode
+        case "codex": self = .codex
+        default: return nil
+        }
+    }
+}
+
 // MARK: - Generation config
 
 struct GenerationConfig: Hashable {
@@ -36,6 +156,8 @@ struct GenerationConfig: Hashable {
     var format: FormatOption = .both
     var channelLayout: ChannelLayout = .stereo
     var presetCount: PresetCount = .five
+    var agent: GenerationAgent = .claudeCode
+    var model: AgentModel = ModelCatalog.defaultModel
 }
 
 struct RefineConfig: Hashable {
@@ -194,19 +316,28 @@ final class AppState {
     }
 
     func refreshSetupState() async {
-        let requiredDependencies: [DependencyChecker.Dependency] = [
+        // Core dependencies are always required
+        let coreDependencies: [DependencyChecker.Dependency] = [
             .xcodeTools,
             .cmake,
             .juce,
-            .claudeCode,
         ]
 
-        for dependency in requiredDependencies {
+        for dependency in coreDependencies {
             let isInstalled = await DependencyChecker.check(dependency)
             if !isInstalled {
                 showSetup = true
                 return
             }
+        }
+
+        // At least one agent must be available
+        let hasClaudeCode = await DependencyChecker.check(.claudeCode)
+        let hasCodex = await DependencyChecker.check(.codex)
+
+        if !hasClaudeCode && !hasCodex {
+            showSetup = true
+            return
         }
 
         showSetup = false

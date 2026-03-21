@@ -77,7 +77,7 @@ final class GenerationPipeline {
                     let ts = String(format: "[%02d:%02d:%02d]", h, m, s)
                     self.logLines.append(PipelineLogLine(
                         timestamp: ts,
-                        message: "… Claude API computing (\(elapsed)s)",
+                        message: "… Agent computing (\(elapsed)s)",
                         style: .normal
                     ))
                 }
@@ -207,13 +207,15 @@ final class GenerationPipeline {
 
         Start by reading CLAUDE.md now.
         """
-        log("── Claude: Code generation ──", style: .active)
-        let genResult = await ClaudeCodeService.run(
+        log("── \(config.agent.rawValue) · \(config.model.displayName): Code generation ──", style: .active)
+        let genResult = await AgentResolver.run(
+            agent: config.agent,
+            model: config.model,
             prompt: genPrompt,
             projectDir: project.directory,
             onEvent: { [weak self] event in
                 Task { @MainActor in
-                    self?.handleClaudeEvent(event)
+                    self?.handleAgentEvent(event)
                 }
             }
         )
@@ -234,16 +236,18 @@ final class GenerationPipeline {
 
         try Task.checkCancellation()
 
-        // Phase 3: Audit pass — Claude reviews its own code before build
+        // Phase 3: Audit pass — agent reviews its own code before build
         setStep(.generatingUI)
-        log("── Claude: Audit pass ──", style: .active)
-        let _ = await ClaudeCodeService.audit(
+        log("── \(config.agent.rawValue) · \(config.model.displayName): Audit pass ──", style: .active)
+        let _ = await AgentResolver.audit(
+            agent: config.agent,
+            model: config.model,
             projectDir: project.directory,
             userIntent: config.prompt,
             pluginType: pluginRole,
             onEvent: { [weak self] event in
                 Task { @MainActor in
-                    self?.handleClaudeEvent(event)
+                    self?.handleAgentEvent(event)
                 }
             }
         )
@@ -252,7 +256,7 @@ final class GenerationPipeline {
 
         // Phase 4: Build loop — compiler is the only judge
         setStep(.compiling)
-        try await BuildLoop.run(projectDir: project.directory, callbacks: callbacks)
+        try await BuildLoop.run(projectDir: project.directory, agent: config.agent, model: config.model, callbacks: callbacks)
 
         try Task.checkCancellation()
 
@@ -296,7 +300,9 @@ final class GenerationPipeline {
             iconColor: iconColor,
             status: .installed,
             buildDirectory: project.directory.path,
-            generationLogPath: generationLogPath
+            generationLogPath: generationLogPath,
+            agent: config.agent,
+            model: config.model
         )
 
         BuildDirectoryCleaner.cleanAfterInstall(project.directory)
@@ -326,6 +332,10 @@ final class GenerationPipeline {
         case .effect: "audio effect"
         case .utility: "utility or analysis tool"
         }
+        // Refine uses the same agent that built the plugin, or defaults to Claude Code
+        let agent = config.plugin.agent ?? .claudeCode
+        let model = config.plugin.model ?? agent.defaultModel
+
         let refinePrompt = """
         You are modifying an existing JUCE \(pluginRole) plugin. Use your tools to read and edit files directly.
 
@@ -342,12 +352,14 @@ final class GenerationPipeline {
         Keep class names unchanged. The plugin must compile with C++17 and JUCE.
         """
 
-        let genResult = await ClaudeCodeService.run(
+        let genResult = await AgentResolver.run(
+            agent: agent,
+            model: model,
             prompt: refinePrompt,
             projectDir: projectDir,
             onEvent: { [weak self] event in
                 Task { @MainActor in
-                    self?.handleClaudeEvent(event)
+                    self?.handleAgentEvent(event)
                 }
             }
         )
@@ -367,7 +379,7 @@ final class GenerationPipeline {
         try Task.checkCancellation()
 
         setStep(.compiling)
-        try await BuildLoop.run(projectDir: projectDir, callbacks: callbacks)
+        try await BuildLoop.run(projectDir: projectDir, agent: agent, model: model, callbacks: callbacks)
 
         try Task.checkCancellation()
 
@@ -432,7 +444,7 @@ final class GenerationPipeline {
         }
     }
 
-    private func handleClaudeEvent(_ event: ClaudeCodeService.ClaudeEvent) {
+    private func handleAgentEvent(_ event: AgentEvent) {
         lastRealEventDate = Date()
 
         switch event {
@@ -513,7 +525,7 @@ final class GenerationPipeline {
 
         case .result(let success):
             if !success {
-                log("Claude run ended with errors", style: .active)
+                log("Agent run ended with errors", style: .active)
             }
         }
     }
@@ -531,6 +543,7 @@ final class GenerationPipeline {
         let lowercased = message.lowercased()
         return lowercased.contains("not available in foundry's runtime environment")
             || lowercased.contains("failed to launch claude code")
+            || lowercased.contains("failed to launch codex")
             || lowercased.contains("command not found")
     }
 
@@ -542,8 +555,8 @@ final class GenerationPipeline {
             onStepChange: { [weak self] step in
                 self?.setStep(step)
             },
-            onClaudeEvent: { [weak self] event in
-                self?.handleClaudeEvent(event)
+            onAgentEvent: { [weak self] event in
+                self?.handleAgentEvent(event)
             }
         )
     }

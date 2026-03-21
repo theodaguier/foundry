@@ -14,6 +14,8 @@ struct Plugin: Identifiable, Codable, Hashable {
     var status: PluginStatus
     var buildDirectory: String? = nil
     var generationLogPath: String? = nil
+    var agent: GenerationAgent? = nil
+    var model: AgentModel? = nil
 
     struct InstallPaths: Codable, Hashable {
         var au: String?

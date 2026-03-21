@@ -97,7 +97,7 @@ private final class CallbackRecorder {
             onStepChange: { [weak self] step in
                 self?.steps.append(step)
             },
-            onClaudeEvent: { _ in }
+            onAgentEvent: { _ in }
         )
     }
 }
