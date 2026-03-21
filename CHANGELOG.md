@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.4.0](https://github.com/theodaguier/foundry/compare/v1.3.0...v1.4.0) (2026-03-21)
+
+
+### Features
+
+* rework generation pipeline — JUCE knowledge kit, event-driven flow, audit pass, no templates ([#27](https://github.com/theodaguier/foundry/issues/27)) ([#31](https://github.com/theodaguier/foundry/issues/31)) ([1cf089f](https://github.com/theodaguier/foundry/commit/1cf089f40f31f6a5fb375d84f2d3281b8b947218))
+
 ## [1.3.0](https://github.com/theodaguier/foundry/compare/v1.2.1...v1.3.0) (2026-03-21)
 
 
