@@ -51,6 +51,7 @@ struct GenerationProgressView: View {
     @State private var pipeline = GenerationPipeline()
     @State private var elapsedSeconds: Int = 0
     @State private var completedSteps: Set<Int> = []
+    @State private var highWaterStep: Int = 0
 
     var body: some View {
         VStack(spacing: 0) {
@@ -75,7 +76,9 @@ struct GenerationProgressView: View {
             }
         }
         .onChange(of: pipeline.currentStep) { oldValue, newValue in
-            if newValue.rawValue > oldValue.rawValue {
+            if newValue.rawValue > highWaterStep {
+                // Only mark steps complete and advance progress when moving forward
+                highWaterStep = newValue.rawValue
                 withAnimation(.easeInOut(duration: 0.2)) {
                     _ = completedSteps.insert(oldValue.rawValue)
                 }
@@ -139,7 +142,8 @@ struct GenerationProgressView: View {
                 TerminalView(
                     title: "CONVERGENCE_LOG_V1.0.4.SH",
                     logLines: pipeline.logLines,
-                    elapsedTime: formattedTime
+                    elapsedTime: formattedTime,
+                    streamingText: pipeline.streamingText
                 )
                 .frame(maxWidth: .infinity)
             }
@@ -154,56 +158,18 @@ struct GenerationProgressView: View {
     // MARK: - Left Panel
 
     private var leftPanel: some View {
-        ZStack(alignment: .center) {
-            Button {
-                pipeline.cancel()
-                appState.popToRoot()
-            } label: {
-                HStack(spacing: FoundryTheme.Spacing.xs) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 8, weight: .regular))
-                        .foregroundStyle(FoundryTheme.Colors.textMuted)
-                    Text("CANCEL")
-                        .font(FoundryTheme.Fonts.jetBrainsMono(10))
-                        .tracking(3)
-                        .foregroundStyle(FoundryTheme.Colors.textMuted)
-                }
-            }
-            .buttonStyle(.plain)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .padding(.top, 40)
-            .padding(.leading, 40)
+        VStack(spacing: 0) {
+            radialArc
+                .padding(.bottom, FoundryTheme.Spacing.xxl)
 
-            VStack(spacing: 0) {
-                radialArc
-                    .padding(.bottom, FoundryTheme.Spacing.xxl)
-
-                GenerationStepList(
-                    currentStep: pipeline.currentStep,
-                    completedSteps: completedSteps
-                )
-
-                Button {
-                    pipeline.cancel()
-                    appState.popToRoot()
-                } label: {
-                    Text("BACK TO LIBRARY")
-                        .font(FoundryTheme.Fonts.jetBrainsMono(10))
-                        .tracking(3)
-                        .foregroundStyle(FoundryTheme.Colors.textMuted)
-                        .padding(.bottom, 5)
-                        .overlay(alignment: .bottom) {
-                            Rectangle()
-                                .fill(Color.white.opacity(0.1))
-                                .frame(height: 1)
-                        }
-                }
-                .buttonStyle(.plain)
-                .padding(.top, FoundryTheme.Spacing.xxxl)
-            }
-            .frame(maxWidth: 448)
-            .padding(.horizontal, FoundryTheme.Spacing.xxl)
+            GenerationStepList(
+                currentStep: pipeline.currentStep,
+                completedSteps: completedSteps
+            )
         }
+        .frame(maxWidth: 448)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+        .padding(.horizontal, FoundryTheme.Spacing.xxl)
     }
 
     // MARK: - Radial Arc
@@ -244,7 +210,7 @@ struct GenerationProgressView: View {
     // MARK: - Helpers
 
     private var progress: Double {
-        Double(pipeline.currentStep.rawValue) / Double(GenerationStep.allCases.count)
+        Double(max(pipeline.currentStep.rawValue, highWaterStep)) / Double(GenerationStep.allCases.count)
     }
 
     private var formattedTime: String {

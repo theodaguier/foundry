@@ -84,9 +84,6 @@ struct PromptView: View {
 
     private var contentCanvas: some View {
         VStack(alignment: .leading, spacing: 0) {
-            pageHeader
-                .padding(.bottom, FoundryTheme.Spacing.xxl)
-
             promptSection
                 .padding(.bottom, FoundryTheme.Spacing.xxl)
 
@@ -98,31 +95,6 @@ struct PromptView: View {
             configRow
         }
         .padding(.horizontal, FoundryTheme.Spacing.xl)
-    }
-
-    // MARK: - Page Header
-
-    private var pageHeader: some View {
-        VStack(alignment: .leading, spacing: FoundryTheme.Spacing.md) {
-            Text("NEW PLUGIN")
-                .font(FoundryTheme.Fonts.spaceGrotesk(96))
-                .tracking(2)
-                .foregroundStyle(.white)
-                .lineLimit(1)
-                .minimumScaleFactor(0.5)
-
-            HStack(spacing: FoundryTheme.Spacing.xs) {
-                Text("System Status: Ready")
-                    .font(FoundryTheme.Fonts.jetBrainsMono(10))
-                    .tracking(2)
-                    .foregroundStyle(FoundryTheme.Colors.textSecondary)
-                    .textCase(.uppercase)
-
-                Rectangle()
-                    .fill(Color.white)
-                    .frame(width: 8, height: 8)
-            }
-        }
     }
 
     // MARK: - Prompt Section

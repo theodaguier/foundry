@@ -3,7 +3,8 @@ import Foundation
 enum ClaudeCodeService {
 
     enum ClaudeEvent: Sendable {
-        case toolUse(tool: String, filePath: String?)
+        case toolUse(tool: String, filePath: String?, detail: String?)
+        case toolResult(tool: String, output: String)
         case text(String)
         case result(success: Bool)
         case error(String)
@@ -58,7 +59,7 @@ enum ClaudeCodeService {
             if let text = String(data: data, encoding: .utf8) {
                 outputCollector.append(text)
                 for line in text.components(separatedBy: .newlines) {
-                    if let event = parseLine(line) {
+                    for event in parseEvents(line) {
                         onEvent(event)
                     }
                 }
@@ -116,10 +117,21 @@ enum ClaudeCodeService {
         let allOutput = outputCollector.result
         let stderrOutput = errorCollector.result
 
-        // Diagnostic: save raw output to project dir
-        let logFile = projectDir.appendingPathComponent("claude-output.log")
-        let logContent = "EXIT CODE: \(exitCode)\n\n--- STDOUT ---\n\(allOutput)\n\n--- STDERR ---\n\(stderrOutput)"
-        try? logContent.write(to: logFile, atomically: true, encoding: .utf8)
+        // Append raw output to generation.log (accumulates all Claude phases)
+        let logFile = projectDir.appendingPathComponent("generation.log")
+        let separator = "\n" + String(repeating: "=", count: 80) + "\n"
+        let header = "DATE: \(Date())\nPROMPT: \(String(prompt.prefix(200)))\nEXIT: \(exitCode)\(timedOut ? " (TIMEOUT)" : "")\n" + String(repeating: "-", count: 80) + "\n"
+        let section = separator + header + "\n--- STDOUT ---\n\(allOutput)\n\n--- STDERR ---\n\(stderrOutput)\n"
+        if let data = section.data(using: .utf8) {
+            if FileManager.default.fileExists(atPath: logFile.path),
+               let handle = try? FileHandle(forWritingTo: logFile) {
+                handle.seekToEndOfFile()
+                handle.write(data)
+                try? handle.close()
+            } else {
+                try? data.write(to: logFile)
+            }
+        }
 
         if timedOut {
             onEvent(.error("Generation timed out after \(timeoutSeconds / 60) minutes"))
@@ -182,102 +194,131 @@ enum ClaudeCodeService {
             "--verbose",
             "--max-turns", "50",
             "--model", "sonnet",
+            "--disallowedTools", "Bash",
             "--append-system-prompt",
             """
-            You MUST use tools (Read, Edit, Write) on every turn. Never respond with only text.
+            You MUST use tools (Read, Edit, Write, MultiEdit) on every turn. Never respond with only text.
             Read CLAUDE.md first — it is your complete reference. Follow its phases in order.
             Use Edit to modify existing method stubs. NEVER add duplicate method definitions.
             Your output is automatically validated — empty stubs will be rejected.
+            CRITICAL: Do NOT use Bash. Do NOT run grep, echo, or any shell command to verify your work.
+            Trust your edits. If you need to check a file, use Read.
             """,
         ]
     }
 
-    // MARK: - Line parser
+    // MARK: - Event parser
+    //
+    // Claude CLI --output-format stream-json emits COMPLETE messages, not streaming deltas.
+    // Each line is one of: system | assistant | tool | result | rate_limit_event
+    // There are NO content_block_delta events. Silence between events = API round-trip time.
 
-    private static func parseLine(_ line: String) -> ClaudeEvent? {
-        guard !line.isEmpty else {
-            return nil
-        }
-
-        guard let data = line.data(using: .utf8),
+    private static func parseEvents(_ line: String) -> [ClaudeEvent] {
+        guard !line.isEmpty,
+              let data = line.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return inferFileActivity(from: line)
+            return []
         }
 
-        if let toolName = extractToolName(from: json) {
-            let filePath = extractFilePath(from: json) ?? inferFilePath(from: line)
-            return .toolUse(tool: toolName, filePath: filePath)
-        }
+        let type = json["type"] as? String ?? ""
+        var events: [ClaudeEvent] = []
 
-        if let type = json["type"] as? String, type == "result" {
+        switch type {
+
+        case "system":
+            if json["subtype"] as? String == "init" {
+                let tools = (json["tools"] as? [String]) ?? []
+                let mcpServers = (json["mcp_servers"] as? [[String: Any]]) ?? []
+                let connected = mcpServers.filter { $0["status"] as? String == "connected" }
+                let needsAuth = mcpServers.filter { $0["status"] as? String == "needs-auth" }
+                var parts = ["Claude \(json["claude_code_version"] as? String ?? "") ready"]
+                if !connected.isEmpty {
+                    let names = connected.compactMap { $0["name"] as? String }.joined(separator: ", ")
+                    parts.append("MCP: \(names)")
+                }
+                if !needsAuth.isEmpty {
+                    parts.append("\(needsAuth.count) MCP need auth (skipped)")
+                }
+                events.append(.text(parts.joined(separator: " · ")))
+            }
+
+        case "assistant":
+            guard let message = json["message"] as? [String: Any],
+                  let content = message["content"] as? [[String: Any]] else { break }
+            for block in content {
+                switch block["type"] as? String {
+                case "text":
+                    if let text = block["text"] as? String, !text.isEmpty {
+                        events.append(.text(text))
+                    }
+                case "tool_use":
+                    if let name = block["name"] as? String {
+                        let input = block["input"] as? [String: Any] ?? [:]
+                        let filePath = extractPath(from: input)
+                        let detail = buildToolDetail(tool: name, input: input)
+                        events.append(.toolUse(tool: name, filePath: filePath, detail: detail))
+                    }
+                default: break
+                }
+            }
+
+        case "tool", "tool_result":
+            // Tool results: what Claude got back (Read file contents, Write confirmation, etc.)
+            let output = extractToolOutput(from: json)
+            let toolName = json["tool_name"] as? String ?? json["name"] as? String ?? "tool"
+            if !output.isEmpty {
+                events.append(.toolResult(tool: toolName, output: output))
+            }
+
+        case "result":
             let isError = json["is_error"] as? Bool ?? false
-            return .result(success: !isError)
+            // Show cost and turn count if available
+            if let cost = json["total_cost_usd"] as? Double, let turns = json["num_turns"] as? Int {
+                events.append(.text(String(format: "Done — %d turns, $%.4f", turns, cost)))
+            }
+            events.append(.result(success: !isError))
+
+        default:
+            break
         }
 
-        return nil
+        return events
     }
 
-    private static func extractToolName(from json: [String: Any]) -> String? {
-        if let message = json["message"] as? [String: Any],
-           let content = message["content"] as? [[String: Any]] {
-            for block in content {
-                if block["type"] as? String == "tool_use",
-                   let name = block["name"] as? String {
-                    return name
-                }
+    private static func buildToolDetail(tool: String, input: [String: Any]) -> String? {
+        let lower = tool.lowercased()
+        if lower.contains("write") {
+            if let content = input["content"] as? String {
+                return "\(content.components(separatedBy: .newlines).count) lines"
             }
         }
-        if json["type"] as? String == "tool_use" {
-            return json["name"] as? String
-        }
-        if let block = json["content_block"] as? [String: Any],
-           block["type"] as? String == "tool_use" {
-            return block["name"] as? String
-        }
-        return nil
-    }
-
-    private static func extractFilePath(from json: [String: Any]) -> String? {
-        if let message = json["message"] as? [String: Any],
-           let content = message["content"] as? [[String: Any]] {
-            for block in content {
-                if let input = block["input"] as? [String: Any],
-                   let path = extractPath(from: input) {
-                    return path
-                }
+        if lower.contains("edit") || lower.contains("str_replace") {
+            if let old = input["old_str"] as? String {
+                let first = old.trimmingCharacters(in: .whitespacesAndNewlines)
+                    .components(separatedBy: .newlines).first ?? ""
+                return "«\(String(first.prefix(50)))»"
             }
         }
-        if let input = json["input"] as? [String: Any] {
-            return extractPath(from: input)
-        }
-        if let block = json["content_block"] as? [String: Any],
-           let input = block["input"] as? [String: Any] {
-            return extractPath(from: input)
+        if lower.contains("multiedit") || lower.contains("multi_edit") {
+            if let edits = input["edits"] as? [[String: Any]] { return "\(edits.count) edits" }
         }
         return nil
     }
 
     private static func extractPath(from input: [String: Any]) -> String? {
-        if let path = input["file_path"] as? String { return path }
-        if let path = input["target_file"] as? String { return path }
-        if let path = input["path"] as? String { return path }
-        if let path = input["file"] as? String { return path }
-        if let path = input["filename"] as? String { return path }
+        for key in ["file_path", "target_file", "path", "file", "filename"] {
+            if let p = input[key] as? String { return p }
+        }
         return nil
     }
 
-    private static func inferFileActivity(from line: String) -> ClaudeEvent? {
-        guard let path = inferFilePath(from: line) else { return nil }
-        return .toolUse(tool: "inferred_file_activity", filePath: path)
-    }
-
-    private static func inferFilePath(from line: String) -> String? {
-        if line.contains("PluginEditor.cpp") { return "PluginEditor.cpp" }
-        if line.contains("PluginEditor.h") { return "PluginEditor.h" }
-        if line.contains("PluginProcessor.cpp") { return "PluginProcessor.cpp" }
-        if line.contains("PluginProcessor.h") { return "PluginProcessor.h" }
-        if line.contains("FoundryLookAndFeel.h") { return "FoundryLookAndFeel.h" }
-        return nil
+    private static func extractToolOutput(from json: [String: Any]) -> String {
+        if let s = json["content"] as? String { return s }
+        if let arr = json["content"] as? [[String: Any]] {
+            return arr.compactMap { $0["content"] as? String ?? $0["text"] as? String }.joined(separator: "\n")
+        }
+        if let s = json["output"] as? String { return s }
+        return ""
     }
 }
 
@@ -297,5 +338,14 @@ private final class StreamCollector: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return buffer
+    }
+
+    /// Returns current content and resets the buffer to empty.
+    func flush() -> String {
+        lock.lock()
+        defer { lock.unlock() }
+        let content = buffer
+        buffer = ""
+        return content
     }
 }

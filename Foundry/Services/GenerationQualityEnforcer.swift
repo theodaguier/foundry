@@ -52,6 +52,16 @@ enum GenerationQualityEnforcer {
                 **If "fewer than 2 visible controls":**
                 Every parameter needs a slider with addAndMakeVisible(). Add labels too.
 
+                **If "instrument needs enough controls":**
+                Think about what the user asked for and add parameters that let them shape and
+                explore the sound. Read the synthesis knowledge reference in CLAUDE.md for ideas.
+
+                **If "unmodified starter code":**
+                The voice still uses the basic sine stub. You MUST redesign it from scratch.
+                Read CLAUDE.md for synthesis building blocks, then design your own instrument
+                engine that matches what the user asked for. Replace the renderNextBlock body,
+                add new member variables, and create parameters for every control you add.
+
                 Keep class names unchanged. Do NOT modify CMakeLists.txt.
                 Use Edit to modify existing methods — do NOT add duplicate definitions.
                 """
@@ -185,11 +195,40 @@ private enum GeneratedPluginValidator {
             issues.append("editor has fewer than 2 visible controls — the UI is essentially empty")
         }
 
-        // 5. Instruments need voice rendering
+        // 5. Instruments need voice rendering + sufficient sound design controls
         if pluginType == .instrument {
             let processorH = (try? String(contentsOf: sourceDir.appendingPathComponent("PluginProcessor.h"), encoding: .utf8)) ?? ""
             if !processorH.contains("renderNextBlock") && !processorCPP.contains("renderNextBlock") {
                 issues.append("instrument plugin has no voice rendering implementation")
+            }
+
+            // A playable instrument needs enough parameters to shape the sound
+            if parameterIDs.count < 5 {
+                issues.append("instrument plugin has only \(parameterIDs.count) parameters — a playable instrument needs enough controls for the user to shape and explore the sound")
+            }
+
+            // Check that the voice has been substantially modified from the stub.
+            // The stub sine pattern is a known fingerprint. If it's still there AND the voice
+            // code hasn't grown significantly, the voice wasn't redesigned.
+            let stubSineFingerprint = "std::sin(phase * juce::MathConstants<double>::twoPi)"
+            let hasStubSine = processorH.contains(stubSineFingerprint)
+
+            // Count non-empty lines in the voice section as a proxy for implementation size.
+            // The stub voice is ~35 lines. A real implementation should be significantly larger.
+            if let voiceStart = processorH.range(of: "class \(processorH.contains("Voice") ? "" : "")"),
+               hasStubSine {
+                // If the stub sine is still there, check if substantial code was added around it
+                let voiceLines = processorH.components(separatedBy: .newlines)
+                    .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+                    .count
+                // The full stub header (voice + processor) is ~65 non-empty lines.
+                // If Claude added real synthesis, it should be 90+ lines.
+                if voiceLines < 90 {
+                    issues.append("instrument voice appears to be the unmodified starter code — it must be redesigned as a complete instrument matching the user's request")
+                }
+            } else if hasStubSine && parameterIDs.count <= 3 {
+                // Stub sine + only starter params = nothing was changed
+                issues.append("instrument voice appears to be the unmodified starter code — it must be redesigned as a complete instrument matching the user's request")
             }
         }
 

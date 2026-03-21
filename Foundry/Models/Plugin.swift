@@ -12,7 +12,8 @@ struct Plugin: Identifiable, Codable, Hashable {
     var iconColor: String
     var logoAssetPath: String?
     var status: PluginStatus
-    var buildDirectory: String?
+    var buildDirectory: String? = nil
+    var generationLogPath: String? = nil
 
     struct InstallPaths: Codable, Hashable {
         var au: String?
