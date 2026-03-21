@@ -16,6 +16,7 @@ struct AuthContainerView: View {
     @State private var otpDigits: [String] = Array(repeating: "", count: 6)
     @State private var isLoading = false
     @State private var errorMessage: String?
+    @State private var shimmerOffset: CGFloat = -1
     @FocusState private var focusedField: FocusField?
 
     private enum FocusField: Hashable {
@@ -34,10 +35,31 @@ struct AuthContainerView: View {
             VStack(spacing: FoundryTheme.Spacing.xl) {
                 // Header
                 VStack(spacing: FoundryTheme.Spacing.sm) {
-                    Text("FOUNDRY")
-                        .font(FoundryTheme.Fonts.spaceGrotesk(32))
-                        .tracking(2)
-                        .foregroundStyle(FoundryTheme.Colors.textPrimary)
+                    Image("FoundryLogo")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(height: 48)
+                        .foregroundStyle(FoundryTheme.Colors.textPrimary.opacity(0.5))
+                        .overlay {
+                            Image("FoundryLogo")
+                                .resizable()
+                                .scaledToFit()
+                                .foregroundStyle(FoundryTheme.Colors.textPrimary)
+                                .mask {
+                                    LinearGradient(
+                                        stops: [
+                                            .init(color: .clear, location: 0),
+                                            .init(color: .white, location: 0.5),
+                                            .init(color: .clear, location: 1)
+                                        ],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                    .frame(width: 40)
+                                    .offset(x: shimmerOffset * 50)
+                                }
+                        }
+                        .clipped()
 
                     Text(headerSubtitle)
                         .font(FoundryTheme.Fonts.azeretMono(10))
@@ -45,21 +67,23 @@ struct AuthContainerView: View {
                         .foregroundStyle(FoundryTheme.Colors.textMuted)
                 }
 
-                switch screen {
-                case .login:
-                    loginStep
-                case .loginOTP(let isSignup):
-                    otpStep(isSignup: isSignup)
-                case .signup:
-                    signupStep
-                }
+                Group {
+                    switch screen {
+                    case .login:
+                        loginStep
+                    case .loginOTP(let isSignup):
+                        otpStep(isSignup: isSignup)
+                    case .signup:
+                        signupStep
+                    }
 
-                if let errorMessage {
-                    Text(errorMessage)
-                        .font(FoundryTheme.Fonts.azeretMono(10))
-                        .tracking(0.5)
-                        .foregroundStyle(FoundryTheme.Colors.trafficRed)
-                        .multilineTextAlignment(.center)
+                    if let errorMessage {
+                        Text(errorMessage)
+                            .font(FoundryTheme.Fonts.azeretMono(10))
+                            .tracking(0.5)
+                            .foregroundStyle(FoundryTheme.Colors.trafficRed)
+                            .multilineTextAlignment(.center)
+                    }
                 }
             }
             .frame(width: 340)
@@ -68,7 +92,12 @@ struct AuthContainerView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(FoundryTheme.Colors.background)
-        .onAppear { focusedField = .email }
+        .onAppear {
+            focusedField = .email
+            withAnimation(.easeInOut(duration: 2.0).repeatForever(autoreverses: false)) {
+                shimmerOffset = 1
+            }
+        }
     }
 
     private var headerSubtitle: String {
@@ -438,3 +467,4 @@ struct AuthContainerView: View {
         }
     }
 }
+

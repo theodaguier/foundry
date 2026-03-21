@@ -25,9 +25,10 @@ struct FoundryHeaderBar<TrailingContent: View>: View {
     var body: some View {
         HStack(spacing: 0) {
             Button(action: onLogoTap) {
-                Text("FOUNDRY")
-                    .font(FoundryTheme.Fonts.spaceGrotesk(18))
-                    .tracking(1)
+                Image("FoundryLogo")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(height: 18)
                     .foregroundStyle(FoundryTheme.Colors.textPrimary)
             }
             .buttonStyle(.plain)
@@ -91,11 +92,13 @@ struct FilterTab: View {
                     .font(FoundryTheme.Fonts.azeretMono(11))
                     .tracking(0.5)
                     .foregroundStyle(isActive ? FoundryTheme.Colors.textPrimary : FoundryTheme.Colors.textSecondary)
+                    .padding(.horizontal, FoundryTheme.Spacing.sm)
                     .frame(height: 44)
                 Rectangle()
                     .fill(isActive ? Color.primary : Color.clear)
                     .frame(height: 2)
             }
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
