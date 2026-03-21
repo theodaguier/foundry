@@ -7,106 +7,60 @@ struct ErrorView: View {
 
     private var failureTitle: String {
         if message.localizedCaseInsensitiveContains("incomplete") || message.localizedCaseInsensitiveContains("insufficient") {
-            return "IMPLEMENTATION INCOMPLETE"
+            return "Implementation Incomplete"
         }
         if message.localizedCaseInsensitiveContains("timed out") {
-            return "GENERATION TIMED OUT"
+            return "Generation Timed Out"
         }
         if message.localizedCaseInsensitiveContains("compile") || message.localizedCaseInsensitiveContains("error:") {
-            return "BUILD FAILED"
+            return "Build Failed"
         }
-        return "GENERATION FAILED"
+        return "Generation Failed"
     }
 
     private var failureSubtitle: String {
         switch failureTitle {
-        case "IMPLEMENTATION INCOMPLETE":
-            return "The generated plugin was missing key implementations (parameters, DSP, or UI controls)."
-        case "GENERATION TIMED OUT":
-            return "The code generator did not finish within the allowed time."
-        case "BUILD FAILED":
-            return "Foundry could not compile the plugin after multiple attempts."
+        case "Implementation Incomplete":
+            return "The generated plugin was missing key implementations.\nTry again with a more detailed prompt."
+        case "Generation Timed Out":
+            return "The code generator did not finish\nwithin the allowed time."
+        case "Build Failed":
+            return "Foundry could not compile the plugin\nafter multiple attempts."
         default:
-            return "Foundry could not finish a usable plugin from this brief."
+            return "Foundry could not finish a usable plugin\nfrom this brief."
         }
     }
+
+    @State private var iconAppeared = false
+    @State private var textAppeared = false
+    @State private var actionsAppeared = false
 
     var body: some View {
-        HStack(spacing: 0) {
-            Spacer(minLength: 80)
-            content
-                .frame(maxWidth: 640)
-            Spacer(minLength: 80)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .navigationTitle("Error")
-        .navigationBarBackButtonHidden(true)
-    }
-
-    private var content: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: 20) {
             Spacer()
 
-            // Icon
             Image(systemName: "xmark.circle")
-                .font(.system(size: 36, weight: .thin))
-                .foregroundStyle(FoundryTheme.Colors.textMuted)
-                .padding(.bottom, FoundryTheme.Spacing.lg)
+                .font(.system(size: 40, weight: .thin))
+                .foregroundStyle(.secondary)
+                .scaleEffect(iconAppeared ? 1 : 0.92)
+                .opacity(iconAppeared ? 1 : 0)
 
-            // Title
-            Text(failureTitle)
-                .font(FoundryTheme.Fonts.azeretMono(13, weight: .medium))
-                .tracking(2.4)
-                .foregroundStyle(FoundryTheme.Colors.textPrimary)
-                .padding(.bottom, FoundryTheme.Spacing.xs)
+            VStack(spacing: 6) {
+                Text(failureTitle)
+                    .font(.title2)
+                    .fontWeight(.medium)
 
-            // Subtitle
-            Text(failureSubtitle)
-                .font(FoundryTheme.Fonts.azeretMono(12))
-                .foregroundStyle(FoundryTheme.Colors.textSecondary)
-                .multilineTextAlignment(.center)
-                .padding(.bottom, FoundryTheme.Spacing.xl)
-
-            // Error log
-            VStack(alignment: .leading, spacing: FoundryTheme.Spacing.xs) {
-                Text("ERROR LOG")
-                    .font(FoundryTheme.Fonts.azeretMono(10, weight: .medium))
-                    .tracking(1.5)
-                    .foregroundStyle(FoundryTheme.Colors.textMuted)
-
-                ScrollView {
-                    Text(message)
-                        .font(FoundryTheme.Fonts.azeretMono(11))
-                        .foregroundStyle(.red.opacity(0.8))
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .textSelection(.enabled)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(FoundryTheme.Spacing.md)
-                }
-                .frame(maxHeight: 160)
-                .background(Color(.textBackgroundColor), in: .rect(cornerRadius: 6))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 6)
-                        .strokeBorder(FoundryTheme.Colors.border.opacity(0.6), lineWidth: 1)
-                )
+                Text(failureSubtitle)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.bottom, FoundryTheme.Spacing.xl)
+            .offset(y: textAppeared ? 0 : 4)
+            .opacity(textAppeared ? 1 : 0)
 
-            // Actions
-            HStack(spacing: FoundryTheme.Spacing.sm) {
-                Button("Library") {
+            HStack(spacing: 10) {
+                Button("Back to Library") {
                     appState.popToRoot()
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.large)
-
-                Button("Edit Prompt") {
-                    appState.popToRoot()
-                    Task {
-                        try? await Task.sleep(for: .milliseconds(100))
-                        appState.push(.prompt)
-                    }
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.large)
@@ -117,8 +71,27 @@ struct ErrorView: View {
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
             }
+            .padding(.top, 8)
+            .offset(y: actionsAppeared ? 0 : 6)
+            .opacity(actionsAppeared ? 1 : 0)
 
             Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .navigationTitle("Error")
+        .navigationBarBackButtonHidden(true)
+        .onAppear {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                withAnimation(.spring(duration: 0.5, bounce: 0.15)) {
+                    iconAppeared = true
+                }
+                withAnimation(.easeOut(duration: 0.35).delay(0.15)) {
+                    textAppeared = true
+                }
+                withAnimation(.easeOut(duration: 0.35).delay(0.3)) {
+                    actionsAppeared = true
+                }
+            }
         }
     }
 }

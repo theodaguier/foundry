@@ -54,6 +54,19 @@ enum AgentResolver {
         }
     }
 
+    static func generatePluginName(
+        agent: GenerationAgent,
+        prompt: String,
+        existingNames: Set<String>
+    ) async -> String {
+        switch agent {
+        case .claudeCode:
+            return await ClaudeCodeService.generatePluginName(prompt: prompt, existingNames: existingNames)
+        case .codex:
+            return await CodexService.generatePluginName(prompt: prompt, existingNames: existingNames)
+        }
+    }
+
     static func audit(
         agent: GenerationAgent,
         model: AgentModel,

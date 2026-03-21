@@ -175,6 +175,61 @@ enum CodexService {
         return await run(prompt: prompt, projectDir: projectDir, model: model, onEvent: onEvent)
     }
 
+    // MARK: - Name generation
+
+    static func generatePluginName(
+        prompt: String,
+        existingNames: Set<String>
+    ) async -> String {
+        guard let codexPath = DependencyChecker.resolveCommandPath("codex") else {
+            return fallbackName(existingNames: existingNames)
+        }
+
+        let takenList = existingNames.joined(separator: ", ")
+        let namePrompt = """
+        Invent a short, creative plugin name (1 word, max 10 chars) for this audio plugin: "\(prompt)".
+        The name must sound like a premium audio brand — punchy, evocative, memorable.
+        These names are ALREADY TAKEN, do NOT use any of them: [\(takenList)].
+        Reply with ONLY the name, nothing else. No quotes, no explanation.
+        """
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: codexPath)
+        process.arguments = ["--quiet", "--approval-mode", "full-auto", namePrompt]
+        process.environment = DependencyChecker.shellEnvironment
+        process.standardInput = FileHandle.nullDevice
+
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+
+        do {
+            try process.run()
+            process.waitUntilExit()
+
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            if let raw = String(data: data, encoding: .utf8) {
+                let name = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+                    .replacingOccurrences(of: "\"", with: "")
+                    .components(separatedBy: .whitespaces).first ?? ""
+                if !name.isEmpty && !existingNames.contains(name) {
+                    return name
+                }
+            }
+        } catch {}
+
+        return fallbackName(existingNames: existingNames)
+    }
+
+    private static func fallbackName(existingNames: Set<String>) -> String {
+        let pool = ["Flux", "Apex", "Nova", "Zinc", "Opal", "Noir", "Glow", "Husk", "Dusk", "Null"]
+        let takenLower = Set(existingNames.map { $0.lowercased() })
+        if let available = pool.first(where: { !takenLower.contains($0.lowercased()) }) {
+            return available
+        }
+        return "Plugin\(UUID().uuidString.prefix(4))"
+    }
+
     // MARK: - Arguments
 
     /// Builds Codex CLI arguments.

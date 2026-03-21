@@ -38,4 +38,18 @@ enum FoundryPaths {
     static func generationLogFile(for pluginID: UUID) -> URL {
         generationLogsDirectory.appendingPathComponent("\(pluginID.uuidString).log")
     }
+
+    // MARK: - Versioned builds
+
+    static var buildsDirectory: URL {
+        applicationSupportDirectory.appendingPathComponent("Builds", isDirectory: true)
+    }
+
+    static func pluginBuildsDirectory(for pluginID: UUID) -> URL {
+        buildsDirectory.appendingPathComponent(pluginID.uuidString, isDirectory: true)
+    }
+
+    static func versionBuildDirectory(for pluginID: UUID, version: Int) -> URL {
+        pluginBuildsDirectory(for: pluginID).appendingPathComponent("v\(version)", isDirectory: true)
+    }
 }

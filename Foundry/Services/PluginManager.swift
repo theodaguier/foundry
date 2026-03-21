@@ -45,6 +45,7 @@ enum PluginManager {
     static func remove(id: UUID, from plugins: inout [Plugin]) {
         if let plugin = plugins.first(where: { $0.id == id }) {
             removeLogoAssets(for: plugin)
+            clearAllBuildCaches(for: plugin.id)
         }
         plugins.removeAll { $0.id == id }
         save(plugins)
@@ -204,6 +205,48 @@ enum PluginManager {
         }
 
         return paths
+    }
+
+    // MARK: - Version management
+
+    /// Archive a build directory to the persistent versioned storage.
+    /// Returns the path of the archived directory.
+    static func archiveBuild(from sourceDir: URL, pluginID: UUID, version: Int) throws -> String {
+        let dest = FoundryPaths.versionBuildDirectory(for: pluginID, version: version)
+        let fm = FileManager.default
+        try fm.createDirectory(at: dest.deletingLastPathComponent(), withIntermediateDirectories: true)
+        if fm.fileExists(atPath: dest.path) {
+            try fm.removeItem(at: dest)
+        }
+        try fm.copyItem(at: sourceDir, to: dest)
+        return dest.path
+    }
+
+    /// Install a specific version's bundles to the system plug-in directories.
+    static func installVersion(_ version: PluginVersion, for plugin: Plugin) throws -> Plugin.InstallPaths {
+        guard let buildDir = version.buildDirectory,
+              FileManager.default.fileExists(atPath: buildDir) else {
+            throw NSError(domain: "Foundry", code: 4, userInfo: [
+                NSLocalizedDescriptionKey: "Build directory for v\(version.versionNumber) not found — cache may have been cleared"
+            ])
+        }
+        return try installPlugin(
+            buildDir: URL(fileURLWithPath: buildDir),
+            name: plugin.name,
+            formats: plugin.formats
+        )
+    }
+
+    /// Delete the archived build directory for a version to free disk space.
+    static func clearBuildCache(for version: PluginVersion) {
+        guard let dir = version.buildDirectory else { return }
+        try? FileManager.default.removeItem(at: URL(fileURLWithPath: dir))
+    }
+
+    /// Remove all versioned build caches for a plugin.
+    static func clearAllBuildCaches(for pluginID: UUID) {
+        let dir = FoundryPaths.pluginBuildsDirectory(for: pluginID)
+        try? FileManager.default.removeItem(at: dir)
     }
 
     // MARK: - Helpers

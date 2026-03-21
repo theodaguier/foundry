@@ -57,9 +57,9 @@ struct ContentView: View {
                 case .quickOptions(let prompt):
                     QuickOptionsView(prompt: prompt)
                 case .generation(let config):
-                    GenerationProgressView(config: config)
+                    GenerationProgressView(mode: .generation(config))
                 case .refinement(let config):
-                    RefineProgressView(config: config)
+                    GenerationProgressView(mode: .refinement(config))
                 case .refine(let plugin):
                     RefineView(plugin: plugin)
                 case .result(let plugin):

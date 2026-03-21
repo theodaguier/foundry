@@ -17,10 +17,8 @@ enum ProjectAssembler {
 
     // MARK: - Assemble
 
-    static func assemble(config: GenerationConfig) throws -> AssembledProject {
+    static func assemble(config: GenerationConfig, pluginName: String) throws -> AssembledProject {
         let fm = FileManager.default
-
-        let pluginName = generatePluginName(from: config.prompt)
         let pluginType = inferPluginType(from: config.prompt)
         let interfaceStyle = inferInterfaceStyle(from: config.prompt, pluginType: pluginType)
 
@@ -50,51 +48,6 @@ enum ProjectAssembler {
     }
 
     // MARK: - Plugin name generation
-
-    private static func generatePluginName(from prompt: String) -> String {
-        let lower = prompt.lowercased()
-
-        let categories: [(keywords: [String], names: [String])] = [
-            (["reverb", "room", "hall", "space", "ambient", "cathedral", "plate"],
-             ["Aether", "Drift", "Cavern", "Haze", "Vapor", "Void", "Mist", "Dwell"]),
-            (["delay", "echo", "repeat", "ping pong"],
-             ["Ripple", "Ghost", "Bounce", "Mirage", "Redux", "Trace", "Murmur"]),
-            (["distortion", "overdrive", "saturation", "fuzz", "clip", "grit", "crunch", "drive", "waveshap"],
-             ["Grind", "Scorch", "Blaze", "Rust", "Havoc", "Oxide", "Snarl", "Ember"]),
-            (["filter", "eq", "equaliz", "lowpass", "highpass", "bandpass", "resonan"],
-             ["Carve", "Prism", "Sieve", "Tilt", "Slice", "Facet", "Chisel"]),
-            (["chorus", "flanger", "phaser", "modulation", "vibrato", "tremolo", "wobble", "ensemble"],
-             ["Swirl", "Flux", "Warp", "Morph", "Lush", "Helix", "Bloom"]),
-            (["compressor", "limiter", "dynamics", "gate", "expander", "squeeze", "punch", "transient"],
-             ["Anvil", "Clamp", "Grip", "Forge", "Press", "Thump", "Crush"]),
-            (["synth", "synthesiz", "oscillat", "keys", "pad", "lead", "poly", "mono", "arpeggi"],
-             ["Nova", "Volt", "Pulse", "Zephyr", "Onyx", "Spark", "Quasar", "Neon"]),
-            (["utility", "gain", "trim", "width", "stereo", "phase", "analy", "meter", "monitor", "mono", "balance"],
-             ["Vector", "Atlas", "Scope", "Relay", "Pilot", "Axis", "Mirror", "Align"]),
-            (["lofi", "lo-fi", "vinyl", "tape", "vintage", "retro", "warm", "analog"],
-             ["Patina", "Grain", "Amber", "Relic", "Dusk", "Moth", "Sepia"]),
-            (["pitch", "shift", "harmoniz", "tune", "transpos"],
-             ["Apex", "Glide", "Rift", "Arc", "Bend"]),
-            (["bass", "sub", "808", "low end"],
-             ["Rumble", "Depth", "Quake", "Abyss", "Magma"]),
-            (["granular", "grain", "texture", "glitch", "stutter"],
-             ["Shard", "Frost", "Scatter", "Flicker", "Pixel"]),
-        ]
-
-        let base = abs(prompt.utf8.reduce(0) { ($0 &* 31) &+ Int($1) })
-        let hash = abs(base &+ Int.random(in: 0..<1000))
-
-        for category in categories {
-            for keyword in category.keywords {
-                if lower.contains(keyword) {
-                    return category.names[hash % category.names.count]
-                }
-            }
-        }
-
-        let fallback = ["Null", "Flux", "Apex", "Dusk", "Nova", "Zinc", "Opal", "Noir", "Glow", "Husk"]
-        return fallback[hash % fallback.count]
-    }
 
     static func inferPluginType(from prompt: String) -> PluginType {
         let lower = prompt.lowercased()
