@@ -3,6 +3,18 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.5.0](https://github.com/theodaguier/foundry/compare/v1.4.0...v1.5.0) (2026-03-21)
+
+
+### Features
+
+* background builds with build queue page ([#35](https://github.com/theodaguier/foundry/issues/35)) ([e437459](https://github.com/theodaguier/foundry/commit/e437459b48dc32dd3c9d318b4f428e2976bdc3af))
+
+
+### Bug Fixes
+
+* remove AI slop design, use native macOS patterns and system-adaptive colors ([#33](https://github.com/theodaguier/foundry/issues/33)) ([d2e0f70](https://github.com/theodaguier/foundry/commit/d2e0f7067131c955230887043cea64a75ba2be49))
+
 ## [1.4.0](https://github.com/theodaguier/foundry/compare/v1.3.0...v1.4.0) (2026-03-21)
 
 
