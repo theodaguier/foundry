@@ -5,9 +5,6 @@ import SwiftUI
 struct PromptView: View {
     @Environment(AppState.self) private var appState
     @State private var prompt = ""
-    @State private var format: FormatOption = .both
-    @State private var channelLayout: ChannelLayout = .stereo
-    @State private var presetCount: PresetCount = .five
     @FocusState private var isFocused: Bool
 
     private let suggestions: [SuggestionCategory] = [
@@ -41,42 +38,14 @@ struct PromptView: View {
     ]
 
     var body: some View {
-        VStack(spacing: 0) {
-            FoundryHeaderBar(
-                onLogoTap: { appState.popToRoot() }
-            ) {
-                HStack(spacing: FoundryTheme.Spacing.lg) {
-                    if let building = appState.plugins.first(where: { $0.status == .building }) {
-                        BuildingIndicator(name: building.name)
-                    }
-
-                    FoundryActionButton(
-                        title: "GENERATE",
-                        action: generate,
-                        isDisabled: prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                    )
-                    .keyboardShortcut(.return, modifiers: .command)
-                }
-            }
-
-            GeometryReader { geo in
-                ScrollView {
-                    HStack(spacing: 0) {
-                        Spacer(minLength: 128)
-                        contentCanvas
-                            .frame(maxWidth: 1024)
-                        Spacer(minLength: 128)
-                    }
-                    .frame(minHeight: geo.size.height)
-                    .padding(.vertical, FoundryTheme.Spacing.xxxl)
-                }
-            }
-            .background(FoundryTheme.Colors.background)
-
+        HStack(spacing: 0) {
+            Spacer(minLength: 80)
+            contentCanvas
+                .frame(maxWidth: 1024)
+            Spacer(minLength: 80)
         }
-        .background(FoundryTheme.Colors.background)
-        .navigationBarBackButtonHidden(true)
-        .toolbar(.hidden)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .navigationTitle("New Plugin")
         .onAppear { isFocused = true }
     }
 
@@ -84,183 +53,62 @@ struct PromptView: View {
 
     private var contentCanvas: some View {
         VStack(alignment: .leading, spacing: 0) {
+            Spacer()
+
             promptSection
-                .padding(.bottom, FoundryTheme.Spacing.xxl)
+                .padding(.bottom, 24)
 
             categoryGrid
-                .padding(.bottom, FoundryTheme.Spacing.xxxl)
 
-            Spacer(minLength: 0)
-
-            configRow
+            Spacer()
         }
-        .padding(.horizontal, FoundryTheme.Spacing.xl)
     }
 
     // MARK: - Prompt Section
 
     private var promptSection: some View {
-        VStack(alignment: .leading, spacing: FoundryTheme.Spacing.xs) {
-            Text("Natural Language Prompt")
-                .font(FoundryTheme.Fonts.jetBrainsMono(10))
-                .tracking(1)
-                .foregroundStyle(FoundryTheme.Colors.textSecondary)
-                .textCase(.uppercase)
-
-            promptTextarea
-        }
-    }
-
-    private var promptTextarea: some View {
-        ZStack(alignment: .topLeading) {
-            FoundryTheme.Colors.backgroundDeep
-
-            if prompt.isEmpty {
-                Text("Describe the sound architecture... (e.g., A dual-oscillator subtractive synth with a ladder filter and gritty tape saturation stage)")
-                    .font(FoundryTheme.Fonts.inter(20))
-                    .lineSpacing(8)
-                    .foregroundStyle(FoundryTheme.Colors.borderSubtle.opacity(0.3))
-                    .allowsHitTesting(false)
-                    .padding(FoundryTheme.Spacing.lg)
-            }
-
+        VStack(alignment: .leading, spacing: 0) {
             TextEditor(text: $prompt)
-                .font(FoundryTheme.Fonts.inter(20))
-                .lineSpacing(8)
-                .scrollContentBackground(.hidden)
-                .background(Color.clear)
-                .foregroundStyle(.white)
+                .font(.system(size: 14))
                 .focused($isFocused)
-                .padding(FoundryTheme.Spacing.lg - 5)
+                .frame(height: 100)
+
+            HStack {
+                Spacer()
+                Button("Generate") { generate() }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.regular)
+                    .disabled(prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .keyboardShortcut(.return, modifiers: .command)
+            }
+            .padding(.top, 8)
         }
-        .frame(height: 180)
-        .foundryBorder()
-        .cornerBrackets()
     }
 
     // MARK: - Category Grid
 
     private var categoryGrid: some View {
-        HStack(alignment: .top, spacing: FoundryTheme.Spacing.lg) {
+        HStack(alignment: .top, spacing: 1) {
             ForEach(suggestions) { cat in
                 SuggestionCategoryCard(category: cat) { item in
-                    withAnimation(.easeOut(duration: 0.12)) {
-                        prompt = item.fullPrompt
-                    }
+                    prompt = item.fullPrompt
                 }
             }
         }
-    }
-
-    // MARK: - Config Row
-
-    private var configRow: some View {
-        VStack(spacing: 0) {
+        .background(Color(.separatorColor))
+        .overlay(
             Rectangle()
-                .fill(FoundryTheme.Colors.border)
-                .frame(height: 1)
-
-            HStack(alignment: .center) {
-                HStack(spacing: FoundryTheme.Spacing.xxxl) {
-                    configSelector(
-                        label: "FORMAT",
-                        options: FormatOption.allCases.map { $0.rawValue.uppercased() },
-                        selected: format.rawValue.uppercased()
-                    ) { cycleFormat() }
-
-                    configSelector(
-                        label: "CHANNELS",
-                        options: ChannelLayout.allCases.map { $0.rawValue.uppercased() },
-                        selected: channelLayout.rawValue.uppercased()
-                    ) { cycleChannels() }
-
-                    configSelector(
-                        label: "PRESETS",
-                        options: [PresetCount.zero, .five, .ten].map { "\($0.rawValue)" },
-                        selected: "\(presetCount.rawValue)"
-                    ) { cyclePresets() }
-                }
-
-                Spacer()
-
-                Button { appState.push(.quickOptions(prompt: prompt)) } label: {
-                    HStack(spacing: FoundryTheme.Spacing.md) {
-                        Text("Adv. Options")
-                            .font(FoundryTheme.Fonts.jetBrainsMono(10))
-                            .tracking(1)
-                            .foregroundStyle(FoundryTheme.Colors.textSecondary)
-                            .textCase(.uppercase)
-
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 7))
-                            .foregroundStyle(FoundryTheme.Colors.textSecondary)
-                    }
-                    .padding(.horizontal, 21)
-                    .padding(.vertical, 11)
-                    .foundryBorder(background: FoundryTheme.Colors.backgroundToolbar)
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(.top, FoundryTheme.Spacing.xl)
-            .padding(.bottom, FoundryTheme.Spacing.xxl)
-        }
-    }
-
-    private func configSelector(
-        label: String,
-        options: [String],
-        selected: String,
-        action: @escaping () -> Void
-    ) -> some View {
-        VStack(alignment: .leading, spacing: FoundryTheme.Spacing.xs) {
-            Text(label)
-                .font(FoundryTheme.Fonts.jetBrainsMono(9))
-                .tracking(2.7)
-                .foregroundStyle(FoundryTheme.Colors.textSecondary)
-
-            Button(action: action) {
-                HStack(spacing: 4) {
-                    ForEach(Array(options.enumerated()), id: \.offset) { idx, option in
-                        if idx > 0 {
-                            Text("/")
-                                .font(FoundryTheme.Fonts.jetBrainsMono(12))
-                                .foregroundStyle(FoundryTheme.Colors.textDimmed)
-                        }
-                        Text(option)
-                            .font(FoundryTheme.Fonts.jetBrainsMono(12))
-                            .foregroundStyle(option == selected ? .white : FoundryTheme.Colors.textDimmed)
-                    }
-                }
-            }
-            .buttonStyle(.plain)
-        }
-    }
-
-    // MARK: - Cycle Actions
-
-    private func cycleFormat() {
-        let cases = FormatOption.allCases
-        let idx = cases.firstIndex(of: format)!
-        format = cases[(idx + 1) % cases.count]
-    }
-
-    private func cycleChannels() {
-        channelLayout = channelLayout == .mono ? .stereo : .mono
-    }
-
-    private func cyclePresets() {
-        let cases = PresetCount.allCases
-        let idx = cases.firstIndex(of: presetCount)!
-        presetCount = cases[(idx + 1) % cases.count]
+                .strokeBorder(Color(.separatorColor), lineWidth: 1)
+        )
     }
 
     private func generate() {
         guard !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         appState.push(.generation(config: GenerationConfig(
             prompt: prompt,
-            format: format,
-            channelLayout: channelLayout,
-            presetCount: presetCount
+            format: .both,
+            channelLayout: .stereo,
+            presetCount: .five
         )))
     }
 }
@@ -276,13 +124,13 @@ struct SuggestionCategoryCard: View {
             HStack(spacing: FoundryTheme.Spacing.sm) {
                 Image(systemName: category.systemImage)
                     .font(.system(size: 11, weight: .regular))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(.primary)
                     .frame(width: 14, height: 14)
 
                 Text(category.title)
                     .font(FoundryTheme.Fonts.azeretMono(12))
                     .tracking(2.4)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(.primary)
                     .textCase(.uppercase)
             }
 
@@ -304,9 +152,9 @@ struct SuggestionCategoryCard: View {
                 }
             }
         }
-        .padding(25)
+        .padding(20)
         .frame(maxWidth: .infinity, alignment: .topLeading)
-        .foundryBorder()
+        .background(Color(.textBackgroundColor))
     }
 }
 

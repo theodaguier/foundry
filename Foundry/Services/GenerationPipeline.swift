@@ -393,9 +393,7 @@ final class GenerationPipeline {
 
     private func setStep(_ step: GenerationStep) {
         let prev = currentStep
-        withAnimation(.easeInOut(duration: 0.2)) {
-            currentStep = step
-        }
+        currentStep = step
         if step != prev {
             let completionMap: [GenerationStep: String] = [
                 .preparingProject: "PREPARING PROJECT: Dependencies resolved.",

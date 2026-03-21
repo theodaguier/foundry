@@ -93,7 +93,7 @@ struct FilterTab: View {
                     .foregroundStyle(isActive ? FoundryTheme.Colors.textPrimary : FoundryTheme.Colors.textSecondary)
                     .frame(height: 44)
                 Rectangle()
-                    .fill(isActive ? Color.white : Color.clear)
+                    .fill(isActive ? Color.primary : Color.clear)
                     .frame(height: 2)
             }
         }
@@ -114,10 +114,10 @@ struct FoundryActionButton: View {
             Text(title)
                 .font(FoundryTheme.Fonts.azeretMono(12))
                 .tracking(0.5)
-                .foregroundStyle(Color(hex: 0x1A1C1C))
+                .foregroundStyle(Color(.windowBackgroundColor))
                 .padding(.horizontal, FoundryTheme.Spacing.lg)
                 .padding(.vertical, FoundryTheme.Spacing.xs)
-                .background(Color.white)
+                .background(Color.primary)
                 .clipShape(Rectangle())
         }
         .buttonStyle(.plain)

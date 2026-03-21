@@ -15,11 +15,8 @@ final class DependencyListModel {
         for (index, dep) in dependencies.enumerated() {
             dependencies[index].state = .checking
             Task {
-                try? await Task.sleep(for: .milliseconds(index * 200 + 100))
                 let ok = await DependencyChecker.check(dep.dependency)
-                withAnimation(.easeOut(duration: 0.15)) {
-                    dependencies[index].state = ok ? .installed : .missing
-                }
+                dependencies[index].state = ok ? .installed : .missing
                 checkAllDone()
             }
         }
@@ -34,14 +31,10 @@ final class DependencyListModel {
                         self.dependencies[index].state = .installing(progress)
                     }
                 }
-                withAnimation(.easeOut(duration: 0.15)) {
-                    dependencies[index].state = .installed
-                }
+                dependencies[index].state = .installed
                 checkAllDone()
             } catch {
-                withAnimation(.easeOut(duration: 0.15)) {
-                    dependencies[index].state = .missing
-                }
+                dependencies[index].state = .missing
             }
         }
     }
@@ -56,9 +49,7 @@ final class DependencyListModel {
             return false
         }
         if allInstalled {
-            withAnimation(.easeOut(duration: 0.15).delay(0.2)) {
-                allReady = true
-            }
+            allReady = true
         }
     }
 }

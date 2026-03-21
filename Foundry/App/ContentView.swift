@@ -46,6 +46,7 @@ struct ContentView: View {
             appState.loadPlugins()
             BuildDirectoryCleaner.sweepStaleDirectories()
         }
+        .frame(minWidth: 900, minHeight: 620)
         .task {
             await appState.refreshSetupState()
         }

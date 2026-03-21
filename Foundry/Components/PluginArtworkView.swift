@@ -21,9 +21,9 @@ struct PluginArtworkView: View {
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .strokeBorder(.white.opacity(0.16), lineWidth: 0.5)
+                .strokeBorder(Color.primary.opacity(0.16), lineWidth: 0.5)
         )
-        .shadow(color: .black.opacity(0.18), radius: size * 0.14, y: size * 0.08)
+        .shadow(color: Color.primary.opacity(0.12), radius: size * 0.14, y: size * 0.08)
     }
 
     private var fallbackArtwork: some View {
@@ -36,7 +36,7 @@ struct PluginArtworkView: View {
 
             Image(systemName: plugin.type.systemImage)
                 .font(.system(size: symbolSize, weight: .medium))
-                .foregroundStyle(.white)
+                .foregroundStyle(.primary)
         }
     }
 

@@ -53,15 +53,44 @@ struct GenerationProgressView: View {
     @State private var completedSteps: Set<Int> = []
     @State private var highWaterStep: Int = 0
 
+    @State private var showConsole = false
+
     var body: some View {
-        VStack(spacing: 0) {
-            WindowChromeBar(title: "FOUNDRY CORE V1.0.4")
-            topNav
-            mainContent
+        HStack(spacing: 0) {
+            leftPanel
+                .frame(maxWidth: .infinity)
+
+            if showConsole {
+                Divider()
+
+                TerminalView(
+                    title: "Build Log",
+                    logLines: pipeline.logLines,
+                    elapsedTime: formattedTime,
+                    streamingText: pipeline.streamingText
+                )
+                .frame(maxWidth: .infinity)
+            }
         }
-        .background(FoundryTheme.Colors.background)
+        .navigationTitle("Building")
         .navigationBarBackButtonHidden(true)
-        .toolbar(.hidden)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Cancel") {
+                    pipeline.cancel()
+                    appState.popToRoot()
+                }
+            }
+            ToolbarItem(placement: .automatic) {
+                Toggle(isOn: Binding(
+                    get: { showConsole },
+                    set: { newValue in withAnimation { showConsole = newValue } }
+                )) {
+                    Label("Console", systemImage: "terminal")
+                }
+                .toggleStyle(.button)
+            }
+        }
         .onAppear {
             pipeline.run(config: config, appState: appState)
             appState.buildProgress = 0
@@ -77,81 +106,10 @@ struct GenerationProgressView: View {
         }
         .onChange(of: pipeline.currentStep) { oldValue, newValue in
             if newValue.rawValue > highWaterStep {
-                // Only mark steps complete and advance progress when moving forward
                 highWaterStep = newValue.rawValue
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    _ = completedSteps.insert(oldValue.rawValue)
-                }
+                _ = completedSteps.insert(oldValue.rawValue)
             }
             appState.buildProgress = progress
-        }
-    }
-
-    // MARK: - Top Nav
-
-    private var topNav: some View {
-        HStack {
-            HStack(spacing: FoundryTheme.Spacing.xxl) {
-                Text("FOUNDRY")
-                    .font(FoundryTheme.Fonts.spaceGrotesk(20))
-                    .tracking(1)
-                    .foregroundStyle(.white)
-
-                HStack(spacing: FoundryTheme.Spacing.xl) {
-                    ForEach(PluginFilter.allCases, id: \.self) { tab in
-                        Text(tab.rawValue)
-                            .font(FoundryTheme.Fonts.jetBrainsMono(11, weight: .medium))
-                            .tracking(1.1)
-                            .foregroundStyle(FoundryTheme.Colors.textMuted)
-                    }
-                }
-            }
-
-            Spacer()
-
-            HStack(spacing: FoundryTheme.Spacing.md) {
-                Text("BUILDING · \(Int(progress * 100))%")
-                    .font(FoundryTheme.Fonts.jetBrainsMono(11))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 13)
-                    .padding(.vertical, 5)
-                    .foundryBorder(background: FoundryTheme.Colors.backgroundSubtle, border: Color.white.opacity(0.1))
-
-                FoundryActionButton(title: "NEW") {
-                    pipeline.cancel()
-                    appState.popToRoot()
-                }
-            }
-        }
-        .padding(.horizontal, FoundryTheme.Spacing.xl)
-        .frame(height: FoundryTheme.Layout.headerHeight)
-        .background(FoundryTheme.Colors.background)
-    }
-
-    // MARK: - Main Content
-
-    private var mainContent: some View {
-        GeometryReader { geo in
-            HStack(spacing: 0) {
-                leftPanel
-                    .frame(maxWidth: .infinity)
-                    .overlay(alignment: .trailing) {
-                        Rectangle().fill(Color.white.opacity(0.05)).frame(width: 1)
-                    }
-
-                TerminalView(
-                    title: "CONVERGENCE_LOG_V1.0.4.SH",
-                    logLines: pipeline.logLines,
-                    elapsedTime: formattedTime,
-                    streamingText: pipeline.streamingText
-                )
-                .frame(maxWidth: .infinity)
-            }
-            .frame(height: geo.size.height)
-        }
-        .background(FoundryTheme.Colors.background)
-        .overlay(alignment: .top) {
-            Rectangle().fill(Color.white.opacity(0.05)).frame(height: 1)
         }
     }
 
@@ -159,53 +117,24 @@ struct GenerationProgressView: View {
 
     private var leftPanel: some View {
         VStack(spacing: 0) {
-            radialArc
-                .padding(.bottom, FoundryTheme.Spacing.xxl)
+            Spacer()
 
-            GenerationStepList(
-                currentStep: pipeline.currentStep,
-                completedSteps: completedSteps
-            )
-        }
-        .frame(maxWidth: 448)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-        .padding(.horizontal, FoundryTheme.Spacing.xxl)
-    }
+            VStack(spacing: 24) {
+                GenerationStepList(
+                    currentStep: pipeline.currentStep,
+                    completedSteps: completedSteps
+                )
+                .frame(maxWidth: 360)
 
-    // MARK: - Radial Arc
-
-    private var radialArc: some View {
-        ZStack(alignment: .bottom) {
-            ZStack {
-                Circle()
-                    .stroke(Color.white.opacity(0.05), lineWidth: 1)
-                    .frame(width: 320, height: 320)
-
-                SemiArc(progress: progress)
-                    .stroke(Color.white, style: StrokeStyle(lineWidth: 2, lineCap: .round))
-                    .frame(width: 320, height: 320)
+                ProgressView(value: progress)
+                    .tint(.accentColor)
+                    .frame(maxWidth: 360)
             }
-            .frame(width: 320, height: 320)
-            .frame(width: 320, height: 160, alignment: .top)
-            .clipped()
 
-            VStack(spacing: 0) {
-                Text("\(Int(progress * 100))%")
-                    .font(FoundryTheme.Fonts.spaceGrotesk(60))
-                    .tracking(1)
-                    .foregroundStyle(.white)
-                    .monospacedDigit()
-
-                Text("ENGINE CONVERGENCE")
-                    .font(FoundryTheme.Fonts.jetBrainsMono(10))
-                    .tracking(3)
-                    .foregroundStyle(FoundryTheme.Colors.textMuted)
-                    .padding(.top, FoundryTheme.Spacing.xs)
-            }
+            Spacer()
         }
-        .frame(width: 320)
+        .padding(32)
     }
-
 
     // MARK: - Helpers
 
@@ -222,7 +151,6 @@ struct GenerationProgressView: View {
 
 // MARK: - Generation Step List
 
-/// Step list specifically styled for the generation progress panel.
 struct GenerationStepList: View {
     let currentStep: GenerationStep
     let completedSteps: Set<Int>
@@ -235,7 +163,6 @@ struct GenerationStepList: View {
                     isActive: currentStep == step,
                     isDone: completedSteps.contains(step.rawValue)
                 )
-                .padding(.top, step == .preparingProject ? 0 : FoundryTheme.Spacing.md)
             }
         }
     }
@@ -251,77 +178,36 @@ struct GenerationStepRow: View {
     private var isPending: Bool { !isDone && !isActive }
 
     var body: some View {
-        if isActive {
-            activeRow
-        } else {
-            inactiveRow
-        }
-    }
-
-    private var activeRow: some View {
-        HStack {
-            HStack(spacing: FoundryTheme.Spacing.md) {
-                Image(systemName: "arrow.2.circlepath")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.white)
-                    .frame(width: 15)
-
-                Text(step.terminalLabel)
-                    .font(FoundryTheme.Fonts.jetBrainsMono(11, weight: .bold))
-                    .tracking(0.55)
-                    .foregroundStyle(.white)
+        HStack(spacing: 10) {
+            if isDone {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 14))
+                    .foregroundStyle(.green)
+                    .frame(width: 20)
+            } else if isActive {
+                ProgressView()
+                    .controlSize(.small)
+                    .frame(width: 20)
+            } else {
+                Image(systemName: "circle")
+                    .font(.system(size: 14))
+                    .foregroundStyle(.quaternary)
+                    .frame(width: 20)
             }
 
-            Spacer()
-
-            HStack(spacing: 6) {
-                ForEach([1.0, 0.4, 0.1], id: \.self) { opacity in
-                    Rectangle()
-                        .fill(Color.white.opacity(opacity))
-                        .frame(width: 4, height: 4)
-                }
-            }
-        }
-        .padding(.leading, 18)
-        .padding(.trailing, FoundryTheme.Spacing.md)
-        .padding(.vertical, FoundryTheme.Spacing.md)
-        .background(FoundryTheme.Colors.backgroundSubtle)
-        .overlay(alignment: .leading) {
-            Rectangle().fill(Color.white).frame(width: 2)
-        }
-    }
-
-    private var inactiveRow: some View {
-        HStack {
-            HStack(spacing: FoundryTheme.Spacing.md) {
-                if isDone {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(FoundryTheme.Colors.textMuted)
-                        .frame(width: 15)
-                } else {
-                    Circle()
-                        .stroke(FoundryTheme.Colors.textFaint, lineWidth: 1)
-                        .frame(width: 14, height: 14)
-                        .frame(width: 15)
-                }
-
-                Text(step.terminalLabel)
-                    .font(FoundryTheme.Fonts.jetBrainsMono(11))
-                    .tracking(0.55)
-                    .foregroundStyle(FoundryTheme.Colors.textMuted)
-            }
+            Text(step.label)
+                .font(.system(.body, design: .monospaced))
+                .foregroundStyle(isPending ? .tertiary : .primary)
 
             Spacer()
 
             if isDone {
-                Text("DONE")
-                    .font(FoundryTheme.Fonts.jetBrainsMono(10))
-                    .foregroundStyle(FoundryTheme.Colors.textMuted.opacity(0.4))
+                Text("Done")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
-        .padding(.horizontal, FoundryTheme.Spacing.xs)
-        .opacity(isPending ? 0.3 : 1)
+        .padding(.vertical, 6)
     }
 }
 
