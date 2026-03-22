@@ -3,6 +3,14 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.11.0](https://github.com/theodaguier/foundry/compare/v1.10.0...v1.11.0) (2026-03-22)
+
+
+### Features
+
+* distinct refine flow with capped build loop, generation_type telemetry, and UI polish ([#55](https://github.com/theodaguier/foundry/issues/55)) ([7a13f6b](https://github.com/theodaguier/foundry/commit/7a13f6b410face7685927322d4d264c3cd4d8ab0))
+* dynamic model catalog from provider APIs + CodexService fix ([#53](https://github.com/theodaguier/foundry/issues/53)) ([66df2d4](https://github.com/theodaguier/foundry/commit/66df2d4c8da0ee231ab9616339b83a4398878850)), closes [#48](https://github.com/theodaguier/foundry/issues/48)
+
 ## [1.10.0](https://github.com/theodaguier/foundry/compare/v1.9.0...v1.10.0) (2026-03-22)
 
 
