@@ -24,6 +24,8 @@ struct BuildQueueView: View {
                 Button("Done") {
                     appState.popToRoot()
                 }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
                 .keyboardShortcut(.return, modifiers: .command)
             }
         }

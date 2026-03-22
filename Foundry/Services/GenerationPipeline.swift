@@ -161,6 +161,8 @@ final class GenerationPipeline {
                 appState.finishBuild()
                 appState.push(.result(plugin: plugin))
             } catch is CancellationError {
+                // Restore Source/ backup if refine was cancelled mid-flight
+                self.restoreRefineBackup(for: config.plugin)
                 if let tb = self.telemetry {
                     tb.outcome = .cancelled
                     self.saveTelemetry(tb)
@@ -196,6 +198,7 @@ final class GenerationPipeline {
         // Initialize telemetry
         let tb = TelemetryBuilder()
         telemetry = tb
+        tb.generationType = .generate
         tb.agent = config.agent
         tb.model = config.model.id
         tb.originalPrompt = config.prompt
@@ -424,6 +427,7 @@ final class GenerationPipeline {
         // Initialize telemetry
         let tb = TelemetryBuilder()
         telemetry = tb
+        tb.generationType = .refine
         let agent = config.plugin.agent ?? .claudeCode
         let model = config.plugin.model ?? agent.defaultModel
         tb.agent = agent
@@ -452,25 +456,31 @@ final class GenerationPipeline {
             throw GenerationError.assemblyFailed("Build directory no longer exists: \(buildDir)")
         }
 
-        // Copy archived build to a fresh temp directory for refining
-        let uuid = UUID().uuidString.prefix(8).lowercased()
-        let projectDir = URL(fileURLWithPath: "/tmp/foundry-build-\(uuid)")
-        do {
-            try FileManager.default.copyItem(at: archivedDir, to: projectDir)
-        } catch {
-            tb.outcome = .failedGeneration
-            tb.failureStage = .assembly
-            tb.failureMessage = error.localizedDescription
-            saveTelemetry(tb)
-            throw GenerationError.assemblyFailed("Failed to restore build for refining: \(error.localizedDescription)")
+        // Work directly in the archived directory for incremental builds.
+        // CMake cache paths remain valid → no reconfigure, only changed files recompile.
+        let projectDir = archivedDir
+
+        // Backup Source/ so we can rollback if the user cancels or the refine fails
+        let fm = FileManager.default
+        let sourceDir = projectDir.appendingPathComponent("Source")
+        let sourceBackup = projectDir.appendingPathComponent("Source.backup")
+        try? fm.removeItem(at: sourceBackup)
+        if fm.fileExists(atPath: sourceDir.path) {
+            try? fm.copyItem(at: sourceDir, to: sourceBackup)
         }
 
         // Lock CMakeLists.txt so Claude cannot modify it (prevents plugin rename)
         let cmakePath = projectDir.appendingPathComponent("CMakeLists.txt").path
-        try? FileManager.default.setAttributes(
-            [.immutable: true],
-            ofItemAtPath: cmakePath
-        )
+        try? fm.setAttributes([.immutable: true], ofItemAtPath: cmakePath)
+
+        // Helper to restore Source/ from backup on failure
+        func restoreSourceBackup() {
+            if fm.fileExists(atPath: sourceBackup.path) {
+                try? fm.removeItem(at: sourceDir)
+                try? fm.moveItem(at: sourceBackup, to: sourceDir)
+            }
+            try? fm.setAttributes([.immutable: false], ofItemAtPath: cmakePath)
+        }
 
         let callbacks = makeCallbacks()
 
@@ -531,6 +541,7 @@ final class GenerationPipeline {
         if let usage = genResult.tokenUsage { tb.tokenUsage.add(usage) }
 
         if isAIInfrastructureFailure(genResult.error) {
+            restoreSourceBackup()
             tb.outcome = .failedGeneration
             tb.failureStage = .generation
             tb.failureMessage = genResult.error
@@ -542,6 +553,7 @@ final class GenerationPipeline {
             let processorFile = projectDir.appendingPathComponent("Source/PluginProcessor.cpp")
             let processorContent = (try? String(contentsOf: processorFile, encoding: .utf8)) ?? ""
             if processorContent.isEmpty {
+                restoreSourceBackup()
                 tb.outcome = .failedGeneration
                 tb.failureStage = .generation
                 tb.failureMessage = genResult.error ?? "Claude did not modify the code"
@@ -553,20 +565,39 @@ final class GenerationPipeline {
         try Task.checkCancellation()
 
         // Unlock CMakeLists.txt before build (cmake needs to read it)
-        try? FileManager.default.setAttributes(
-            [.immutable: false],
-            ofItemAtPath: cmakePath
-        )
+        try? fm.setAttributes([.immutable: false], ofItemAtPath: cmakePath)
+
+        // Invalidate stale CMake cache if the build dir was relocated (e.g. archived to Application Support)
+        let buildCacheFile = projectDir.appendingPathComponent("build/CMakeCache.txt")
+        if let cacheContent = try? String(contentsOf: buildCacheFile, encoding: .utf8) {
+            let currentPath = projectDir.path
+            if !cacheContent.contains(currentPath) {
+                // Cache references a different directory — wipe it so CMake reconfigures cleanly
+                let buildSubdir = projectDir.appendingPathComponent("build")
+                try? fm.removeItem(at: buildSubdir)
+            }
+        }
+
+        let canSkipConfigure = fm.fileExists(atPath: buildCacheFile.path)
 
         setStep(.compiling)
         tb.buildStart = Date()
         do {
-            try await BuildLoop.run(projectDir: projectDir, agent: agent, model: model, callbacks: callbacks, telemetry: tb)
+            try await BuildLoop.run(
+                projectDir: projectDir,
+                agent: agent,
+                model: model,
+                callbacks: callbacks,
+                telemetry: tb,
+                skipConfigure: canSkipConfigure,
+                maxAttempts: 3
+            )
         } catch let error as GenerationError {
             tb.buildEnd = Date()
             tb.outcome = .failedBuild
             tb.failureStage = .build
             tb.failureMessage = error.localizedDescription
+            restoreSourceBackup()
             saveTelemetry(tb)
             throw error
         }
@@ -593,23 +624,23 @@ final class GenerationPipeline {
             tb.outcome = .failedInstall
             tb.failureStage = .install
             tb.failureMessage = error.localizedDescription
+            restoreSourceBackup()
             saveTelemetry(tb)
             throw GenerationError.installFailed(error.localizedDescription)
         }
         tb.installEnd = Date()
 
-        // Persist generation log to AppSupport before returning
-        let tempLog = projectDir.appendingPathComponent("generation.log")
+        // Persist generation log
+        let genLog = projectDir.appendingPathComponent("generation.log")
         let logsDir = FoundryPaths.generationLogsDirectory
-        try? FileManager.default.createDirectory(at: logsDir, withIntermediateDirectories: true)
-        if FileManager.default.fileExists(atPath: tempLog.path) {
+        try? fm.createDirectory(at: logsDir, withIntermediateDirectories: true)
+        if fm.fileExists(atPath: genLog.path) {
             let destLog = FoundryPaths.generationLogFile(for: config.plugin.id)
-            // Overwrite previous log (refine replaces the last generation)
-            try? FileManager.default.removeItem(at: destLog)
-            try? FileManager.default.copyItem(at: tempLog, to: destLog)
+            try? fm.removeItem(at: destLog)
+            try? fm.copyItem(at: genLog, to: destLog)
         }
 
-        // Create new version
+        // Create new version — archive the modified build to a new version directory
         let versionNumber = config.plugin.nextVersionNumber
 
         // Finalize telemetry
@@ -618,6 +649,7 @@ final class GenerationPipeline {
         tb.outcome = .success
         saveTelemetry(tb)
 
+        // Archive: copy the in-place modified build to v<N+1>
         let archivedBuildDir: String?
         do {
             archivedBuildDir = try PluginManager.archiveBuild(
@@ -629,6 +661,9 @@ final class GenerationPipeline {
             print("[Pipeline] Failed to archive refine build: \(error)")
             archivedBuildDir = nil
         }
+
+        // Clean up Source backup — refine succeeded
+        try? fm.removeItem(at: sourceBackup)
 
         let newVersion = PluginVersion(
             id: UUID(),
@@ -662,9 +697,6 @@ final class GenerationPipeline {
         }
         versions.append(newVersion)
         updated.versions = versions
-
-        // Clean up the temp working directory
-        BuildDirectoryCleaner.cleanAfterInstall(projectDir)
 
         return updated
     }
@@ -793,6 +825,22 @@ final class GenerationPipeline {
         case .vst3: [.vst3]
         case .both: [.au, .vst3]
         }
+    }
+
+    /// Restore Source/ from backup after a cancelled or failed refine.
+    /// This undoes in-place modifications to the archived build directory.
+    private func restoreRefineBackup(for plugin: Plugin) {
+        guard let buildDir = plugin.buildDirectory else { return }
+        let dir = URL(fileURLWithPath: buildDir)
+        let sourceDir = dir.appendingPathComponent("Source")
+        let sourceBackup = dir.appendingPathComponent("Source.backup")
+        let cmakePath = dir.appendingPathComponent("CMakeLists.txt").path
+        let fm = FileManager.default
+        if fm.fileExists(atPath: sourceBackup.path) {
+            try? fm.removeItem(at: sourceDir)
+            try? fm.moveItem(at: sourceBackup, to: sourceDir)
+        }
+        try? fm.setAttributes([.immutable: false], ofItemAtPath: cmakePath)
     }
 
     private func isAIInfrastructureFailure(_ message: String?) -> Bool {

@@ -39,14 +39,16 @@ enum BuildLoop {
         }
     }
 
-    /// Build loop with no artificial attempt limit.
-    /// Exits on success or task cancellation — the compiler is the only judge.
+    /// Build loop. For generation: unlimited retries (the compiler is the only judge).
+    /// For refine: capped at `maxAttempts` to avoid long loops for small edits.
     static func run(
         projectDir: URL,
         agent: GenerationAgent = .claudeCode,
         model: AgentModel = ModelCatalog.defaultModel,
         callbacks: PipelineCallbacks,
         telemetry: TelemetryBuilder? = nil,
+        skipConfigure: Bool = false,
+        maxAttempts: Int? = nil,
         dependencies: Dependencies? = nil
     ) async throws {
         let dependencies = dependencies ?? .live(agent: agent, model: model)
@@ -57,10 +59,16 @@ enum BuildLoop {
             try Task.checkCancellation()
 
             attempt += 1
+
+            // Enforce attempt cap when set (refine flow)
+            if let max = maxAttempts, attempt > max {
+                throw GenerationError.buildFailed("Build failed after \(max) attempts: \(lastErrors)")
+            }
+
             await callbacks.onBuildAttempt(attempt)
             await telemetry?.startBuildAttempt()
 
-            let buildResult = try await dependencies.build(projectDir, attempt > 1)
+            let buildResult = try await dependencies.build(projectDir, skipConfigure || attempt > 1)
 
             if buildResult.success {
                 let smokeOK = await dependencies.smokeTest(projectDir)

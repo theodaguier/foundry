@@ -28,7 +28,7 @@ struct VersionHistoryView: View {
             Divider()
             versionList
         }
-        .frame(width: 440, height: 400)
+        .frame(width: 480, height: 420)
         .background(FoundryTheme.Colors.background)
         .alert("Restore failed", isPresented: Binding(
             get: { restoreError != nil },
@@ -65,13 +65,14 @@ struct VersionHistoryView: View {
                     .font(FoundryTheme.Fonts.azeretMono(11))
                     .tracking(1.5)
                     .foregroundStyle(.primary)
-                Text(plugin.name)
+                Text("\(plugin.name) · \(plugin.versions.count) versions")
                     .font(FoundryTheme.Fonts.azeretMono(10))
                     .foregroundStyle(FoundryTheme.Colors.textMuted)
             }
             Spacer()
             Button("Done") { dismiss() }
                 .buttonStyle(.borderedProminent)
+                .controlSize(.large)
                 .keyboardShortcut(.cancelAction)
         }
         .padding(16)
@@ -81,41 +82,43 @@ struct VersionHistoryView: View {
 
     private var versionList: some View {
         ScrollView {
-            LazyVStack(spacing: 0) {
+            LazyVStack(spacing: 1) {
                 ForEach(plugin.versions.sorted(by: { $0.versionNumber > $1.versionNumber })) { version in
-                    VStack(spacing: 0) {
-                        versionRow(version)
-                        Rectangle().fill(FoundryTheme.Colors.border).frame(height: 1)
-                    }
+                    versionRow(version)
                 }
             }
+            .padding(.vertical, 4)
         }
     }
 
     private func versionRow(_ version: PluginVersion) -> some View {
         HStack(spacing: 12) {
-            // Version badge
-            VStack(spacing: 2) {
+            // Version badge with type indicator
+            VStack(spacing: 4) {
                 Text("v\(version.versionNumber)")
-                    .font(FoundryTheme.Fonts.spaceGrotesk(16))
+                    .font(FoundryTheme.Fonts.spaceGrotesk(16, weight: version.isActive ? .semibold : .regular))
                     .foregroundStyle(version.isActive ? .primary : FoundryTheme.Colors.textSecondary)
-                if version.isActive {
-                    Text("ACTIVE")
-                        .font(FoundryTheme.Fonts.azeretMono(7))
-                        .tracking(1)
-                        .foregroundStyle(FoundryTheme.Colors.textMuted)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(FoundryTheme.Colors.border)
-                }
+
+                // Type tag
+                let isInitial = version.versionNumber == 1
+                Text(isInitial ? "CREATED" : "REFINED")
+                    .font(FoundryTheme.Fonts.azeretMono(7))
+                    .tracking(0.8)
+                    .foregroundStyle(isInitial ? .green.opacity(0.8) : .blue.opacity(0.8))
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1.5)
+                    .background(
+                        (isInitial ? Color.green : Color.blue).opacity(0.1),
+                        in: RoundedRectangle(cornerRadius: 3)
+                    )
             }
-            .frame(width: 56)
+            .frame(width: 60)
 
             // Details
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(version.prompt)
-                    .font(FoundryTheme.Fonts.azeretMono(10))
-                    .foregroundStyle(FoundryTheme.Colors.textSecondary)
+                    .font(FoundryTheme.Fonts.azeretMono(10.5))
+                    .foregroundStyle(version.isActive ? .primary : FoundryTheme.Colors.textSecondary)
                     .lineLimit(2)
 
                 HStack(spacing: 8) {
@@ -123,27 +126,46 @@ struct VersionHistoryView: View {
                         .font(FoundryTheme.Fonts.azeretMono(9))
                         .foregroundStyle(FoundryTheme.Colors.textFaint)
 
-                    if version.hasBuildCache {
-                        Image(systemName: "internaldrive")
-                            .font(.system(size: 8))
+                    if let agent = version.agent {
+                        Text(agent.rawValue)
+                            .font(FoundryTheme.Fonts.azeretMono(8))
                             .foregroundStyle(FoundryTheme.Colors.textFaint)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1)
+                            .background(FoundryTheme.Colors.border, in: RoundedRectangle(cornerRadius: 2))
+                    }
+
+                    if version.hasBuildCache {
+                        HStack(spacing: 2) {
+                            Image(systemName: "internaldrive")
+                                .font(.system(size: 7))
+                            Text("cached")
+                                .font(FoundryTheme.Fonts.azeretMono(8))
+                        }
+                        .foregroundStyle(FoundryTheme.Colors.textFaint)
                     }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            // Actions
+            // Status / Actions
             if version.isActive {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(FoundryTheme.Colors.textMuted)
-                    .font(.system(size: 14))
+                HStack(spacing: 4) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 12))
+                    Text("ACTIVE")
+                        .font(FoundryTheme.Fonts.azeretMono(8))
+                        .tracking(0.5)
+                }
+                .foregroundStyle(.green.opacity(0.8))
             } else {
                 Menu {
-                    Button("Restore", systemImage: "arrow.counterclockwise") {
+                    Button("Restore this version", systemImage: "arrow.counterclockwise") {
                         restoreVersion(version)
                     }
                     .disabled(!version.hasBuildCache)
                     if version.hasBuildCache {
+                        Divider()
                         Button("Clear build cache", systemImage: "trash", role: .destructive) {
                             versionToDelete = version
                         }
@@ -159,7 +181,13 @@ struct VersionHistoryView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
-        .background(version.isActive ? FoundryTheme.Colors.backgroundCard : .clear)
+        .background(
+            version.isActive
+                ? FoundryTheme.Colors.backgroundCard
+                : .clear
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .padding(.horizontal, 4)
     }
 
     // MARK: - Actions
