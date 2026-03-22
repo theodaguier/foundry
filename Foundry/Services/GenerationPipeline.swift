@@ -46,6 +46,11 @@ final class GenerationPipeline {
     private var silenceTask: Task<Void, Never>?
     private weak var appStateRef: AppState?
 
+    /// The telemetry builder for the current generation, accessible for the UI.
+    var lastTelemetryId: UUID?
+
+    private var telemetry: TelemetryBuilder?
+
     private func log(_ message: String, style: PipelineLogLine.Style = .normal) {
         let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
         // Skip empty messages and single-char JSON artifacts (], [, {, })
@@ -115,7 +120,11 @@ final class GenerationPipeline {
                 appState.finishBuild()
                 appState.push(.result(plugin: plugin))
             } catch is CancellationError {
-                // User cancelled — silent cleanup, no error screen
+                // User cancelled — save telemetry with cancelled outcome
+                if let tb = self.telemetry {
+                    tb.outcome = .cancelled
+                    self.saveTelemetry(tb)
+                }
                 self.stopSilenceWatcher()
                 self.isRunning = false
                 return
@@ -152,6 +161,10 @@ final class GenerationPipeline {
                 appState.finishBuild()
                 appState.push(.result(plugin: plugin))
             } catch is CancellationError {
+                if let tb = self.telemetry {
+                    tb.outcome = .cancelled
+                    self.saveTelemetry(tb)
+                }
                 self.stopSilenceWatcher()
                 self.isRunning = false
                 return
@@ -180,6 +193,19 @@ final class GenerationPipeline {
     // MARK: - Generate Pipeline
 
     private func execute(config: GenerationConfig) async throws -> Plugin {
+        // Initialize telemetry
+        let tb = TelemetryBuilder()
+        telemetry = tb
+        tb.agent = config.agent
+        tb.model = config.model.id
+        tb.originalPrompt = config.prompt
+        tb.pluginType = ProjectAssembler.inferPluginType(from: config.prompt)
+        tb.format = config.format
+        tb.channelLayout = config.channelLayout
+        tb.presetCount = config.presetCount.rawValue
+        tb.xcodeVersion = TelemetryService.detectXcodeVersion()
+        tb.agentCLIVersion = TelemetryService.detectAgentCLIVersion(agent: config.agent)
+
         setStep(.preparingProject)
 
         let existingNames = Set((appStateRef?.plugins ?? []).map(\.name))
@@ -194,6 +220,10 @@ final class GenerationPipeline {
         do {
             project = try ProjectAssembler.assemble(config: config, pluginName: pluginName)
         } catch {
+            tb.outcome = .failedGeneration
+            tb.failureStage = .assembly
+            tb.failureMessage = error.localizedDescription
+            saveTelemetry(tb)
             throw GenerationError.assemblyFailed(error.localizedDescription)
         }
 
@@ -202,6 +232,7 @@ final class GenerationPipeline {
         let callbacks = makeCallbacks()
 
         setStep(.generatingDSP)
+        tb.generationStart = Date()
 
         let pluginRole: String = switch project.pluginType {
         case .instrument: "playable instrument"
@@ -229,8 +260,14 @@ final class GenerationPipeline {
                 }
             }
         )
+        tb.generationEnd = Date()
+        if let usage = genResult.tokenUsage { tb.tokenUsage.add(usage) }
 
         if isAIInfrastructureFailure(genResult.error) {
+            tb.outcome = .failedGeneration
+            tb.failureStage = .generation
+            tb.failureMessage = genResult.error
+            saveTelemetry(tb)
             throw GenerationError.generationFailed(genResult.error ?? "Claude Code CLI is unavailable")
         }
 
@@ -241,6 +278,10 @@ final class GenerationPipeline {
         let editorExists = FileManager.default.fileExists(atPath: editorFile.path)
 
         if !processorExists || !editorExists {
+            tb.outcome = .failedGeneration
+            tb.failureStage = .generation
+            tb.failureMessage = "Claude did not create the required source files"
+            saveTelemetry(tb)
             throw GenerationError.generationFailed("Claude did not create the required source files")
         }
 
@@ -248,8 +289,9 @@ final class GenerationPipeline {
 
         // Phase 3: Audit pass — agent reviews its own code before build
         setStep(.generatingUI)
+        tb.auditStart = Date()
         log("── \(config.agent.rawValue) · \(config.model.displayName): Audit pass ──", style: .active)
-        let _ = await AgentResolver.audit(
+        let auditResult = await AgentResolver.audit(
             agent: config.agent,
             model: config.model,
             projectDir: project.directory,
@@ -261,16 +303,30 @@ final class GenerationPipeline {
                 }
             }
         )
+        tb.auditEnd = Date()
+        if let usage = auditResult.tokenUsage { tb.tokenUsage.add(usage) }
 
         try Task.checkCancellation()
 
         // Phase 4: Build loop — compiler is the only judge
         setStep(.compiling)
-        try await BuildLoop.run(projectDir: project.directory, agent: config.agent, model: config.model, callbacks: callbacks)
+        tb.buildStart = Date()
+        do {
+            try await BuildLoop.run(projectDir: project.directory, agent: config.agent, model: config.model, callbacks: callbacks, telemetry: tb)
+        } catch let error as GenerationError {
+            tb.buildEnd = Date()
+            tb.outcome = .failedBuild
+            tb.failureStage = .build
+            tb.failureMessage = error.localizedDescription
+            saveTelemetry(tb)
+            throw error
+        }
+        tb.buildEnd = Date()
 
         try Task.checkCancellation()
 
         setStep(.installing)
+        tb.installStart = Date()
 
         let formats = resolveFormats(config.format)
         let installPaths: Plugin.InstallPaths
@@ -281,12 +337,24 @@ final class GenerationPipeline {
                 formats: formats
             )
         } catch {
+            tb.installEnd = Date()
+            tb.outcome = .failedInstall
+            tb.failureStage = .install
+            tb.failureMessage = error.localizedDescription
+            saveTelemetry(tb)
             throw GenerationError.installFailed(error.localizedDescription)
         }
+        tb.installEnd = Date()
 
         let colors = ["#C8C4BC", "#A8B4A0", "#B0A898", "#9CAAB8", "#B8A8B0", "#A0A8B0"]
         let iconColor = colors.randomElement()!
         let pluginID = UUID()
+
+        // Finalize telemetry
+        tb.pluginId = pluginID
+        tb.versionNumber = 1
+        tb.outcome = .success
+        saveTelemetry(tb)
 
         // Archive build directory to versioned storage before cleanup
         let archivedBuildDir: String?
@@ -323,7 +391,8 @@ final class GenerationPipeline {
             iconColor: iconColor,
             isActive: true,
             agent: config.agent,
-            model: config.model
+            model: config.model,
+            telemetryId: tb.id
         )
 
         let plugin = Plugin(
@@ -352,13 +421,34 @@ final class GenerationPipeline {
     // MARK: - Refine Pipeline
 
     private func executeRefine(config: RefineConfig) async throws -> Plugin {
+        // Initialize telemetry
+        let tb = TelemetryBuilder()
+        telemetry = tb
+        let agent = config.plugin.agent ?? .claudeCode
+        let model = config.plugin.model ?? agent.defaultModel
+        tb.agent = agent
+        tb.model = model.id
+        tb.originalPrompt = config.modification
+        tb.pluginType = config.plugin.type
+        tb.format = config.plugin.formats.count > 1 ? .both : (config.plugin.formats.first == .au ? .au : .vst3)
+        tb.xcodeVersion = TelemetryService.detectXcodeVersion()
+        tb.agentCLIVersion = TelemetryService.detectAgentCLIVersion(agent: agent)
+
         guard let buildDir = config.plugin.buildDirectory else {
+            tb.outcome = .failedGeneration
+            tb.failureStage = .assembly
+            tb.failureMessage = "No build directory found"
+            saveTelemetry(tb)
             throw GenerationError.assemblyFailed("No build directory found - cannot refine this plugin")
         }
 
         let archivedDir = URL(fileURLWithPath: buildDir)
 
         guard FileManager.default.fileExists(atPath: buildDir) else {
+            tb.outcome = .failedGeneration
+            tb.failureStage = .assembly
+            tb.failureMessage = "Build directory no longer exists"
+            saveTelemetry(tb)
             throw GenerationError.assemblyFailed("Build directory no longer exists: \(buildDir)")
         }
 
@@ -368,6 +458,10 @@ final class GenerationPipeline {
         do {
             try FileManager.default.copyItem(at: archivedDir, to: projectDir)
         } catch {
+            tb.outcome = .failedGeneration
+            tb.failureStage = .assembly
+            tb.failureMessage = error.localizedDescription
+            saveTelemetry(tb)
             throw GenerationError.assemblyFailed("Failed to restore build for refining: \(error.localizedDescription)")
         }
 
@@ -381,15 +475,13 @@ final class GenerationPipeline {
         let callbacks = makeCallbacks()
 
         setStep(.generatingDSP)
+        tb.generationStart = Date()
 
         let pluginRole: String = switch config.plugin.type {
         case .instrument: "playable instrument"
         case .effect: "audio effect"
         case .utility: "utility or analysis tool"
         }
-        // Refine uses the same agent that built the plugin, or defaults to Claude Code
-        let agent = config.plugin.agent ?? .claudeCode
-        let model = config.plugin.model ?? agent.defaultModel
 
         let refinePrompt = """
         You are refining an existing, working JUCE \(pluginRole) plugin called "\(config.plugin.name)".
@@ -435,8 +527,14 @@ final class GenerationPipeline {
                 }
             }
         )
+        tb.generationEnd = Date()
+        if let usage = genResult.tokenUsage { tb.tokenUsage.add(usage) }
 
         if isAIInfrastructureFailure(genResult.error) {
+            tb.outcome = .failedGeneration
+            tb.failureStage = .generation
+            tb.failureMessage = genResult.error
+            saveTelemetry(tb)
             throw GenerationError.generationFailed(genResult.error ?? "Claude Code CLI is unavailable")
         }
 
@@ -444,6 +542,10 @@ final class GenerationPipeline {
             let processorFile = projectDir.appendingPathComponent("Source/PluginProcessor.cpp")
             let processorContent = (try? String(contentsOf: processorFile, encoding: .utf8)) ?? ""
             if processorContent.isEmpty {
+                tb.outcome = .failedGeneration
+                tb.failureStage = .generation
+                tb.failureMessage = genResult.error ?? "Claude did not modify the code"
+                saveTelemetry(tb)
                 throw GenerationError.generationFailed(genResult.error ?? "Claude did not modify the code")
             }
         }
@@ -457,11 +559,23 @@ final class GenerationPipeline {
         )
 
         setStep(.compiling)
-        try await BuildLoop.run(projectDir: projectDir, agent: agent, model: model, callbacks: callbacks)
+        tb.buildStart = Date()
+        do {
+            try await BuildLoop.run(projectDir: projectDir, agent: agent, model: model, callbacks: callbacks, telemetry: tb)
+        } catch let error as GenerationError {
+            tb.buildEnd = Date()
+            tb.outcome = .failedBuild
+            tb.failureStage = .build
+            tb.failureMessage = error.localizedDescription
+            saveTelemetry(tb)
+            throw error
+        }
+        tb.buildEnd = Date()
 
         try Task.checkCancellation()
 
         setStep(.installing)
+        tb.installStart = Date()
 
         // Uninstall old version first to prevent conflicts
         try? PluginManager.uninstallPlugin(config.plugin)
@@ -475,8 +589,14 @@ final class GenerationPipeline {
                 formats: formats
             )
         } catch {
+            tb.installEnd = Date()
+            tb.outcome = .failedInstall
+            tb.failureStage = .install
+            tb.failureMessage = error.localizedDescription
+            saveTelemetry(tb)
             throw GenerationError.installFailed(error.localizedDescription)
         }
+        tb.installEnd = Date()
 
         // Persist generation log to AppSupport before returning
         let tempLog = projectDir.appendingPathComponent("generation.log")
@@ -491,6 +611,13 @@ final class GenerationPipeline {
 
         // Create new version
         let versionNumber = config.plugin.nextVersionNumber
+
+        // Finalize telemetry
+        tb.pluginId = config.plugin.id
+        tb.versionNumber = versionNumber
+        tb.outcome = .success
+        saveTelemetry(tb)
+
         let archivedBuildDir: String?
         do {
             archivedBuildDir = try PluginManager.archiveBuild(
@@ -514,7 +641,8 @@ final class GenerationPipeline {
             iconColor: config.plugin.iconColor,
             isActive: true,
             agent: agent,
-            model: model
+            model: model,
+            telemetryId: tb.id
         )
 
         // Return updated plugin, preserving identity
@@ -651,6 +779,12 @@ final class GenerationPipeline {
                 log("Agent run ended with errors", style: .active)
             }
         }
+    }
+
+    private func saveTelemetry(_ tb: TelemetryBuilder) {
+        let record = tb.build()
+        lastTelemetryId = record.id
+        TelemetryService.save(record)
     }
 
     private func resolveFormats(_ option: FormatOption) -> [PluginFormat] {

@@ -59,13 +59,15 @@ struct ResultView: View {
             }
 
             VStack(alignment: .leading, spacing: 3) {
-                Text("\(plugin.type.displayName) · \(plugin.formats.map(\.rawValue).joined(separator: " / "))")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Text(plugin.type.displayName.uppercased() + " · " + plugin.formats.map(\.rawValue).joined(separator: " / "))
+                    .font(FoundryTheme.Fonts.azeretMono(9))
+                    .tracking(1.2)
+                    .foregroundStyle(FoundryTheme.Colors.textSecondary)
 
-                Text(plugin.name)
-                    .font(.title)
-                    .fontWeight(.bold)
+                Text(plugin.name.uppercased())
+                    .font(FoundryTheme.Fonts.spaceGrotesk(32))
+                    .tracking(1)
+                    .foregroundStyle(.primary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
             }
@@ -129,15 +131,16 @@ private struct ResultInfoRow: View {
     let value: String
 
     var body: some View {
-        HStack(alignment: .top, spacing: 16) {
-            Text(label)
-                .font(.caption)
-                .foregroundStyle(.tertiary)
+        HStack(alignment: .top, spacing: FoundryTheme.Spacing.lg) {
+            Text(label.uppercased())
+                .font(FoundryTheme.Fonts.azeretMono(9))
+                .tracking(1.2)
+                .foregroundStyle(FoundryTheme.Colors.textMuted)
                 .frame(width: 72, alignment: .leading)
 
             Text(value)
-                .font(.system(.body, design: .monospaced))
-                .foregroundStyle(.secondary)
+                .font(FoundryTheme.Fonts.azeretMono(11))
+                .foregroundStyle(FoundryTheme.Colors.textSecondary)
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)

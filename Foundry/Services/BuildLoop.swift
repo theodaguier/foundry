@@ -46,6 +46,7 @@ enum BuildLoop {
         agent: GenerationAgent = .claudeCode,
         model: AgentModel = ModelCatalog.defaultModel,
         callbacks: PipelineCallbacks,
+        telemetry: TelemetryBuilder? = nil,
         dependencies: Dependencies? = nil
     ) async throws {
         let dependencies = dependencies ?? .live(agent: agent, model: model)
@@ -57,27 +58,33 @@ enum BuildLoop {
 
             attempt += 1
             await callbacks.onBuildAttempt(attempt)
+            await telemetry?.startBuildAttempt()
 
             let buildResult = try await dependencies.build(projectDir, attempt > 1)
 
             if buildResult.success {
                 let smokeOK = await dependencies.smokeTest(projectDir)
                 if smokeOK {
+                    await telemetry?.endBuildAttempt(number: attempt, success: true, errors: nil)
                     return // success — done
                 }
 
                 // Smoke test failed — fix and retry
                 lastErrors = "Build succeeded but smoke test failed: plugin bundles are missing or invalid in the build output."
+                await telemetry?.endBuildAttempt(number: attempt, success: false, errors: lastErrors)
                 await callbacks.onStepChange(.generatingDSP)
+                await telemetry?.startFixPass()
                 await dependencies.fix(lastErrors, projectDir, attempt, callbacks)
                 await callbacks.onStepChange(.compiling)
                 continue
             }
 
             lastErrors = buildResult.errors
+            await telemetry?.endBuildAttempt(number: attempt, success: false, errors: lastErrors)
 
             // Build failed — fix and retry
             await callbacks.onStepChange(.generatingDSP)
+            await telemetry?.startFixPass()
             await dependencies.fix(buildResult.errors, projectDir, attempt, callbacks)
             await callbacks.onStepChange(.compiling)
         }

@@ -165,13 +165,13 @@ struct RefineConfig: Hashable {
     var modification: String
 }
 
-enum FormatOption: String, CaseIterable, Hashable {
+enum FormatOption: String, CaseIterable, Hashable, Codable {
     case au = "AU"
     case vst3 = "VST3"
     case both = "Both"
 }
 
-enum ChannelLayout: String, CaseIterable, Hashable {
+enum ChannelLayout: String, CaseIterable, Hashable, Codable {
     case mono = "Mono"
     case stereo = "Stereo"
 }

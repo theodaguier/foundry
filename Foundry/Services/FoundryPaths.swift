@@ -39,6 +39,12 @@ enum FoundryPaths {
         generationLogsDirectory.appendingPathComponent("\(pluginID.uuidString).log")
     }
 
+    // MARK: - Telemetry
+
+    static var telemetryDirectory: URL {
+        applicationSupportDirectory.appendingPathComponent("telemetry", isDirectory: true)
+    }
+
     // MARK: - Versioned builds
 
     static var buildsDirectory: URL {

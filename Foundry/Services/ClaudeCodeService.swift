@@ -6,7 +6,7 @@ enum ClaudeCodeService {
         case toolUse(tool: String, filePath: String?, detail: String?)
         case toolResult(tool: String, output: String)
         case text(String)
-        case result(success: Bool)
+        case result(success: Bool, tokenUsage: TokenUsage?)
         case error(String)
     }
 
@@ -14,6 +14,7 @@ enum ClaudeCodeService {
         var success: Bool
         var output: String
         var error: String?
+        var tokenUsage: TokenUsage?
     }
 
     /// 15-minute watchdog — safety net for silent crashes, not a functional timeout.
@@ -53,6 +54,7 @@ enum ClaudeCodeService {
 
         let outputCollector = StreamCollector()
         let errorCollector = StreamCollector()
+        let usageCollector = TokenUsageCollector()
 
         // Drain pipes continuously to avoid buffer deadlock
         stdoutPipe.fileHandleForReading.readabilityHandler = { handle in
@@ -65,6 +67,9 @@ enum ClaudeCodeService {
                 outputCollector.append(text)
                 for line in text.components(separatedBy: .newlines) {
                     for event in parseEvents(line) {
+                        if case .result(_, let tokenUsage) = event, let tokenUsage {
+                            usageCollector.set(tokenUsage)
+                        }
                         onEvent(event)
                     }
                 }
@@ -141,7 +146,7 @@ enum ClaudeCodeService {
         if timedOut {
             onEvent(.error("Process killed by 15-minute watchdog"))
         }
-        onEvent(.result(success: exitCode == 0))
+        onEvent(.result(success: exitCode == 0, tokenUsage: usageCollector.usage))
 
         return RunResult(
             success: exitCode == 0,
@@ -150,7 +155,8 @@ enum ClaudeCodeService {
                 ? "Process killed by 15-minute watchdog"
                 : stderrOutput.isEmpty
                     ? "Claude Code exited with code \(exitCode)"
-                    : stderrOutput
+                    : stderrOutput,
+            tokenUsage: usageCollector.usage
         )
     }
 
@@ -380,7 +386,17 @@ enum ClaudeCodeService {
             if let cost = json["total_cost_usd"] as? Double, let turns = json["num_turns"] as? Int {
                 events.append(.text(String(format: "Done — %d turns, $%.4f", turns, cost)))
             }
-            events.append(.result(success: !isError))
+            // Extract token usage from result event
+            var usage: TokenUsage?
+            if let usageDict = json["usage"] as? [String: Any] {
+                var t = TokenUsage()
+                t.inputTokens = usageDict["input_tokens"] as? Int ?? 0
+                t.outputTokens = usageDict["output_tokens"] as? Int ?? 0
+                t.cacheReadTokens = usageDict["cache_read_input_tokens"] as? Int ?? 0
+                t.cacheWriteTokens = usageDict["cache_creation_input_tokens"] as? Int ?? 0
+                usage = t
+            }
+            events.append(.result(success: !isError, tokenUsage: usage))
 
         default:
             break
@@ -439,7 +455,7 @@ extension ClaudeCodeService {
             return .toolResult(tool: tool, output: output)
         case .text(let t):
             return .text(t)
-        case .result(let success):
+        case .result(let success, _):
             return .result(success: success)
         case .error(let msg):
             return .error(msg)
@@ -447,7 +463,7 @@ extension ClaudeCodeService {
     }
 
     private static func bridgeResult(_ r: RunResult) -> AgentRunResult {
-        AgentRunResult(success: r.success, output: r.output, error: r.error)
+        AgentRunResult(success: r.success, output: r.output, error: r.error, tokenUsage: r.tokenUsage)
     }
 
     static func agentRun(
@@ -478,6 +494,25 @@ extension ClaudeCodeService {
         onEvent: @escaping @Sendable (AgentEvent) -> Void
     ) async -> AgentRunResult {
         bridgeResult(await audit(projectDir: projectDir, userIntent: userIntent, pluginType: pluginType, model: model) { onEvent(bridgeEvent($0)) })
+    }
+}
+
+// MARK: - Thread-safe token usage collector
+
+private final class TokenUsageCollector: @unchecked Sendable {
+    private var _usage: TokenUsage?
+    private let lock = NSLock()
+
+    func set(_ tokenUsage: TokenUsage) {
+        lock.lock()
+        _usage = tokenUsage
+        lock.unlock()
+    }
+
+    var usage: TokenUsage? {
+        lock.lock()
+        defer { lock.unlock() }
+        return _usage
     }
 }
 

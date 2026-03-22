@@ -15,6 +15,7 @@ struct PluginVersion: Identifiable, Codable, Hashable {
     var isActive: Bool
     var agent: GenerationAgent?
     var model: AgentModel?
+    var telemetryId: UUID?
 
     /// Whether the archived build directory still exists on disk.
     var hasBuildCache: Bool {
