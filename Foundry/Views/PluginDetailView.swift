@@ -22,6 +22,7 @@ struct PluginDetailView: View {
     @State private var logoTask: Task<Void, Never>?
     @State private var logoError: String?
     @State private var showingVersionHistory = false
+    @State private var showingTelemetry = false
 
     init(plugin: Plugin, onAction: ((PluginDetailAction) -> Void)? = nil) {
         self.pluginID = plugin.id
@@ -52,6 +53,12 @@ struct PluginDetailView: View {
                 onAction?(.restoreVersion(version))
             }
             .environment(appState)
+        }
+        .sheet(isPresented: $showingTelemetry) {
+            if let telemetryId = plugin.activeVersion?.telemetryId,
+               let record = TelemetryService.load(id: telemetryId) {
+                TelemetryDetailView(telemetry: record)
+            }
         }
         .overlay {
             if let logoProgress {
@@ -206,6 +213,12 @@ struct PluginDetailView: View {
                     startLogoGeneration()
                 }
                 .disabled(logoTask != nil)
+                if let telemetryId = plugin.activeVersion?.telemetryId,
+                   TelemetryService.load(id: telemetryId) != nil {
+                    Button("Generation Details", systemImage: "chart.bar.doc.horizontal") {
+                        showingTelemetry = true
+                    }
+                }
                 if plugin.generationLogPath != nil {
                     Button("View Logs", systemImage: "doc.text") {
                         if let path = plugin.generationLogPath {

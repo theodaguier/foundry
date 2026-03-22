@@ -16,6 +16,7 @@ struct AgentRunResult: Sendable {
     var success: Bool
     var output: String
     var error: String?
+    var tokenUsage: TokenUsage?
 }
 
 // MARK: - Agent resolver
