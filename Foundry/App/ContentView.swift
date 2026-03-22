@@ -83,6 +83,12 @@ struct ContentView: View {
         .task {
             await appState.refreshSetupState()
         }
+        .task {
+            // Refresh model catalog from provider APIs if cache is stale (>24h)
+            if ModelCatalog.isStale {
+                await ModelCatalog.refresh()
+            }
+        }
     }
 }
 

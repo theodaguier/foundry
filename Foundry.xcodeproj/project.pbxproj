@@ -7,30 +7,33 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		002D547220BC83698444EC17 /* GenerationTelemetry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25D3992DEE7FB3DC7BF2395C /* GenerationTelemetry.swift */; };
 		01F37677E449EE3F4DEBE142 /* CustomShapes.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0C2EFB36179BED2E4B7ED28 /* CustomShapes.swift */; };
 		07CDA240F28CA4F534693A2A /* RefineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7B720FD5B7CCC0031786F1D /* RefineView.swift */; };
 		0999688336F8F3F19BC9758A /* WindowChromeBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D722796F5D831D535D6A65D /* WindowChromeBar.swift */; };
 		12591BEA5F2CEE1399BC0267 /* BuildDirectoryCleaner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 351A8ADCEE3C0DCA8827570F /* BuildDirectoryCleaner.swift */; };
+		1274B57234092BA07D2E714C /* ModelCatalogService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F78EEA86FF4939036D92259 /* ModelCatalogService.swift */; };
+		212619F0B75C748513A3F9C1 /* AgentService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DD4A9C0AFDFCB1D7AF626A1 /* AgentService.swift */; };
 		23D67101A4F2137DD885B032 /* DependencyChecker.swift in Sources */ = {isa = PBXBuildFile; fileRef = B69E79AA8740BF14CDC02F3E /* DependencyChecker.swift */; };
 		26345C80184373AE25B3E2B9 /* AbstractArtwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28DAFA1AA9AB66909EB0D0B8 /* AbstractArtwork.swift */; };
 		28D3A8EA6152BD5E3B3656FE /* StableDiffusion in Frameworks */ = {isa = PBXBuildFile; productRef = 078D7B01F8D516A260C47C7D /* StableDiffusion */; };
+		298C5721BE1EE3F9E8AEDC67 /* VersionHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B18B7E1392718AF76AF27336 /* VersionHistoryView.swift */; };
 		2F9FCED647AE1F3260B3AE3E /* ClaudeCodeService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAA4AA1400D0A8005F16FC9D /* ClaudeCodeService.swift */; };
 		301815F14418B44F12D68E6E /* ProjectAssembler.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3FB52A3FEB7D539EBDFF7FD /* ProjectAssembler.swift */; };
 		35EDBA20A32AE39CA31D493F /* FoundryApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 062329561A5C9490BE3CADA5 /* FoundryApp.swift */; };
 		393A7A9567D8321B5D64581D /* PluginCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D573C52800A8C21F640C8EC /* PluginCard.swift */; };
 		3AE99668365C08959FB76B1F /* PluginLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9861DA9A7D015E767E7908D5 /* PluginLibraryView.swift */; };
 		46F97EDD013A980C36506FC2 /* SetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11F0B8ACE372F6DC5016FB8C /* SetupView.swift */; };
-		4E1DA6C3108AF3C826F9410F /* TelemetryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 985AE5B32C0E53D915A733AC /* TelemetryService.swift */; };
+		480103BF23A5909D7E4ECA8A /* CodexService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 287CF27D271299B7FA1000EE /* CodexService.swift */; };
 		53E7A205686C925E02E73CBF /* ClaudeCodeServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25793F22A5B128B5AF28080D /* ClaudeCodeServiceTests.swift */; };
-		5565F156EBD5A5F2FE97CFCD /* TelemetryDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 091EEB505C3B35A6D6EA32C6 /* TelemetryDetailView.swift */; };
 		5C1CFA77E9C4E3D9AB009A51 /* FoundryPaths.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1040BD9D4DE4D2A55075D593 /* FoundryPaths.swift */; };
 		60935EA2D941E98946B69044 /* ArchitypeStedelijkW00.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 25DB3CF91BD315DAC65C67B2 /* ArchitypeStedelijkW00.ttf */; };
 		618695CF77938A4C12B11984 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 272AA57049A5DC372AA93659 /* Assets.xcassets */; };
 		61EFEEF4BAE0BA15883F8DA2 /* WelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF7904717B748692AD11E195 /* WelcomeView.swift */; };
+		63B2FD1F9E4C69DFE1A40CC7 /* GenerationTelemetry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 436FAFE33B7B45913159EEC7 /* GenerationTelemetry.swift */; };
 		6B3E282F16EC3EEFC14DA240 /* TerminalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDFFCFF53441CB9A66D851F4 /* TerminalView.swift */; };
 		6D6AEFE51B6FDC1DFB20C16F /* GenerationPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C1774C2EE1F0C15BF39B1E7 /* GenerationPipeline.swift */; };
 		7256639E17819BF99D5BAA78 /* DependencyListModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B757385330BAAD1CC592BB96 /* DependencyListModel.swift */; };
+		7659D1FBB589830A1173D3A8 /* models.json in Resources */ = {isa = PBXBuildFile; fileRef = 0E717FD4CE6F3AF22A2BB17B /* models.json */; };
 		8502215EAB71ADC5A00BED70 /* ResultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB4CE5638194D3E319878858 /* ResultView.swift */; };
 		857D4926F8E12953F12CF62E /* FontLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F5C7F2EC4F5187C6C359DF1 /* FontLoader.swift */; };
 		85E92584F8FCD2C8C131CA3E /* ProfileToolbarButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67FBF6C39F67F56942308312 /* ProfileToolbarButton.swift */; };
@@ -41,13 +44,11 @@
 		926D11D3E503F228CFDA9D87 /* Auth in Frameworks */ = {isa = PBXBuildFile; productRef = 14718A2156B7E64A3F2BD01C /* Auth */; };
 		9489D3CFDF2D5DD10C7F5012 /* FoundryStatusBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98D6DE81D324C92DD7EDA5A5 /* FoundryStatusBar.swift */; };
 		95B493EB4569AFD395E1D89E /* PromptContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3924307C09E0DCD615023608 /* PromptContractTests.swift */; };
+		98344475A0303159340069E0 /* TelemetryDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20497B0BE750A6A28C4C3279 /* TelemetryDetailView.swift */; };
 		9BABB46CC5D63214A68CDB54 /* ErrorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 412BC7CF60DC740C3DE4DFB1 /* ErrorView.swift */; };
 		9DFDEA818E8C4F10CD83C6E9 /* BuildLoop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59721C7CB1B123A16D085022 /* BuildLoop.swift */; };
 		9F7FFC3FE7AF26DDF03947B5 /* AccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAAE3C84062FF54693756C36 /* AccountView.swift */; };
 		A1265A86DB463593D54DE32F /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87DAC6800229A279E461E577 /* AppState.swift */; };
-		A1B2C3D4E5F60718293A4B5C /* AgentService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B5D /* AgentService.swift */; };
-		A1B2C3D4E5F60718293A4B5E /* CodexService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B5F /* CodexService.swift */; };
-		A1B2C3D4E5F60718293A4B60 /* models.json in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B61 /* models.json */; };
 		A4DB172E18D8D94CEF49D4B1 /* FoundryTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50087A0398BC8F1AACA91041 /* FoundryTheme.swift */; };
 		A944A4D0305412243F43C75B /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 782AB7F195D49E942815B984 /* ContentView.swift */; };
 		AB389D3D990A3C56632F6B0C /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = B01021D321A0E32551D2CB04 /* Supabase */; };
@@ -56,6 +57,7 @@
 		B5AECFBA5D81C85A106B4466 /* UserProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE0EC88CC891B12B83FEC0A3 /* UserProfile.swift */; };
 		B5F2D7D605AF8A718025987B /* PluginDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3EE70BE829D987076CBC625 /* PluginDetailView.swift */; };
 		BC01B2917C2EC63721AB4FBB /* BadgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B93FC59B6720FF8F28735600 /* BadgeView.swift */; };
+		BCDA374FF68C10C6DC5B4C16 /* TelemetryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE397E1494EE7537A62BE20B /* TelemetryService.swift */; };
 		C20595A79857CCEA7F4B232B /* PluginManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 719F23E3AE94C69D68B3847B /* PluginManager.swift */; };
 		CB4E222D4684ECCB9453B609 /* PluginArtworkView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA3D84E0F9B66518AA9B05F8 /* PluginArtworkView.swift */; };
 		D3CFF3BB8CB2AA0D1C23CAFA /* QuickOptionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD63B0B69B661DD62739C874 /* QuickOptionsView.swift */; };
@@ -66,7 +68,6 @@
 		E9B4B7650C26B7875EDF66F5 /* PluginLogoService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86B86FC5AD40A7F02F1CC6DD /* PluginLogoService.swift */; };
 		EDA5F60E033219075F235313 /* AuthContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36300BCF7B25B1084721B00E /* AuthContainerView.swift */; };
 		F1162DD1E8734992B4A40F3A /* AuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C1E252BC980C1F831A796D3 /* AuthService.swift */; };
-		F41A2B3C8D7E5F9012345678 /* VersionHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F41A2B3C8D7E5F9087654321 /* VersionHistoryView.swift */; };
 		F5792873BBD9760CE5F175CD /* BuildRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38B4DABF3C7AF6853CB160E3 /* BuildRunner.swift */; };
 		FF2CD908198CBA2E80A3013D /* GenerationProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AABD14C81BD24623C0607BB /* GenerationProgressView.swift */; };
 /* End PBXBuildFile section */
@@ -83,16 +84,18 @@
 
 /* Begin PBXFileReference section */
 		062329561A5C9490BE3CADA5 /* FoundryApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoundryApp.swift; sourceTree = "<group>"; };
-		091EEB505C3B35A6D6EA32C6 /* TelemetryDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TelemetryDetailView.swift; sourceTree = "<group>"; };
 		0D722796F5D831D535D6A65D /* WindowChromeBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowChromeBar.swift; sourceTree = "<group>"; };
+		0E717FD4CE6F3AF22A2BB17B /* models.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = models.json; sourceTree = "<group>"; };
 		1040BD9D4DE4D2A55075D593 /* FoundryPaths.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoundryPaths.swift; sourceTree = "<group>"; };
 		11F0B8ACE372F6DC5016FB8C /* SetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupView.swift; sourceTree = "<group>"; };
 		1D573C52800A8C21F640C8EC /* PluginCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginCard.swift; sourceTree = "<group>"; };
+		1F78EEA86FF4939036D92259 /* ModelCatalogService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelCatalogService.swift; sourceTree = "<group>"; };
 		2036784D50E37D2544AB8FE9 /* FoundryConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoundryConfig.swift; sourceTree = "<group>"; };
+		20497B0BE750A6A28C4C3279 /* TelemetryDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetryDetailView.swift; sourceTree = "<group>"; };
 		25793F22A5B128B5AF28080D /* ClaudeCodeServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeCodeServiceTests.swift; sourceTree = "<group>"; };
-		25D3992DEE7FB3DC7BF2395C /* GenerationTelemetry.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GenerationTelemetry.swift; sourceTree = "<group>"; };
 		25DB3CF91BD315DAC65C67B2 /* ArchitypeStedelijkW00.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = ArchitypeStedelijkW00.ttf; sourceTree = "<group>"; };
 		272AA57049A5DC372AA93659 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		287CF27D271299B7FA1000EE /* CodexService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexService.swift; sourceTree = "<group>"; };
 		28DAFA1AA9AB66909EB0D0B8 /* AbstractArtwork.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AbstractArtwork.swift; sourceTree = "<group>"; };
 		2B4EF4CA927624959E2563C5 /* Foundry.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Foundry.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		351A8ADCEE3C0DCA8827570F /* BuildDirectoryCleaner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildDirectoryCleaner.swift; sourceTree = "<group>"; };
@@ -101,6 +104,8 @@
 		3924307C09E0DCD615023608 /* PromptContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptContractTests.swift; sourceTree = "<group>"; };
 		3AABD14C81BD24623C0607BB /* GenerationProgressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GenerationProgressView.swift; sourceTree = "<group>"; };
 		412BC7CF60DC740C3DE4DFB1 /* ErrorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorView.swift; sourceTree = "<group>"; };
+		436FAFE33B7B45913159EEC7 /* GenerationTelemetry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GenerationTelemetry.swift; sourceTree = "<group>"; };
+		4DD4A9C0AFDFCB1D7AF626A1 /* AgentService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentService.swift; sourceTree = "<group>"; };
 		50087A0398BC8F1AACA91041 /* FoundryTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoundryTheme.swift; sourceTree = "<group>"; };
 		515C8F264CF27EAF3CAD8EE9 /* FoundryTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FoundryTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		57B605714B9F34F6DF7C8931 /* PluginBundleInspector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginBundleInspector.swift; sourceTree = "<group>"; };
@@ -117,14 +122,11 @@
 		7F5C7F2EC4F5187C6C359DF1 /* FontLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FontLoader.swift; sourceTree = "<group>"; };
 		86B86FC5AD40A7F02F1CC6DD /* PluginLogoService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginLogoService.swift; sourceTree = "<group>"; };
 		87DAC6800229A279E461E577 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
-		985AE5B32C0E53D915A733AC /* TelemetryService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TelemetryService.swift; sourceTree = "<group>"; };
 		9861DA9A7D015E767E7908D5 /* PluginLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginLibraryView.swift; sourceTree = "<group>"; };
 		98D6DE81D324C92DD7EDA5A5 /* FoundryStatusBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoundryStatusBar.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F60718293A4B5D /* AgentService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentService.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F60718293A4B5F /* CodexService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexService.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F60718293A4B61 /* models.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = models.json; sourceTree = "<group>"; };
 		AA3D84E0F9B66518AA9B05F8 /* PluginArtworkView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginArtworkView.swift; sourceTree = "<group>"; };
 		AECCCCB996D860783459DD1D /* AzeretMono.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = AzeretMono.ttf; sourceTree = "<group>"; };
+		B18B7E1392718AF76AF27336 /* VersionHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VersionHistoryView.swift; sourceTree = "<group>"; };
 		B69E79AA8740BF14CDC02F3E /* DependencyChecker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DependencyChecker.swift; sourceTree = "<group>"; };
 		B757385330BAAD1CC592BB96 /* DependencyListModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DependencyListModel.swift; sourceTree = "<group>"; };
 		B7B720FD5B7CCC0031786F1D /* RefineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefineView.swift; sourceTree = "<group>"; };
@@ -138,10 +140,10 @@
 		C806DCDABFBFF5C60F776E68 /* Plugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Plugin.swift; sourceTree = "<group>"; };
 		CF7904717B748692AD11E195 /* WelcomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeView.swift; sourceTree = "<group>"; };
 		DD63B0B69B661DD62739C874 /* QuickOptionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickOptionsView.swift; sourceTree = "<group>"; };
+		DE397E1494EE7537A62BE20B /* TelemetryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetryService.swift; sourceTree = "<group>"; };
 		EAAE3C84062FF54693756C36 /* AccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountView.swift; sourceTree = "<group>"; };
 		EDFFCFF53441CB9A66D851F4 /* TerminalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalView.swift; sourceTree = "<group>"; };
 		EE0EC88CC891B12B83FEC0A3 /* UserProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserProfile.swift; sourceTree = "<group>"; };
-		F41A2B3C8D7E5F9087654321 /* VersionHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VersionHistoryView.swift; sourceTree = "<group>"; };
 		F75004640D40807A6FE43589 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -215,7 +217,6 @@
 				412BC7CF60DC740C3DE4DFB1 /* ErrorView.swift */,
 				3AABD14C81BD24623C0607BB /* GenerationProgressView.swift */,
 				C3EE70BE829D987076CBC625 /* PluginDetailView.swift */,
-				F41A2B3C8D7E5F9087654321 /* VersionHistoryView.swift */,
 				9861DA9A7D015E767E7908D5 /* PluginLibraryView.swift */,
 				BB69D6CB5EE2903F1755F2BD /* PromptView.swift */,
 				DD63B0B69B661DD62739C874 /* QuickOptionsView.swift */,
@@ -223,9 +224,10 @@
 				BB4CE5638194D3E319878858 /* ResultView.swift */,
 				F75004640D40807A6FE43589 /* SettingsView.swift */,
 				11F0B8ACE372F6DC5016FB8C /* SetupView.swift */,
+				20497B0BE750A6A28C4C3279 /* TelemetryDetailView.swift */,
+				B18B7E1392718AF76AF27336 /* VersionHistoryView.swift */,
 				CF7904717B748692AD11E195 /* WelcomeView.swift */,
 				5FB26B4D01B527288C684991 /* Auth */,
-				091EEB505C3B35A6D6EA32C6 /* TelemetryDetailView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -265,22 +267,23 @@
 		AF6AAB9DD2AED4A73CF86AFE /* Services */ = {
 			isa = PBXGroup;
 			children = (
-				A1B2C3D4E5F60718293A4B5D /* AgentService.swift */,
+				4DD4A9C0AFDFCB1D7AF626A1 /* AgentService.swift */,
 				5C1E252BC980C1F831A796D3 /* AuthService.swift */,
 				351A8ADCEE3C0DCA8827570F /* BuildDirectoryCleaner.swift */,
 				59721C7CB1B123A16D085022 /* BuildLoop.swift */,
 				38B4DABF3C7AF6853CB160E3 /* BuildRunner.swift */,
 				BAA4AA1400D0A8005F16FC9D /* ClaudeCodeService.swift */,
-				A1B2C3D4E5F60718293A4B5F /* CodexService.swift */,
+				287CF27D271299B7FA1000EE /* CodexService.swift */,
 				B69E79AA8740BF14CDC02F3E /* DependencyChecker.swift */,
 				2036784D50E37D2544AB8FE9 /* FoundryConfig.swift */,
 				1040BD9D4DE4D2A55075D593 /* FoundryPaths.swift */,
 				7C1774C2EE1F0C15BF39B1E7 /* GenerationPipeline.swift */,
+				1F78EEA86FF4939036D92259 /* ModelCatalogService.swift */,
 				57B605714B9F34F6DF7C8931 /* PluginBundleInspector.swift */,
 				86B86FC5AD40A7F02F1CC6DD /* PluginLogoService.swift */,
 				719F23E3AE94C69D68B3847B /* PluginManager.swift */,
 				C3FB52A3FEB7D539EBDFF7FD /* ProjectAssembler.swift */,
-				985AE5B32C0E53D915A733AC /* TelemetryService.swift */,
+				DE397E1494EE7537A62BE20B /* TelemetryService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -298,9 +301,9 @@
 			isa = PBXGroup;
 			children = (
 				87DAC6800229A279E461E577 /* AppState.swift */,
+				436FAFE33B7B45913159EEC7 /* GenerationTelemetry.swift */,
 				C806DCDABFBFF5C60F776E68 /* Plugin.swift */,
 				EE0EC88CC891B12B83FEC0A3 /* UserProfile.swift */,
-				25D3992DEE7FB3DC7BF2395C /* GenerationTelemetry.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -308,8 +311,8 @@
 		D701F84C97BEE361E011ED31 /* Resources */ = {
 			isa = PBXGroup;
 			children = (
+				0E717FD4CE6F3AF22A2BB17B /* models.json */,
 				5A0AFCEFB418CA9E17553857 /* Fonts */,
-				A1B2C3D4E5F60718293A4B61 /* models.json */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -329,6 +332,8 @@
 				2FC50BC43CE697B726B11902 /* PBXTargetDependency */,
 			);
 			name = FoundryTests;
+			packageProductDependencies = (
+			);
 			productName = FoundryTests;
 			productReference = 515C8F264CF27EAF3CAD8EE9 /* FoundryTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
@@ -398,7 +403,7 @@
 				60935EA2D941E98946B69044 /* ArchitypeStedelijkW00.ttf in Resources */,
 				618695CF77938A4C12B11984 /* Assets.xcassets in Resources */,
 				E531035A872637ADB356E97C /* AzeretMono.ttf in Resources */,
-				A1B2C3D4E5F60718293A4B60 /* models.json in Resources */,
+				7659D1FBB589830A1173D3A8 /* models.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -411,6 +416,7 @@
 			files = (
 				26345C80184373AE25B3E2B9 /* AbstractArtwork.swift in Sources */,
 				9F7FFC3FE7AF26DDF03947B5 /* AccountView.swift in Sources */,
+				212619F0B75C748513A3F9C1 /* AgentService.swift in Sources */,
 				A1265A86DB463593D54DE32F /* AppState.swift in Sources */,
 				EDA5F60E033219075F235313 /* AuthContainerView.swift in Sources */,
 				F1162DD1E8734992B4A40F3A /* AuthService.swift in Sources */,
@@ -420,9 +426,8 @@
 				9DFDEA818E8C4F10CD83C6E9 /* BuildLoop.swift in Sources */,
 				8C82C9C9AD6384EF67E6ECAC /* BuildQueueView.swift in Sources */,
 				F5792873BBD9760CE5F175CD /* BuildRunner.swift in Sources */,
-				A1B2C3D4E5F60718293A4B5C /* AgentService.swift in Sources */,
 				2F9FCED647AE1F3260B3AE3E /* ClaudeCodeService.swift in Sources */,
-				A1B2C3D4E5F60718293A4B5E /* CodexService.swift in Sources */,
+				480103BF23A5909D7E4ECA8A /* CodexService.swift in Sources */,
 				A944A4D0305412243F43C75B /* ContentView.swift in Sources */,
 				01F37677E449EE3F4DEBE142 /* CustomShapes.swift in Sources */,
 				23D67101A4F2137DD885B032 /* DependencyChecker.swift in Sources */,
@@ -437,12 +442,13 @@
 				A4DB172E18D8D94CEF49D4B1 /* FoundryTheme.swift in Sources */,
 				6D6AEFE51B6FDC1DFB20C16F /* GenerationPipeline.swift in Sources */,
 				FF2CD908198CBA2E80A3013D /* GenerationProgressView.swift in Sources */,
+				63B2FD1F9E4C69DFE1A40CC7 /* GenerationTelemetry.swift in Sources */,
+				1274B57234092BA07D2E714C /* ModelCatalogService.swift in Sources */,
 				8F62055B3F66E39E34698C84 /* Plugin.swift in Sources */,
 				CB4E222D4684ECCB9453B609 /* PluginArtworkView.swift in Sources */,
 				E02EC21CA9ABD9D13A3CE1E6 /* PluginBundleInspector.swift in Sources */,
 				393A7A9567D8321B5D64581D /* PluginCard.swift in Sources */,
 				B5F2D7D605AF8A718025987B /* PluginDetailView.swift in Sources */,
-				F41A2B3C8D7E5F9012345678 /* VersionHistoryView.swift in Sources */,
 				3AE99668365C08959FB76B1F /* PluginLibraryView.swift in Sources */,
 				E9B4B7650C26B7875EDF66F5 /* PluginLogoService.swift in Sources */,
 				C20595A79857CCEA7F4B232B /* PluginManager.swift in Sources */,
@@ -454,13 +460,13 @@
 				8502215EAB71ADC5A00BED70 /* ResultView.swift in Sources */,
 				AF2D89AC5EED252B56D3D793 /* SettingsView.swift in Sources */,
 				46F97EDD013A980C36506FC2 /* SetupView.swift in Sources */,
+				98344475A0303159340069E0 /* TelemetryDetailView.swift in Sources */,
+				BCDA374FF68C10C6DC5B4C16 /* TelemetryService.swift in Sources */,
 				6B3E282F16EC3EEFC14DA240 /* TerminalView.swift in Sources */,
 				B5AECFBA5D81C85A106B4466 /* UserProfile.swift in Sources */,
+				298C5721BE1EE3F9E8AEDC67 /* VersionHistoryView.swift in Sources */,
 				61EFEEF4BAE0BA15883F8DA2 /* WelcomeView.swift in Sources */,
 				0999688336F8F3F19BC9758A /* WindowChromeBar.swift in Sources */,
-				002D547220BC83698444EC17 /* GenerationTelemetry.swift in Sources */,
-				4E1DA6C3108AF3C826F9410F /* TelemetryService.swift in Sources */,
-				5565F156EBD5A5F2FE97CFCD /* TelemetryDetailView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -517,7 +523,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.6.0;
+				MARKETING_VERSION = 1.10.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.foundry.app;
 				PRODUCT_NAME = Foundry;
 				SDKROOT = macosx;
@@ -676,7 +682,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.6.0;
+				MARKETING_VERSION = 1.10.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.foundry.app;
 				PRODUCT_NAME = Foundry;
 				SDKROOT = macosx;

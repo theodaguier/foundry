@@ -57,14 +57,56 @@ struct AgentModel: Codable, Hashable, Identifiable {
     var cliFlag: String { flag }
 }
 
-/// Loads the provider/model catalog from models.json (bundled or user-overridden).
+/// Loads the provider/model catalog with layered resolution:
+/// 1. User override (`~/Library/Application Support/Foundry/models.json`)
+/// 2. Dynamic API cache (`models-cache.json`) — refreshed every 24h
+/// 3. Bundled `models.json`
+/// 4. Hardcoded emergency fallback
 enum ModelCatalog {
     private struct Root: Codable {
         let providers: [AgentProvider]
     }
 
-    /// Cached catalog, loaded once.
-    static let providers: [AgentProvider] = {
+    /// Mutable backing store — updated by `refresh()`. Protected by `lock`.
+    private nonisolated(unsafe) static var _providers: [AgentProvider]?
+    private static let lock = NSLock()
+
+    /// Current providers. Loaded lazily on first access.
+    static var providers: [AgentProvider] {
+        lock.lock()
+        defer { lock.unlock() }
+        if let p = _providers { return p }
+        let loaded = loadProviders()
+        _providers = loaded
+        return loaded
+    }
+
+    /// Refresh models from provider APIs in the background.
+    /// Updates the in-memory catalog and disk cache.
+    static func refresh() async {
+        if let refreshed = await ModelCatalogService.refresh() {
+            setProviders(refreshed)
+        }
+    }
+
+    private static func setProviders(_ providers: [AgentProvider]) {
+        lock.lock()
+        _providers = providers
+        lock.unlock()
+    }
+
+    /// Whether the cached catalog is stale (>24h or missing).
+    static var isStale: Bool {
+        ModelCatalogService.cacheIsStale
+    }
+
+    /// Timestamp of last API refresh, or `nil`.
+    static var lastUpdated: Date? {
+        ModelCatalogService.lastUpdated
+    }
+
+    /// Loads providers using the layered resolution strategy.
+    private static func loadProviders() -> [AgentProvider] {
         // 1. Check user override in Application Support
         let userFile = FoundryPaths.applicationSupportDirectory.appendingPathComponent("models.json")
         if let data = try? Data(contentsOf: userFile),
@@ -72,21 +114,26 @@ enum ModelCatalog {
             return root.providers
         }
 
-        // 2. Fall back to bundled resource
+        // 2. Check dynamic API cache
+        if let cached = ModelCatalogService.loadCached() {
+            return cached
+        }
+
+        // 3. Fall back to bundled resource
         if let url = Bundle.main.url(forResource: "models", withExtension: "json"),
            let data = try? Data(contentsOf: url),
            let root = try? JSONDecoder().decode(Root.self, from: data) {
             return root.providers
         }
 
-        // 3. Hardcoded emergency fallback
+        // 4. Hardcoded emergency fallback
         return [
             AgentProvider(
                 id: "claude-code", name: "Claude Code", icon: "ProviderAnthropic", command: "claude",
                 models: [AgentModel(id: "sonnet", name: "Sonnet", subtitle: "Fast & capable", flag: "sonnet", default: true)]
             )
         ]
-    }()
+    }
 
     /// All models across all providers.
     static var allModels: [AgentModel] {

@@ -5,6 +5,8 @@ struct SettingsView: View {
     @AppStorage("appearance") private var appearance: String = AppAppearance.system.rawValue
 
     @State private var model = DependencyListModel()
+    @State private var isRefreshingModels = false
+    @State private var modelsLastUpdated: Date? = ModelCatalog.lastUpdated
 
     private let pluginPaths = [
         ("AU Components", "~/Library/Audio/Plug-Ins/Components/"),
@@ -17,6 +19,11 @@ struct SettingsView: View {
             generalTab
                 .tabItem {
                     Label("General", systemImage: "gear")
+                }
+
+            modelsTab
+                .tabItem {
+                    Label("Models", systemImage: "cpu")
                 }
 
             dependenciesTab
@@ -75,6 +82,74 @@ struct SettingsView: View {
                 LabeledContent("Build") {
                     Text(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1")
                         .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    // MARK: - Models
+
+    private var modelsTab: some View {
+        Form {
+            ForEach(ModelCatalog.providers) { provider in
+                Section(provider.name) {
+                    ForEach(provider.models) { agentModel in
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(agentModel.displayName)
+                                    .font(.body)
+                                Text(agentModel.subtitle)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            Spacer()
+
+                            if agentModel.isDefault {
+                                Text("Default")
+                                    .font(.caption2)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(.quaternary)
+                                    .clipShape(Capsule())
+                            }
+
+                            Text(agentModel.cliFlag)
+                                .font(.system(.caption, design: .monospaced))
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                }
+            }
+
+            Section {
+                HStack {
+                    Button {
+                        isRefreshingModels = true
+                        Task {
+                            await ModelCatalog.refresh()
+                            modelsLastUpdated = ModelCatalog.lastUpdated
+                            isRefreshingModels = false
+                        }
+                    } label: {
+                        HStack(spacing: 6) {
+                            if isRefreshingModels {
+                                ProgressView()
+                                    .controlSize(.small)
+                            }
+                            Text("Refresh Models")
+                        }
+                    }
+                    .disabled(isRefreshingModels)
+
+                    Spacer()
+
+                    if let date = modelsLastUpdated {
+                        Text("Updated \(date, style: .relative) ago")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
         }
