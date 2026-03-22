@@ -1,0 +1,10 @@
+pub mod plugin_manager;
+pub mod generation_pipeline;
+pub mod dependency_checker;
+pub mod model_catalog;
+pub mod telemetry_service;
+pub mod foundry_paths;
+pub mod build_directory_cleaner;
+pub mod claude_code_service;
+pub mod project_assembler;
+pub mod build_runner;
