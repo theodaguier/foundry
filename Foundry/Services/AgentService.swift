@@ -28,11 +28,12 @@ enum AgentResolver {
         model: AgentModel,
         prompt: String,
         projectDir: URL,
+        isRefine: Bool = false,
         onEvent: @escaping @Sendable (AgentEvent) -> Void
     ) async -> AgentRunResult {
         switch agent {
         case .claudeCode:
-            return await ClaudeCodeService.agentRun(prompt: prompt, projectDir: projectDir, model: model, onEvent: onEvent)
+            return await ClaudeCodeService.agentRun(prompt: prompt, projectDir: projectDir, model: model, mode: isRefine ? .refine : .generate, onEvent: onEvent)
         case .codex:
             return await CodexService.run(prompt: prompt, projectDir: projectDir, model: model, onEvent: onEvent)
         }

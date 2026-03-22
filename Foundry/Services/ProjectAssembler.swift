@@ -225,7 +225,7 @@ enum ProjectAssembler {
 
         ## AudioProcessor
 
-        The base class for all plugins. You subclass it as `\(pluginName)Processor`.
+        Subclass as `\(pluginName)Processor`. Key overrides:
 
         ```cpp
         // Lifecycle
@@ -250,20 +250,16 @@ enum ProjectAssembler {
         const juce::String getProgramName(int index) override;
         void changeProgramName(int index, const juce::String& newName) override;
 
-        // State persistence
+        // State
         void getStateInformation(juce::MemoryBlock& destData) override;
         void setStateInformation(const void* data, int sizeInBytes) override;
         ```
 
-        ## AudioProcessorValueTreeState (APVTS)
+        ## APVTS (AudioProcessorValueTreeState)
 
-        Thread-safe parameter system. The bridge between processor and editor.
+        Thread-safe parameter system. Initialize: `apvts(*this, nullptr, "PARAMETERS", createParameterLayout())`
 
         ```cpp
-        // Creating parameters
-        juce::AudioProcessorValueTreeState apvts;
-        // Initialize in constructor: apvts(*this, nullptr, "PARAMETERS", createParameterLayout())
-
         // Parameter types
         juce::AudioParameterFloat(juce::ParameterID{"id", 1}, "Name",
             juce::NormalisableRange<float>(min, max, step, skew), defaultValue);
@@ -272,14 +268,15 @@ enum ProjectAssembler {
         juce::AudioParameterBool(juce::ParameterID{"id", 1}, "Name", defaultValue);
         juce::AudioParameterInt(juce::ParameterID{"id", 1}, "Name", min, max, defaultValue);
 
-        // Reading parameters (audio-thread safe)
+        // Read (audio-thread safe)
         float val = apvts.getRawParameterValue("id")->load();
 
-        // State save/load
+        // State save
         auto state = apvts.copyState();
         std::unique_ptr<juce::XmlElement> xml(state.createXml());
         copyXmlToBinary(*xml, destData);
 
+        // State load
         std::unique_ptr<juce::XmlElement> xml(getXmlFromBinary(data, sizeInBytes));
         if (xml && xml->hasTagName(apvts.state.getType()))
             apvts.replaceState(juce::ValueTree::fromXml(*xml));
@@ -347,65 +344,58 @@ enum ProjectAssembler {
         let effectPatterns = """
         # DSP Patterns
 
-        ## Effect: processBlock pattern
+        ## Effect: processBlock essentials
 
+        Every effect processBlock starts with:
         ```cpp
-        void processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
-        {
-            juce::ScopedNoDenormals noDenormals;
-            for (auto i = getTotalNumInputChannels(); i < getTotalNumOutputChannels(); ++i)
-                buffer.clear(i, 0, buffer.getNumSamples());
-
-            // 1. Update smoothed parameter targets
-            driveSmoothed.setTargetValue(apvts.getRawParameterValue("drive")->load());
-            mixSmoothed.setTargetValue(apvts.getRawParameterValue("mix")->load());
-
-            // 2. Copy dry signal for dry/wet mixing
-            juce::AudioBuffer<float> dryBuffer;
-            dryBuffer.makeCopyOf(buffer);
-
-            // 3. Process each channel, each sample
-            for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
-            {
-                auto* data = buffer.getWritePointer(ch);
-                for (int s = 0; s < buffer.getNumSamples(); ++s)
-                {
-                    const float drive = driveSmoothed.getNextValue();
-                    data[s] = std::tanh(data[s] * drive * 4.0f);
-                }
-            }
-
-            // 4. Apply dry/wet mix
-            for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
-            {
-                auto* wet = buffer.getWritePointer(ch);
-                const auto* dry = dryBuffer.getReadPointer(ch);
-                for (int s = 0; s < buffer.getNumSamples(); ++s)
-                {
-                    const float mix = mixSmoothed.getNextValue();
-                    wet[s] = dry[s] + mix * (wet[s] - dry[s]);
-                }
-            }
-        }
+        juce::ScopedNoDenormals noDenormals;
+        for (auto i = getTotalNumInputChannels(); i < getTotalNumOutputChannels(); ++i)
+            buffer.clear(i, 0, buffer.getNumSamples());
         ```
 
-        ## prepareToPlay pattern
+        Then choose the DSP architecture that best serves THIS specific plugin:
 
+        ### Architecture 1 — Serial chain
+        Input → stage A → stage B → stage C → output. Good for: channel strips, multi-stage distortion, EQ chains.
         ```cpp
-        void prepareToPlay(double sampleRate, int samplesPerBlock)
-        {
-            juce::dsp::ProcessSpec spec;
-            spec.sampleRate = sampleRate;
-            spec.maximumBlockSize = (juce::uint32)samplesPerBlock;
-            spec.numChannels = (juce::uint32)getTotalNumOutputChannels();
-
-            myFilter.prepare(spec);
-            myDelay.prepare(spec);
-
-            driveSmoothed.reset(sampleRate, 0.02);
-            mixSmoothed.reset(sampleRate, 0.02);
-        }
+        // Process each stage in sequence on the buffer
+        stageA.process(context); stageB.process(context); stageC.process(context);
         ```
+
+        ### Architecture 2 — Parallel paths with mix
+        Split input into two (or more) processed paths, blend results. Good for: parallel compression, chorus, multi-band.
+        ```cpp
+        dryBuffer.makeCopyOf(buffer);
+        // Process buffer (wet path), then blend: out = dry * (1-mix) + wet * mix
+        ```
+
+        ### Architecture 3 — Feedback loop
+        Output feeds back into input with a coefficient < 1.0. Good for: delay, reverb, flanger, comb filter.
+        ```cpp
+        // Write to delay line, read from it, mix with feedback coefficient
+        delayLine.pushSample(ch, inputSample + feedback * delayLine.popSample(ch, delayTime));
+        ```
+
+        ### Architecture 4 — Modulated parameters
+        An LFO or envelope controls DSP parameters over time. Good for: auto-wah, tremolo, phaser, vibrato.
+        ```cpp
+        float lfo = std::sin(lfoPhase * twoPi); lfoPhase += lfoRate / sampleRate;
+        filter.setCutoffFrequency(baseCutoff * (1.0f + depth * lfo));
+        ```
+
+        ### Architecture 5 — Envelope follower
+        Track input amplitude, use it to drive a parameter. Good for: auto-gain, dynamic EQ, ducking, compressor-style effects.
+        ```cpp
+        float env = std::abs(sample); envelope += (env > envelope ? attackCoeff : releaseCoeff) * (env - envelope);
+        ```
+
+        Combine architectures freely. A phaser is a serial chain with modulated all-pass filters. A ping-pong delay is a feedback loop with channel swapping.
+
+        ## prepareToPlay essentials
+        - Create a `juce::dsp::ProcessSpec` with sampleRate, samplesPerBlock, numChannels
+        - Call `.prepare(spec)` on all juce::dsp objects
+        - Call `.reset(sampleRate, 0.02)` on all SmoothedValue members
+        - Store sampleRate for LFO/modulation calculations
         """
 
         let instrumentPatterns = """
@@ -413,130 +403,103 @@ enum ProjectAssembler {
 
         ## Instrument: Synthesiser + Voice architecture
 
-        ### Processor processBlock
+        ### Processor processBlock (structural — always this shape)
         ```cpp
-        void processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
-        {
-            juce::ScopedNoDenormals noDenormals;
-            buffer.clear();
-            synth.renderNextBlock(buffer, midiMessages, 0, buffer.getNumSamples());
-            // Apply master-level processing here (level, effects, etc.)
-        }
+        juce::ScopedNoDenormals noDenormals;
+        buffer.clear();
+        synth.renderNextBlock(buffer, midiMessages, 0, buffer.getNumSamples());
+        // Then apply master-level processing (level, master filter, effects, etc.)
         ```
 
         ### prepareToPlay
-        ```cpp
-        void prepareToPlay(double sampleRate, int samplesPerBlock)
-        {
-            synth.setCurrentPlaybackSampleRate(sampleRate);
-            for (int i = 0; i < synth.getNumVoices(); ++i)
-                if (auto* voice = dynamic_cast<MyVoice*>(synth.getVoice(i)))
-                    voice->prepareToPlay(sampleRate, samplesPerBlock);
-        }
-        ```
+        Call `synth.setCurrentPlaybackSampleRate(sampleRate)`, then iterate voices with `dynamic_cast` to call each voice's prepare method.
 
-        ### Voice rules
+        ### Voice rules (non-negotiable)
         - Allocate 8 voices in the constructor
         - Use `buffer.addSample()` (not setSample) — voices are mixed additively
-        - Always check `isVoiceActive()` at the top of renderNextBlock
-        - Always call `clearCurrentNote()` when the envelope finishes
-        - Use `juce::ADSR` for envelopes — it handles sample-accurate note-on/off
+        - Check `isVoiceActive()` at the top of renderNextBlock
+        - Call `clearCurrentNote()` when the amplitude envelope finishes
+        - Use `juce::ADSR` for envelopes (handles sample-accurate note-on/off)
         - Access processor parameters via a stored pointer, not globals
-        - Filters and envelopes should be per-voice for polyphonic correctness
+        - Filters and envelopes must be per-voice for polyphonic correctness
+
+        ## Choose your synthesis approach
+
+        Pick based on what the plugin description calls for:
+
+        - **Subtractive**: Oscillator(s) → filter → amplifier. Classic analog sound. Use polyBLEP oscillators + StateVariableTPTFilter.
+        - **FM**: Modulator oscillator controls carrier frequency. Metallic, bell-like, evolving timbres.
+        - **Additive**: Sum of sine partials with independent amplitudes. Organ-like, pad textures.
+        - **Wavetable-style**: Lookup table with interpolation, morph between wave shapes. Rich, evolving sounds.
+        - **Noise-based**: Filtered noise + envelopes. Percussive hits, wind, textures.
+
+        Combine freely — most real synths mix approaches (e.g., subtractive + FM modulation + noise layer).
 
         ## Synthesis building blocks
 
-        ### Oscillator waveforms with anti-aliasing (polyBLEP)
+        ### Anti-aliased oscillators (polyBLEP)
         ```cpp
-        static double polyBlep(double t, double dt)
-        {
+        static double polyBlep(double t, double dt) {
             if (t < dt) { t /= dt; return t + t - t * t - 1.0; }
             if (t > 1.0 - dt) { t = (t - 1.0) / dt; return t * t + t + t + 1.0; }
             return 0.0;
         }
-
-        // Saw: raw = 2*phase - 1, then subtract polyBlep(phase, dt)
-        // Square: raw = (phase < 0.5) ? 1 : -1, add polyBlep at 0 and 0.5
-        // Triangle: 2*fabs(2*phase - 1) - 1 (already smooth, no BLEP needed)
-        // Sine: std::sin(phase * twoPi) (alias-free)
+        // Saw: 2*phase - 1, subtract polyBlep(phase, dt)
+        // Square: (phase < 0.5) ? 1 : -1, add polyBlep at 0 and 0.5
+        // Triangle: 2*fabs(2*phase - 1) - 1 (smooth, no BLEP needed)
+        // Sine: std::sin(phase * twoPi)
         ```
 
-        ### Multiple oscillators and detuning
+        ### Detuning
         ```cpp
-        double freq2 = frequency * std::pow(2.0, detuneAmount / 12.0); // semitone detune
-        double freq2 = frequency * std::pow(2.0, detuneCents / 1200.0); // cent detune
-        float mixed = oscMix * osc1 + (1.0f - oscMix) * osc2;
+        double freq2 = frequency * std::pow(2.0, detuneCents / 1200.0);
         ```
 
         ### Per-voice filtering
-        ```cpp
-        juce::dsp::StateVariableTPTFilter<float> voiceFilter;
-        // Prepare with maximumBlockSize = 1 for per-sample processing
-        // setCutoffFrequency() and setResonance() can change per-sample
-        // processSample(channel, sample) for single-sample filtering
-        ```
+        `juce::dsp::StateVariableTPTFilter<float>` — prepare with maximumBlockSize=1, use `processSample(ch, sample)`.
 
         ### Multiple envelopes
-        ```cpp
-        juce::ADSR ampEnv, filterEnv; // independent ADSR instances
-        // Both need setSampleRate(), both trigger on noteOn/noteOff
-        // Amplitude envelope → voice volume
-        // Filter envelope → cutoff modulation (adds movement and punch)
-        // Pitch envelope → frequency (for plucks, kicks, percussive attacks)
-        ```
+        `juce::ADSR ampEnv, filterEnv;` — amplitude controls volume, filter envelope modulates cutoff, pitch envelope for plucks/kicks.
 
-        ### LFO modulation
+        ### LFO
         ```cpp
-        float lfo = std::sin(lfoPhase * juce::MathConstants<float>::twoPi);
-        lfoPhase += lfoRate / sampleRate;
-        if (lfoPhase >= 1.0) lfoPhase -= 1.0;
-        // Modulate pitch: freq * std::pow(2.0, depth * lfo / 12.0)
-        // Modulate cutoff: cutoff * (1.0f + depth * lfo)
+        float lfo = std::sin(lfoPhase * twoPi);
+        lfoPhase += lfoRate / sampleRate; if (lfoPhase >= 1.0) lfoPhase -= 1.0;
         ```
 
         ### FM synthesis
         ```cpp
-        double modulator = std::sin(modPhase * twoPi) * fmDepth * modFreq;
-        double carrier = std::sin((carrierPhase + modulator / sampleRate) * twoPi);
+        double mod = std::sin(modPhase * twoPi) * fmDepth * modFreq;
+        double carrier = std::sin((carrierPhase + mod / sampleRate) * twoPi);
         ```
 
-        ### Noise and sub-oscillators
+        ### Noise + sub
         ```cpp
-        float noise = (random.nextFloat() * 2.0f - 1.0f); // white noise
-        float sub = std::sin(phase * 0.5 * twoPi); // one octave below
+        float noise = random.nextFloat() * 2.0f - 1.0f;
+        float sub = std::sin(phase * 0.5 * twoPi);
         ```
         """
 
         let utilityPatterns = """
         # DSP Patterns
 
-        ## Utility: processBlock pattern
+        ## Utility: processBlock essentials
 
+        Start with:
         ```cpp
-        void processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
-        {
-            juce::ScopedNoDenormals noDenormals;
-            for (auto i = getTotalNumInputChannels(); i < getTotalNumOutputChannels(); ++i)
-                buffer.clear(i, 0, buffer.getNumSamples());
-
-            gainSmoothed.setTargetValue(
-                juce::Decibels::decibelsToGain(apvts.getRawParameterValue("gain")->load()));
-
-            for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
-            {
-                auto* data = buffer.getWritePointer(ch);
-                for (int s = 0; s < buffer.getNumSamples(); ++s)
-                    data[s] *= gainSmoothed.getNextValue();
-            }
-        }
+        juce::ScopedNoDenormals noDenormals;
+        for (auto i = getTotalNumInputChannels(); i < getTotalNumOutputChannels(); ++i)
+            buffer.clear(i, 0, buffer.getNumSamples());
         ```
+
+        Then implement the utility's specific processing. Read parameters via SmoothedValue, process per-channel per-sample.
 
         ## Utility-specific rules
         - Use `juce::Decibels::decibelsToGain()` / `gainToDecibels()` for all gain parameters
         - Gain range: typically -60 dB to +12 dB, default 0 dB (unity)
         - Width range: 0% (mono) to 200% (wide), default 100% (unchanged)
         - Phase parameters are boolean (invert or not)
-        - Default settings = no audible change (transparent)
+        - Default settings = no audible change (transparent utility)
         """
 
         let content: String = switch pluginType {
@@ -628,21 +591,19 @@ enum ProjectAssembler {
 
         ## Layout in resized()
 
-        ```cpp
-        void resized()
-        {
-            auto area = getLocalBounds().reduced(20);
-            auto header = area.removeFromTop(40); // plugin title
+        Design a layout that reflects the plugin's purpose and signal flow. Use `getLocalBounds().reduced(...)` and `removeFromTop/Left/Right/Bottom` to carve areas. Approaches:
 
-            int numSections = 3;
-            int sectionWidth = area.getWidth() / numSections;
+        - **Centered row**: All knobs in one horizontal row, centered. Best for 3-4 controls (simple effects, utilities).
+        - **Sectioned panels**: Divide into named groups (Input | Processing | Output) using `removeFromLeft`. Good for channel strips, multi-stage effects.
+        - **Header + main area**: Top bar with plugin name and mode/preset selector, main area below for primary controls.
+        - **Left-right split**: Input controls left, output/mix right, core processing center. Mirrors signal flow.
+        - **Grid**: Arrange controls in rows and columns. Good for synths with many parameters.
 
-            auto section1 = area.removeFromLeft(sectionWidth);
-            driveSlider.setBounds(section1.removeFromTop(section1.getHeight() - 20).reduced(10));
-            driveLabel.setBounds(section1);
-            // ... repeat for other controls
-        }
-        ```
+        Match the spatial arrangement to the signal flow. A delay plugin might flow left→right (input→time→feedback→mix). A synth might have oscillators on top, filter in the middle, amp at the bottom.
+
+        ## Custom painting
+
+        Override `paint(juce::Graphics& g)` to draw beyond plain backgrounds: section dividers, gradient backgrounds, subtle labels for control groups, or decorative elements that reinforce the plugin's character.
 
         ## Slider style guide
 
@@ -667,133 +628,73 @@ enum ProjectAssembler {
 
     private static func writeLookAndFeel(to dir: URL) throws {
         let content = """
-        # FoundryLookAndFeel
+        # LookAndFeel — Visual Design Reference
 
-        Create a header-only `FoundryLookAndFeel.h` in `Source/` with the exact code below.
-        You may only change `accentColour` to match the plugin's character.
+        Design a unique `FoundryLookAndFeel` class that gives this plugin its own visual identity.
+        Subclass `juce::LookAndFeel_V4` in a header-only `FoundryLookAndFeel.h`.
 
-        ```cpp
-        #pragma once
-        #include <JuceHeader.h>
+        ## Color palette
 
-        class FoundryLookAndFeel : public juce::LookAndFeel_V4
-        {
-        public:
-            juce::Colour backgroundColour  { 0xff0a0a0a };
-            juce::Colour surfaceColour     { 0xff1a1a1a };
-            juce::Colour borderColour      { 0xff2a2a2a };
-            juce::Colour textColour        { 0xffd0d0d0 };
-            juce::Colour dimTextColour     { 0xff606060 };
-            juce::Colour accentColour      { 0xffc0c0c0 };  // ← change this only
-            juce::Colour knobTrackColour   { 0xff2a2a2a };
+        Define 5-7 named `juce::Colour` members. Choose colors that reflect the plugin's sonic character:
 
-            FoundryLookAndFeel()
-            {
-                applyColours();
-            }
+        - **Warm amber** (saturation, distortion, tape): background 0xff0d0a07, accent 0xffc8935a
+        - **Cool blue** (delay, reverb, space): background 0xff070a0d, accent 0xff5a8ec8
+        - **Earth green** (dynamics, compression): background 0xff070d0a, accent 0xff5ac870
+        - **Violet** (modulation, chorus, phaser): background 0xff0a070d, accent 0xff8a6abf
+        - **Copper/red** (vintage, analog character): background 0xff0d0907, accent 0xffc07050
 
-            void applyColours()
-            {
-                setColour(juce::ResizableWindow::backgroundColourId, backgroundColour);
-                setColour(juce::Slider::rotarySliderFillColourId, accentColour);
-                setColour(juce::Slider::rotarySliderOutlineColourId, knobTrackColour);
-                setColour(juce::Slider::thumbColourId, accentColour);
-                setColour(juce::Slider::trackColourId, knobTrackColour);
-                setColour(juce::Slider::backgroundColourId, knobTrackColour);
-                setColour(juce::Slider::textBoxTextColourId, dimTextColour);
-                setColour(juce::Slider::textBoxOutlineColourId, juce::Colour(0x00000000));
-                setColour(juce::Label::textColourId, textColour);
-                setColour(juce::ComboBox::backgroundColourId, backgroundColour);
-                setColour(juce::ComboBox::outlineColourId, borderColour);
-                setColour(juce::ComboBox::textColourId, textColour);
-                setColour(juce::TextButton::buttonColourId, backgroundColour);
-                setColour(juce::TextButton::textColourOffId, textColour);
-                setColour(juce::ToggleButton::textColourId, textColour);
-                setColour(juce::ToggleButton::tickColourId, accentColour);
-                setColour(juce::PopupMenu::backgroundColourId, surfaceColour);
-                setColour(juce::PopupMenu::textColourId, textColour);
-                setColour(juce::PopupMenu::highlightedBackgroundColourId, accentColour.withAlpha(0.2f));
-                setColour(juce::PopupMenu::highlightedTextColourId, textColour);
-            }
+        Pick or blend based on the plugin description. Do NOT default to grey (0xffc0c0c0).
 
-            void drawRotarySlider(juce::Graphics& g, int x, int y, int width, int height,
-                                  float sliderPos, float rotaryStartAngle, float rotaryEndAngle,
-                                  juce::Slider&) override
-            {
-                auto bounds = juce::Rectangle<int>(x, y, width, height).toFloat().reduced(2.0f);
-                auto radius = juce::jmin(bounds.getWidth(), bounds.getHeight()) / 2.0f;
-                auto cx = bounds.getCentreX();
-                auto cy = bounds.getCentreY();
-                auto angle = rotaryStartAngle + sliderPos * (rotaryEndAngle - rotaryStartAngle);
+        ## Required colour IDs
 
-                g.setColour(knobTrackColour);
-                g.drawEllipse(cx - radius, cy - radius, radius * 2.0f, radius * 2.0f, 1.0f);
+        Your constructor must call `setColour()` for ALL of these — missing any causes visual bugs:
 
-                juce::Path arc;
-                arc.addCentredArc(cx, cy, radius, radius, 0.0f, rotaryStartAngle, angle, true);
-                g.setColour(accentColour);
-                g.strokePath(arc, juce::PathStrokeType(1.5f, juce::PathStrokeType::curved,
-                                                         juce::PathStrokeType::rounded));
-
-                juce::Path indicator;
-                indicator.startNewSubPath(cx, cy);
-                indicator.lineTo(cx + (radius - 4.0f) * std::sin(angle),
-                                 cy - (radius - 4.0f) * std::cos(angle));
-                g.strokePath(indicator, juce::PathStrokeType(1.5f));
-            }
-
-            void drawLinearSlider(juce::Graphics& g, int x, int y, int width, int height,
-                                  float sliderPos, float minPos, float maxPos,
-                                  juce::Slider::SliderStyle style, juce::Slider& slider) override
-            {
-                if (style == juce::Slider::LinearHorizontal)
-                {
-                    auto trackY = (float)y + (float)height * 0.5f;
-                    g.setColour(knobTrackColour);
-                    g.fillRoundedRectangle((float)x, trackY - 1.0f, (float)width, 2.0f, 1.0f);
-                    g.setColour(accentColour);
-                    g.fillRoundedRectangle((float)x, trackY - 1.0f, sliderPos - (float)x, 2.0f, 1.0f);
-                }
-                else
-                {
-                    juce::LookAndFeel_V4::drawLinearSlider(g, x, y, width, height,
-                                                            sliderPos, minPos, maxPos, style, slider);
-                }
-            }
-
-            void drawButtonBackground(juce::Graphics& g, juce::Button& button,
-                                      const juce::Colour& bgColour,
-                                      bool isHighlighted, bool isDown) override
-            {
-                auto bounds = button.getLocalBounds().toFloat().reduced(0.5f);
-                auto base = bgColour;
-                if (isDown) base = base.brighter(0.1f);
-                else if (isHighlighted) base = base.brighter(0.05f);
-
-                g.setColour(base);
-                g.fillRoundedRectangle(bounds, 6.0f);
-                g.setColour(borderColour);
-                g.drawRoundedRectangle(bounds, 6.0f, 1.0f);
-            }
-
-            juce::Font getLabelFont(juce::Label&) override
-            {
-                return juce::Font(juce::FontOptions(13.0f));
-            }
-        };
+        ```
+        ResizableWindow::backgroundColourId
+        Slider::rotarySliderFillColourId, rotarySliderOutlineColourId, thumbColourId
+        Slider::trackColourId, backgroundColourId, textBoxTextColourId, textBoxOutlineColourId
+        Label::textColourId
+        ComboBox::backgroundColourId, outlineColourId, textColourId
+        TextButton::buttonColourId, textColourOffId
+        ToggleButton::textColourId, tickColourId
+        PopupMenu::backgroundColourId, textColourId, highlightedBackgroundColourId, highlightedTextColourId
         ```
 
+        ## Knob styles — pick or invent
+
+        Override `drawRotarySlider(juce::Graphics& g, int x, int y, int width, int height, float sliderPos, float rotaryStartAngle, float rotaryEndAngle, juce::Slider&)`:
+
+        **Arc + indicator line**: Draw a background circle, an accent-colored arc from start to current angle, and a line from center to the arc edge.
+
+        **Filled dot**: Draw a filled circle for the knob body, a small dot at the arc edge as position indicator. Clean, modern.
+
+        **Minimal arc only**: No background circle. Just a thick accent arc from start to current angle. Ultra-minimal.
+
+        Choose or combine. The goal is a look that matches the plugin's personality.
+
+        ## Linear slider
+
+        Override `drawLinearSlider(...)`. For `LinearHorizontal`: draw a thin track line and fill from left to slider position with accent color. Fall back to `LookAndFeel_V4::drawLinearSlider` for other styles.
+
+        ## Button background
+
+        Override `drawButtonBackground(...)`. Draw a rounded rectangle with subtle brightness changes for hover/down states.
+
+        ## Label font
+
+        Override `getLabelFont(juce::Label&)` — return `juce::Font(juce::FontOptions(13.0f))`.
+
         ## Visual rules
-        - Dark background (0xff0a0a0a). One muted accent colour, not neon.
-        - No emojis, no "AI" branding, no purple/magenta.
+        - Dark background. One or two muted accent colours — not neon.
+        - No emojis, no "AI" branding.
         - Group controls into named sections when there are more than 4 parameters.
-        - Labels should be uppercase, small font (10-11pt), dimTextColour.
-        - Suggested window sizes: Focused = 400x300, Balanced = 600x400, Exploratory = 800x500
+        - Labels: uppercase, small font (10-11pt), dim text colour.
+        - Window sizes: Focused ~400x300, Balanced ~600x400, Exploratory ~800x500
 
         ## CRITICAL: LookAndFeel lifecycle
-        - Constructor: `setLookAndFeel(&lookAndFeel);`
-        - Destructor: `~MyEditor() override { setLookAndFeel(nullptr); }` — MANDATORY or crash on close
-        - Do NOT use `~MyEditor() override = default;` — you MUST explicitly call `setLookAndFeel(nullptr)`
+        - Editor constructor: `setLookAndFeel(&lookAndFeel);`
+        - Editor destructor: `~MyEditor() override { setLookAndFeel(nullptr); }` — MANDATORY or crash
+        - Do NOT use `= default;` for the editor destructor
         """
         try content.write(to: dir.appendingPathComponent("look-and-feel.md"), atomically: true, encoding: .utf8)
     }
@@ -824,7 +725,7 @@ enum ProjectAssembler {
         - `PluginProcessor.cpp` — All processor method implementations
         - `PluginEditor.h` — Editor class declaration
         - `PluginEditor.cpp` — All editor method implementations
-        - `FoundryLookAndFeel.h` — Header-only look and feel (copy from juce-kit/look-and-feel.md)
+        - `FoundryLookAndFeel.h` — Your custom LookAndFeel (see juce-kit/look-and-feel.md for API reference)
 
         ## CMakeLists.txt
         **NEVER modify CMakeLists.txt** — it is correct and must not be touched.
@@ -890,6 +791,20 @@ enum ProjectAssembler {
         ### 10. Missing PopupMenu colours
         ComboBox dropdowns are unreadable without PopupMenu colour overrides in LookAndFeel.
         Always set `PopupMenu::backgroundColourId`, `textColourId`, `highlightedBackgroundColourId`.
+
+        ### 11. Hardcoded sample rate
+        ```cpp
+        // FATAL — assumes 44100:
+        float delayInSamples = 0.5f * 44100.0f;
+        // CORRECT — use stored sampleRate from prepareToPlay:
+        float delayInSamples = 0.5f * storedSampleRate;
+        ```
+
+        ### 12. Division by zero in DSP
+        Guard all divisions where the denominator can be zero (delay time, frequency, etc.):
+        ```cpp
+        float freq = juce::jmax(paramFreq, 0.001f); // never zero
+        ```
         """
         try content.write(to: dir.appendingPathComponent("build-rules.md"), atomically: true, encoding: .utf8)
     }
@@ -941,6 +856,7 @@ enum ProjectAssembler {
         ```
 
         Each preset must set ALL parameters to musically distinct, useful values.
+        Name presets to evoke their sonic character (e.g., "Warm Tape", "Crystal Air", "Fat Growl") — not generic labels like "Preset 1".
         """
         try content.write(to: dir.appendingPathComponent("presets.md"), atomically: true, encoding: .utf8)
     }
@@ -997,7 +913,7 @@ enum ProjectAssembler {
         | `Source/PluginProcessor.cpp` | All processor implementations: constructor, createParameterLayout, prepareToPlay, processBlock, state, createEditor, programs |
         | `Source/PluginEditor.h` | Editor class declaration, UI member variables |
         | `Source/PluginEditor.cpp` | Editor constructor (wire controls), paint, resized |
-        | `Source/FoundryLookAndFeel.h` | Copy from `juce-kit/look-and-feel.md` (change accentColour only) |
+        | `Source/FoundryLookAndFeel.h` | Design a unique LookAndFeel using `juce-kit/look-and-feel.md` as API reference |
 
         Class names: **\(pluginName)Processor**, **\(pluginName)Editor** — these are required by CMakeLists.txt.
 
@@ -1010,7 +926,7 @@ enum ProjectAssembler {
         | `juce-kit/juce-api.md` | JUCE API reference: AudioProcessor, APVTS, AudioBuffer, DSP module classes |
         | `juce-kit/dsp-patterns.md` | Correct DSP patterns for \(pluginType.displayName) plugins |
         | `juce-kit/ui-patterns.md` | PluginEditor patterns: sliders, labels, attachments, layout |
-        | `juce-kit/look-and-feel.md` | FoundryLookAndFeel — exact code to copy into Source/ |
+        | `juce-kit/look-and-feel.md` | LookAndFeel API reference — color palettes, knob styles, visual design patterns |
         | `juce-kit/build-rules.md` | C++17 rules, juce:: namespacing, fatal mistakes to avoid |
         | `juce-kit/presets.md` | JUCE program system for presets |
 
@@ -1018,7 +934,7 @@ enum ProjectAssembler {
 
         1. Read the knowledge kit files you need (at minimum: juce-api, dsp-patterns, build-rules, look-and-feel)
         2. Design your parameter layout based on the plugin description
-        3. Write `Source/FoundryLookAndFeel.h` (copy from kit, change accent colour)
+        3. Write `Source/FoundryLookAndFeel.h` — design a unique visual identity matching the plugin's character
         4. Write `Source/PluginProcessor.h` — declare the processor class\(pluginType == .instrument ? ", Voice class, Sound class" : "") with all members
         5. Write `Source/PluginProcessor.cpp` — implement all methods with real DSP
         6. Write `Source/PluginEditor.h` — declare UI members matching your parameters
@@ -1031,6 +947,14 @@ enum ProjectAssembler {
         - Every parameter needs a matching UI control with addAndMakeVisible()
         - Use SmoothedValue for all continuous parameters (prevents clicks)
         - The plugin must compile with C++17 and link against juce_audio_utils + juce_dsp
+
+        ## Creative direction
+
+        Make this plugin visually and sonically **distinct**:
+        - Choose a color palette that reflects the plugin's sonic character (warm for saturation, cool for spatial effects, etc.)
+        - Design knob and slider styles that feel unique — do NOT produce a generic dark-grey plugin
+        - Arrange the layout to mirror the signal flow or interaction model
+        - The DSP architecture should serve this specific plugin's purpose — do not default to a generic dry/wet pattern
         """
 
         try content.write(to: dir.appendingPathComponent("CLAUDE.md"), atomically: true, encoding: .utf8)
