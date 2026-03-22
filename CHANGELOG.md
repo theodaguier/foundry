@@ -3,6 +3,14 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.9.0](https://github.com/theodaguier/foundry/compare/v1.8.0...v1.9.0) (2026-03-22)
+
+
+### Features
+
+* educational juce-kit and dedicated refine prompt ([#49](https://github.com/theodaguier/foundry/issues/49)) ([88c520e](https://github.com/theodaguier/foundry/commit/88c520ea4748f1bb72d650ff7812b9590021f7f0))
+* plugin versioning, AI-generated names, unified build screen, and refine flow ([#46](https://github.com/theodaguier/foundry/issues/46)) ([b798f48](https://github.com/theodaguier/foundry/commit/b798f48f1d9c12f258214e85aa7ce7fc8ee84920)), closes [#41](https://github.com/theodaguier/foundry/issues/41)
+
 ## [1.8.0](https://github.com/theodaguier/foundry/compare/v1.7.0...v1.8.0) (2026-03-21)
 
 
