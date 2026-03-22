@@ -75,9 +75,11 @@ struct PluginDetailView: View {
 
     private var artworkSection: some View {
         ZStack(alignment: .bottomLeading) {
-            // Background artwork
+            // Background artwork with color wash
             ZStack {
-                FoundryTheme.Colors.backgroundCard
+                Color(.textBackgroundColor)
+                plugin.color.opacity(0.07)
+
                 if let img = loadLogoImage() {
                     Image(nsImage: img)
                         .resizable()
@@ -105,11 +107,11 @@ struct PluginDetailView: View {
             }
             .padding(.horizontal, 24)
             .padding(.bottom, 20)
-            .padding(.top, 60)
+            .padding(.top, 80)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 LinearGradient(
-                    colors: [.clear, FoundryTheme.Colors.backgroundCard],
+                    colors: [.clear, .clear, Color(.windowBackgroundColor)],
                     startPoint: .top,
                     endPoint: .bottom
                 )
@@ -137,7 +139,7 @@ struct PluginDetailView: View {
                 InfoRow(label: "VST3 PATH", value: vst3)
             }
         }
-        .background(FoundryTheme.Colors.backgroundCard)
+        .background(Color(.windowBackgroundColor))
         .overlay(alignment: .bottom) {
             Rectangle().fill(FoundryTheme.Colors.border).frame(height: 1)
         }
@@ -177,7 +179,7 @@ struct PluginDetailView: View {
             .padding(.horizontal, 24)
             .padding(.vertical, 12)
         }
-        .background(FoundryTheme.Colors.backgroundCard)
+        .background(Color(.windowBackgroundColor))
         .overlay(alignment: .bottom) {
             Rectangle().fill(FoundryTheme.Colors.border).frame(height: 1)
         }
@@ -186,7 +188,7 @@ struct PluginDetailView: View {
     // MARK: - Actions
 
     private var actionSection: some View {
-        HStack {
+        HStack(spacing: FoundryTheme.Spacing.sm) {
             Menu {
                 Button("Show in Finder", systemImage: "folder") {
                     onAction?(.showInFinder)
@@ -216,19 +218,48 @@ struct PluginDetailView: View {
                     onAction?(.delete)
                 }
             } label: {
-                Label("Actions", systemImage: "ellipsis.circle")
+                HStack(spacing: 4) {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 11, weight: .medium))
+                    Text("ACTIONS")
+                        .font(FoundryTheme.Fonts.azeretMono(9))
+                        .tracking(1.2)
+                }
+                .foregroundStyle(FoundryTheme.Colors.textSecondary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(FoundryTheme.Colors.backgroundDeep)
+                .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .strokeBorder(FoundryTheme.Colors.border, lineWidth: 1)
+                )
             }
             .menuStyle(.borderlessButton)
 
             Spacer()
 
-            Button("Done") {
+            Button {
                 dismiss()
+            } label: {
+                Text("DONE")
+                    .font(FoundryTheme.Fonts.azeretMono(9))
+                    .tracking(1.2)
+                    .foregroundStyle(.primary)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 6)
+                    .background(FoundryTheme.Colors.backgroundDeep)
+                    .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            .strokeBorder(FoundryTheme.Colors.border, lineWidth: 1)
+                    )
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.plain)
             .keyboardShortcut(.cancelAction)
         }
-        .padding(16)
+        .padding(.horizontal, FoundryTheme.Spacing.lg)
+        .padding(.vertical, FoundryTheme.Spacing.md)
     }
 
     // MARK: - Helpers

@@ -26,6 +26,7 @@ enum ClaudeCodeService {
         prompt: String,
         projectDir: URL,
         model: AgentModel,
+        mode: Mode = .generate,
         onEvent: @escaping @Sendable (ClaudeEvent) -> Void
     ) async -> RunResult {
         guard let claudePath = DependencyChecker.resolveCommandPath("claude") else {
@@ -39,7 +40,7 @@ enum ClaudeCodeService {
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: claudePath)
-        process.arguments = Self.buildArguments(prompt: prompt, model: model)
+        process.arguments = Self.buildArguments(prompt: prompt, model: model, mode: mode)
 
         process.currentDirectoryURL = projectDir
         process.environment = DependencyChecker.shellEnvironment
@@ -273,8 +274,32 @@ enum ClaudeCodeService {
 
     // MARK: - Argument builder
 
-    static func buildArguments(prompt: String, model: AgentModel) -> [String] {
-        [
+    enum Mode {
+        case generate
+        case refine
+    }
+
+    static func buildArguments(prompt: String, model: AgentModel, mode: Mode = .generate) -> [String] {
+        let systemPrompt: String = switch mode {
+        case .generate:
+            """
+            SPEED IS CRITICAL. Minimize the number of turns.
+            Turn 1: Read CLAUDE.md AND all juce-kit/*.md files in PARALLEL (one Read call per file, all in the same turn).
+            Turn 2-4: Write ALL 5 source files. Use PARALLEL Write calls — write multiple files in the same turn.
+            Do NOT verify your work with extra Read calls after writing. Trust your output.
+            Never respond with only text — always use tools.
+            """
+        case .refine:
+            """
+            SPEED IS CRITICAL. Minimize the number of turns.
+            Turn 1: Read ALL existing Source/ files in PARALLEL (one Read call per file, all in the same turn).
+            Turn 2+: Use Edit to make targeted changes — do NOT rewrite entire files.
+            Only modify what is necessary to fulfill the user's request. Keep everything else intact.
+            Never respond with only text — always use tools.
+            """
+        }
+
+        return [
             "-p",
             prompt,
             "--dangerously-skip-permissions",
@@ -285,13 +310,7 @@ enum ClaudeCodeService {
             "--strict-mcp-config",
             "--disallowedTools", "Bash,Grep,Glob,WebSearch,WebFetch,NotebookEdit,Skill,EnterPlanMode,ExitPlanMode,EnterWorktree,ExitWorktree,CronCreate,CronDelete,CronList,Task,TaskCreate,TaskGet,TaskUpdate,TaskList,TaskOutput,TaskStop,AskUserQuestion,ToolSearch",
             "--append-system-prompt",
-            """
-            SPEED IS CRITICAL. Minimize the number of turns.
-            Turn 1: Read CLAUDE.md AND all juce-kit/*.md files in PARALLEL (one Read call per file, all in the same turn).
-            Turn 2-4: Write ALL 5 source files. Use PARALLEL Write calls — write multiple files in the same turn.
-            Do NOT verify your work with extra Read calls after writing. Trust your output.
-            Never respond with only text — always use tools.
-            """,
+            systemPrompt,
         ]
     }
 
@@ -435,9 +454,10 @@ extension ClaudeCodeService {
         prompt: String,
         projectDir: URL,
         model: AgentModel,
+        mode: Mode = .generate,
         onEvent: @escaping @Sendable (AgentEvent) -> Void
     ) async -> AgentRunResult {
-        bridgeResult(await run(prompt: prompt, projectDir: projectDir, model: model) { onEvent(bridgeEvent($0)) })
+        bridgeResult(await run(prompt: prompt, projectDir: projectDir, model: model, mode: mode) { onEvent(bridgeEvent($0)) })
     }
 
     static func agentFix(

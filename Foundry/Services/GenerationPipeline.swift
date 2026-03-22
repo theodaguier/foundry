@@ -392,24 +392,35 @@ final class GenerationPipeline {
         let model = config.plugin.model ?? agent.defaultModel
 
         let refinePrompt = """
-        You are modifying an existing JUCE \(pluginRole) plugin called "\(config.plugin.name)".
+        You are refining an existing, working JUCE \(pluginRole) plugin called "\(config.plugin.name)".
+        The plugin already compiles and runs. Your job is to make a targeted modification — not rebuild it.
 
-        CRITICAL RULES:
+        ## Rules
         - Do NOT modify CMakeLists.txt — it is locked.
-        - Do NOT rename the plugin or change class names.
+        - Do NOT rename the plugin or change class names (\(config.plugin.name)Processor, \(config.plugin.name)Editor).
         - Do NOT create new files — only edit existing Source/ files.
-        - Do NOT rewrite files from scratch — only change what's needed.
-        - Use your Edit tool to make targeted changes.
+        - Do NOT rewrite entire files — use Edit to change only what's needed.
+        - Keep all existing functionality intact unless the modification explicitly replaces it.
 
-        Read these source files first:
-        1. Source/PluginProcessor.h
-        2. Source/PluginProcessor.cpp
-        3. Source/PluginEditor.h
-        4. Source/PluginEditor.cpp
+        ## Existing source files (read ALL of these first)
+        - Source/PluginProcessor.h
+        - Source/PluginProcessor.cpp
+        - Source/PluginEditor.h
+        - Source/PluginEditor.cpp
+        - Source/FoundryLookAndFeel.h
 
-        The user wants this modification: \(config.modification)
+        ## Reference
+        The juce-kit/ folder contains API and pattern references if you need them.
 
-        The plugin must compile with C++17 and JUCE. Keep everything else working.
+        ## Requested modification
+        \(config.modification)
+
+        ## Checklist before you finish
+        - Every new parameter has a matching UI control with addAndMakeVisible() and an Attachment
+        - Every removed parameter has its UI control removed too
+        - Header (.h) and implementation (.cpp) signatures match exactly
+        - All JUCE types are fully qualified (juce::Slider, juce::AudioProcessorValueTreeState, etc.)
+        - The plugin compiles with C++17 and links against juce_audio_utils + juce_dsp
         """
 
         let genResult = await AgentResolver.run(
@@ -417,6 +428,7 @@ final class GenerationPipeline {
             model: model,
             prompt: refinePrompt,
             projectDir: projectDir,
+            isRefine: true,
             onEvent: { [weak self] event in
                 Task { @MainActor in
                     self?.handleAgentEvent(event)
