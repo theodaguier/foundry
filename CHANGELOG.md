@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.10.0](https://github.com/theodaguier/foundry/compare/v1.9.0...v1.10.0) (2026-03-22)
+
+
+### Features
+
+* generation telemetry with local + Supabase storage ([#50](https://github.com/theodaguier/foundry/issues/50)) ([7c5e1a6](https://github.com/theodaguier/foundry/commit/7c5e1a6c91ad18b7edcad0550b65e72285ee4ca6))
+
 ## [1.9.0](https://github.com/theodaguier/foundry/compare/v1.8.0...v1.9.0) (2026-03-22)
 
 
