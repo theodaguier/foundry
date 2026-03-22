@@ -31,6 +31,10 @@ enum FoundryPaths {
         pluginLogoDirectory(for: pluginID).appendingPathComponent("logo.png")
     }
 
+    static var modelsCacheFile: URL {
+        applicationSupportDirectory.appendingPathComponent("models-cache.json")
+    }
+
     static var generationLogsDirectory: URL {
         applicationSupportDirectory.appendingPathComponent("GenerationLogs", isDirectory: true)
     }

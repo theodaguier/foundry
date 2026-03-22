@@ -205,7 +205,13 @@ enum CodexService {
 
         do {
             try process.run()
-            process.waitUntilExit()
+
+            await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in
+                DispatchQueue.global().async {
+                    process.waitUntilExit()
+                    c.resume()
+                }
+            }
 
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             if let raw = String(data: data, encoding: .utf8) {
