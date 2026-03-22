@@ -1,5 +1,13 @@
 import Foundation
 
+// MARK: - Generation type
+
+enum GenerationType: String, Codable {
+    case generate
+    case refine
+    case preset
+}
+
 // MARK: - Telemetry record
 
 struct GenerationTelemetry: Codable, Identifiable {
@@ -8,6 +16,9 @@ struct GenerationTelemetry: Codable, Identifiable {
     let id: UUID
     let pluginId: UUID?
     let versionNumber: Int?
+
+    // Type
+    let generationType: GenerationType
 
     // Agent
     let agent: GenerationAgent
@@ -124,6 +135,8 @@ final class TelemetryBuilder {
     let id = UUID()
     var pluginId: UUID?
     var versionNumber: Int?
+
+    var generationType: GenerationType = .generate
 
     var agent: GenerationAgent = .claudeCode
     var model: String = ""
@@ -243,6 +256,7 @@ final class TelemetryBuilder {
             id: id,
             pluginId: pluginId,
             versionNumber: versionNumber,
+            generationType: generationType,
             agent: agent,
             model: model,
             originalPrompt: originalPrompt,

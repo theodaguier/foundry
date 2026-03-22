@@ -19,6 +19,17 @@ enum GenerationStep: Int, CaseIterable {
         }
     }
 
+    /// Labels used in refine mode — editing, not generating.
+    var refineLabel: String {
+        switch self {
+        case .preparingProject: "Preparing project"
+        case .generatingDSP: "Editing code"
+        case .generatingUI: "Editing code"
+        case .compiling: "Compiling"
+        case .installing: "Installing"
+        }
+    }
+
     var terminalLabel: String {
         switch self {
         case .preparingProject: "PREPARING PROJECT"
@@ -64,7 +75,7 @@ struct GenerationProgressView: View {
 
     private var visibleSteps: [GenerationStep] {
         isRefine
-            ? [.generatingDSP, .generatingUI, .compiling, .installing]
+            ? [.generatingDSP, .compiling, .installing]
             : GenerationStep.allCases
     }
 
@@ -166,7 +177,8 @@ struct GenerationProgressView: View {
                         GenerationStepList(
                             steps: visibleSteps,
                             currentStep: build.pipeline.currentStep,
-                            completedSteps: build.completedSteps
+                            completedSteps: build.completedSteps,
+                            isRefine: isRefine
                         )
                         .frame(maxWidth: 360)
 
@@ -319,14 +331,16 @@ struct GenerationStepList: View {
     var steps: [GenerationStep] = GenerationStep.allCases
     let currentStep: GenerationStep
     let completedSteps: Set<Int>
+    var isRefine: Bool = false
 
     var body: some View {
         VStack(spacing: 0) {
             ForEach(steps, id: \.self) { step in
                 GenerationStepRow(
                     step: step,
-                    isActive: currentStep == step,
-                    isDone: completedSteps.contains(step.rawValue)
+                    isActive: currentStep == step || (isRefine && step == .generatingDSP && currentStep == .generatingUI),
+                    isDone: completedSteps.contains(step.rawValue),
+                    isRefine: isRefine
                 )
             }
         }
@@ -339,6 +353,7 @@ struct GenerationStepRow: View {
     let step: GenerationStep
     let isActive: Bool
     let isDone: Bool
+    var isRefine: Bool = false
 
     private var isPending: Bool { !isDone && !isActive }
 
@@ -360,7 +375,7 @@ struct GenerationStepRow: View {
                     .frame(width: 20)
             }
 
-            Text(step.label)
+            Text(isRefine ? step.refineLabel : step.label)
                 .font(.system(.body, design: .monospaced))
                 .foregroundStyle(isPending ? .tertiary : .primary)
 

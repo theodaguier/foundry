@@ -252,24 +252,10 @@ struct PluginDetailView: View {
 
             Spacer()
 
-            Button {
-                dismiss()
-            } label: {
-                Text("DONE")
-                    .font(FoundryTheme.Fonts.azeretMono(9))
-                    .tracking(1.2)
-                    .foregroundStyle(.primary)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 6)
-                    .background(FoundryTheme.Colors.backgroundDeep)
-                    .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 4, style: .continuous)
-                            .strokeBorder(FoundryTheme.Colors.border, lineWidth: 1)
-                    )
-            }
-            .buttonStyle(.plain)
-            .keyboardShortcut(.cancelAction)
+            Button("Done") { dismiss() }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .keyboardShortcut(.cancelAction)
         }
         .padding(.horizontal, FoundryTheme.Spacing.lg)
         .padding(.vertical, FoundryTheme.Spacing.md)

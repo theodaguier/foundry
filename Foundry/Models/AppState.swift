@@ -282,7 +282,7 @@ final class ActiveBuild {
         case .generation:
             return Double(step) / Double(GenerationStep.allCases.count)
         case .refinement:
-            let refineSteps: [GenerationStep] = [.generatingDSP, .generatingUI, .compiling, .installing]
+            let refineSteps: [GenerationStep] = [.generatingDSP, .compiling, .installing]
             let idx = refineSteps.firstIndex(of: pipeline.currentStep) ?? 0
             return Double(idx) / Double(refineSteps.count)
         }

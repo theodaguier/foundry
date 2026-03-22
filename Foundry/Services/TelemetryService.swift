@@ -161,6 +161,7 @@ private struct TelemetryRow: Encodable {
     let user_id: UUID
     let plugin_id: UUID?
     let version_number: Int?
+    let generation_type: String
     let agent: String
     let model: String
     let original_prompt: String
@@ -200,6 +201,7 @@ private struct TelemetryRow: Encodable {
         user_id = userId
         plugin_id = t.pluginId
         version_number = t.versionNumber
+        generation_type = t.generationType.rawValue
         agent = t.agent.rawValue
         model = t.model
         original_prompt = t.originalPrompt
