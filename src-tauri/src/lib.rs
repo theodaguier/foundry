@@ -8,6 +8,8 @@ use state::AppState;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Load .env file (silently ignore if missing)
+    let _ = dotenvy::dotenv();
     tauri::Builder::default()
         .plugin(
             tauri_plugin_log::Builder::default()

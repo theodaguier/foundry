@@ -1,0 +1,7 @@
+{
+  "scripts": {
+    "setup": "cd foundry-tauri && cp -n .env.example .env 2>/dev/null || true && npm install",
+    "run": "cd foundry-tauri && npm run tauri dev"
+  },
+  "runScriptMode": "nonconcurrent"
+}

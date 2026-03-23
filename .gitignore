@@ -7,9 +7,10 @@ dist/
 # Rust / Tauri
 src-tauri/target/
 
-# Environment
+# Environment (contains secrets)
 .env
-.env.*
+.env.local
+.env.*.local
 
 # IDE
 .vscode/

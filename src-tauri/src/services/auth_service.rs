@@ -1,10 +1,18 @@
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::{Mutex, LazyLock};
 
-pub const SUPABASE_URL: &str = "https://bpqqfpdaigphewgobmpe.supabase.co";
-pub const SUPABASE_ANON_KEY: &str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJwcXFmcGRhaWdwaGV3Z29ibXBlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQwODc3NTYsImV4cCI6MjA4OTY2Mzc1Nn0.YKFmmJk39st-P68Dvztn9YHSCteXWGAvMNyM3hNofy4";
+static SUPABASE_URL_DEFAULT: &str = "https://bpqqfpdaigphewgobmpe.supabase.co";
+static SUPABASE_ANON_KEY_DEFAULT: &str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJwcXFmcGRhaWdwaGV3Z29ibXBlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQwODc3NTYsImV4cCI6MjA4OTY2Mzc1Nn0.YKFmmJk39st-P68Dvztn9YHSCteXWGAvMNyM3hNofy4";
+
+pub static SUPABASE_URL: LazyLock<String> = LazyLock::new(|| {
+    std::env::var("SUPABASE_URL").unwrap_or_else(|_| SUPABASE_URL_DEFAULT.to_string())
+});
+
+pub static SUPABASE_ANON_KEY: LazyLock<String> = LazyLock::new(|| {
+    std::env::var("SUPABASE_ANON_KEY").unwrap_or_else(|_| SUPABASE_ANON_KEY_DEFAULT.to_string())
+});
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuthSession {
@@ -109,7 +117,7 @@ impl SupabaseAuth {
     }
 
     pub async fn sign_up(&self, email: &str, password: &str) -> Result<(), String> {
-        let url = format!("{}/auth/v1/signup", SUPABASE_URL);
+        let url = format!("{}/auth/v1/signup", *SUPABASE_URL);
         let body = serde_json::json!({
             "email": email,
             "password": password,
@@ -118,7 +126,7 @@ impl SupabaseAuth {
         let resp = self
             .client
             .post(&url)
-            .header("apikey", SUPABASE_ANON_KEY)
+            .header("apikey", SUPABASE_ANON_KEY.as_str())
             .header("Content-Type", "application/json")
             .json(&body)
             .send()
@@ -157,7 +165,7 @@ impl SupabaseAuth {
     }
 
     pub async fn send_otp(&self, email: &str) -> Result<(), String> {
-        let url = format!("{}/auth/v1/otp", SUPABASE_URL);
+        let url = format!("{}/auth/v1/otp", *SUPABASE_URL);
         let body = serde_json::json!({
             "email": email,
         });
@@ -165,7 +173,7 @@ impl SupabaseAuth {
         let resp = self
             .client
             .post(&url)
-            .header("apikey", SUPABASE_ANON_KEY)
+            .header("apikey", SUPABASE_ANON_KEY.as_str())
             .header("Content-Type", "application/json")
             .json(&body)
             .send()
@@ -185,7 +193,7 @@ impl SupabaseAuth {
     }
 
     pub async fn verify_otp(&self, email: &str, code: &str, is_signup: bool) -> Result<(), String> {
-        let url = format!("{}/auth/v1/verify", SUPABASE_URL);
+        let url = format!("{}/auth/v1/verify", *SUPABASE_URL);
         let otp_type = if is_signup { "signup" } else { "email" };
         let body = serde_json::json!({
             "email": email,
@@ -196,7 +204,7 @@ impl SupabaseAuth {
         let resp = self
             .client
             .post(&url)
-            .header("apikey", SUPABASE_ANON_KEY)
+            .header("apikey", SUPABASE_ANON_KEY.as_str())
             .header("Content-Type", "application/json")
             .json(&body)
             .send()
@@ -242,12 +250,12 @@ impl SupabaseAuth {
     pub async fn sign_out(&self) -> Result<(), String> {
         let session = self.session.lock().unwrap().clone();
         if let Some(session) = session {
-            let url = format!("{}/auth/v1/logout", SUPABASE_URL);
+            let url = format!("{}/auth/v1/logout", *SUPABASE_URL);
             // Best-effort sign out on server
             let _ = self
                 .client
                 .post(&url)
-                .header("apikey", SUPABASE_ANON_KEY)
+                .header("apikey", SUPABASE_ANON_KEY.as_str())
                 .header("Authorization", format!("Bearer {}", session.access_token))
                 .send()
                 .await;
@@ -266,7 +274,7 @@ impl SupabaseAuth {
         };
 
         // Try to refresh the token to validate the session
-        let url = format!("{}/auth/v1/token?grant_type=refresh_token", SUPABASE_URL);
+        let url = format!("{}/auth/v1/token?grant_type=refresh_token", *SUPABASE_URL);
         let body = serde_json::json!({
             "refresh_token": session.refresh_token,
         });
@@ -274,7 +282,7 @@ impl SupabaseAuth {
         let resp = self
             .client
             .post(&url)
-            .header("apikey", SUPABASE_ANON_KEY)
+            .header("apikey", SUPABASE_ANON_KEY.as_str())
             .header("Content-Type", "application/json")
             .json(&body)
             .send()
@@ -327,13 +335,13 @@ impl SupabaseAuth {
 
         let url = format!(
             "{}/rest/v1/profiles?id=eq.{}&select=*",
-            SUPABASE_URL, user_id
+            *SUPABASE_URL, user_id
         );
 
         let resp = self
             .client
             .get(&url)
-            .header("apikey", SUPABASE_ANON_KEY)
+            .header("apikey", SUPABASE_ANON_KEY.as_str())
             .header("Authorization", format!("Bearer {}", session.access_token))
             .header("Content-Type", "application/json")
             .send()

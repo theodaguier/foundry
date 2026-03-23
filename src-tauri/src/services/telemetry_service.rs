@@ -39,12 +39,12 @@ fn save_local(telemetry: &GenerationTelemetry) {
 
 async fn sync_to_supabase(telemetry: &GenerationTelemetry, user_id: &str, access_token: &str) {
     let row = TelemetryRow::from_telemetry(telemetry, user_id);
-    let url = format!("{}/rest/v1/generation_telemetry", SUPABASE_URL);
+    let url = format!("{}/rest/v1/generation_telemetry", *SUPABASE_URL);
 
     let client = reqwest::Client::new();
     let result = client
         .post(&url)
-        .header("apikey", SUPABASE_ANON_KEY)
+        .header("apikey", SUPABASE_ANON_KEY.as_str())
         .header("Authorization", format!("Bearer {}", access_token))
         .header("Content-Type", "application/json")
         .header("Prefer", "return=minimal")
