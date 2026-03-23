@@ -3,6 +3,18 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.12.0](https://github.com/theodaguier/foundry/compare/v1.11.0...v1.12.0) (2026-03-23)
+
+
+### Features
+
+* harden tauri generation pipeline ([#56](https://github.com/theodaguier/foundry/issues/56)) ([44dc5c8](https://github.com/theodaguier/foundry/commit/44dc5c81d8e5c296ff6c80106ce320e2d9368f88))
+
+
+### Bug Fixes
+
+* restore lost files and remove node_modules/dist from repo ([ebb3e0a](https://github.com/theodaguier/foundry/commit/ebb3e0aad1612fb44ab56ef4345ac41547cb9ee0))
+
 ## [1.11.0](https://github.com/theodaguier/foundry/compare/v1.10.0...v1.11.0) (2026-03-22)
 
 
