@@ -4,10 +4,11 @@ import type {
   GenerationConfig,
   RefineConfig,
   DependencyStatus,
+  BuildEnvironmentStatus,
   AgentProvider,
   GenerationTelemetry,
   UserProfile,
-} from "./types";
+} from "@/lib/types"
 
 export const sendOtp = (email: string) => invoke<void>("send_otp", { email });
 export const verifyOtp = (email: string, code: string, isSignup: boolean) =>
@@ -24,9 +25,9 @@ export const deletePlugin = (id: string) => invoke<void>("delete_plugin", { id }
 export const renamePlugin = (id: string, newName: string) =>
   invoke<void>("rename_plugin", { id, newName });
 export const installVersion = (pluginId: string, versionNumber: number) =>
-  invoke<void>("install_version", { pluginId, versionNumber });
+  invoke<Plugin>("install_version", { pluginId, versionNumber });
 export const clearBuildCache = (pluginId: string, versionNumber: number) =>
-  invoke<void>("clear_build_cache", { pluginId, versionNumber });
+  invoke<Plugin>("clear_build_cache", { pluginId, versionNumber });
 
 export const startGeneration = (config: GenerationConfig) =>
   invoke<void>("start_generation", { config });
@@ -35,7 +36,15 @@ export const startRefine = (config: RefineConfig) =>
 export const cancelBuild = () => invoke<void>("cancel_build");
 
 export const checkDependencies = () => invoke<DependencyStatus[]>("check_dependencies");
-export const installJuce = () => invoke<void>("install_juce");
+export const installJuce = () => invoke<BuildEnvironmentStatus>("install_juce");
+export const getBuildEnvironment = () =>
+  invoke<BuildEnvironmentStatus>("get_build_environment");
+export const prepareBuildEnvironment = (autoRepair: boolean) =>
+  invoke<BuildEnvironmentStatus>("prepare_build_environment", { autoRepair });
+export const setJuceOverridePath = (path: string) =>
+  invoke<BuildEnvironmentStatus>("set_juce_override_path", { path });
+export const clearJuceOverridePath = () =>
+  invoke<BuildEnvironmentStatus>("clear_juce_override_path");
 
 export const getModelCatalog = () => invoke<AgentProvider[]>("get_model_catalog");
 export const refreshModelCatalog = () => invoke<AgentProvider[]>("refresh_model_catalog");

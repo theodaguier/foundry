@@ -1,34 +1,47 @@
-use tauri::command;
+use crate::state::AppState;
+use tauri::{command, State};
 
 #[command]
-pub async fn check_session() -> Result<Option<String>, String> {
-    Ok(None)
+pub async fn check_session(state: State<'_, AppState>) -> Result<Option<String>, String> {
+    state.auth.check_session().await
 }
 
 #[command]
-pub async fn send_otp(email: String) -> Result<(), String> {
+pub async fn send_otp(email: String, state: State<'_, AppState>) -> Result<(), String> {
     log::info!("Sending OTP to {}", email);
-    Ok(())
+    state.auth.send_otp(&email).await
 }
 
 #[command]
-pub async fn verify_otp(email: String, _code: String, is_signup: bool) -> Result<(), String> {
+pub async fn verify_otp(
+    email: String,
+    code: String,
+    is_signup: bool,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
     log::info!("Verifying OTP for {} (signup: {})", email, is_signup);
-    Ok(())
+    state.auth.verify_otp(&email, &code, is_signup).await
 }
 
 #[command]
-pub async fn sign_up(email: String, _password: String) -> Result<(), String> {
+pub async fn sign_up(
+    email: String,
+    password: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
     log::info!("Signing up {}", email);
-    Ok(())
+    state.auth.sign_up(&email, &password).await
 }
 
 #[command]
-pub async fn sign_out() -> Result<(), String> {
-    Ok(())
+pub async fn sign_out(state: State<'_, AppState>) -> Result<(), String> {
+    state.auth.sign_out().await
 }
 
 #[command]
-pub async fn get_profile(_user_id: String) -> Result<Option<serde_json::Value>, String> {
-    Ok(None)
+pub async fn get_profile(
+    user_id: String,
+    state: State<'_, AppState>,
+) -> Result<Option<serde_json::Value>, String> {
+    state.auth.get_profile(&user_id).await
 }

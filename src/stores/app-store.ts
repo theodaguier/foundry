@@ -1,6 +1,6 @@
 import { create } from "zustand";
-import type { Plugin, AuthState, UserProfile, PluginFilter } from "../lib/types";
-import * as commands from "../lib/commands";
+import type { Plugin, AuthState, UserProfile, PluginFilter } from "@/lib/types"
+import * as commands from "@/lib/commands"
 
 interface AppStore {
   authState: AuthState;
@@ -80,12 +80,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
         const profile = await commands.getProfile(userId);
         if (profile) set({ userProfile: profile });
       } else {
-        // Auth not yet implemented — auto-authenticate for development
-        set({ authState: "authenticated" });
+        set({ authState: "unauthenticated" });
       }
     } catch {
-      // Auth not yet implemented — auto-authenticate for development
-      set({ authState: "authenticated" });
+      set({ authState: "unauthenticated" });
     }
   },
 

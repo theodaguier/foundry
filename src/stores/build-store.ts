@@ -1,6 +1,12 @@
 import { create } from "zustand";
-import type { GenerationStep, PipelineLogLine, Plugin, GenerationConfig, RefineConfig } from "../lib/types";
-import * as commands from "../lib/commands";
+import type {
+  GenerationStep,
+  PipelineLogLine,
+  Plugin,
+  GenerationConfig,
+  RefineConfig,
+} from "@/lib/types";
+import * as commands from "@/lib/commands";
 
 interface BuildStore {
   isRunning: boolean;
@@ -34,12 +40,35 @@ interface BuildStore {
 }
 
 const stepIndex: Record<GenerationStep, number> = {
-  preparingProject: 0, generatingDSP: 1, generatingUI: 2, compiling: 3, installing: 4,
+  preparingEnvironment: 0,
+  preparingProject: 1,
+  generatingDSP: 2,
+  generatingUI: 3,
+  compiling: 4,
+  installing: 5,
+};
+
+const generationVisibleIndex: Record<GenerationStep, number> = {
+  preparingEnvironment: 0,
+  preparingProject: 1,
+  generatingDSP: 2,
+  generatingUI: 3,
+  compiling: 4,
+  installing: 5,
+};
+
+const refineVisibleIndex: Record<GenerationStep, number> = {
+  preparingEnvironment: 0,
+  preparingProject: 0,
+  generatingDSP: 1,
+  generatingUI: 1,
+  compiling: 2,
+  installing: 3,
 };
 
 export const useBuildStore = create<BuildStore>((set, get) => ({
   isRunning: false,
-  currentStep: "preparingProject",
+  currentStep: "preparingEnvironment",
   logLines: [],
   streamingText: "",
   generatedPluginName: null,
@@ -53,32 +82,118 @@ export const useBuildStore = create<BuildStore>((set, get) => ({
   refineConfig: null,
 
   startGeneration: async (config) => {
-    set({ isRunning: true, currentStep: "preparingProject", logLines: [], streamingText: "", generatedPluginName: null, buildAttempt: 0, elapsedSeconds: 0, completedSteps: new Set(), highWaterStep: 0, progress: 0, config, refineConfig: null });
-    await commands.startGeneration(config);
+    set({
+      isRunning: true,
+      currentStep: "preparingEnvironment",
+      logLines: [],
+      streamingText: "",
+      generatedPluginName: null,
+      buildAttempt: 0,
+      elapsedSeconds: 0,
+      completedSteps: new Set(),
+      highWaterStep: 0,
+      progress: 0,
+      config,
+      refineConfig: null,
+    });
+    try {
+      const environment = await commands.prepareBuildEnvironment(true);
+      if (environment.state !== "ready") {
+        set({ isRunning: false });
+        return;
+      }
+      await commands.startGeneration(config);
+    } catch (error) {
+      console.error("Failed to start generation:", error);
+      set({ isRunning: false });
+    }
   },
 
   startRefine: async (config) => {
-    set({ isRunning: true, currentStep: "generatingDSP", logLines: [], streamingText: "", generatedPluginName: config.plugin.name, buildAttempt: 0, elapsedSeconds: 0, completedSteps: new Set(), highWaterStep: 0, progress: 0, config: null, refineConfig: config });
-    await commands.startRefine(config);
+    set({
+      isRunning: true,
+      currentStep: "preparingEnvironment",
+      logLines: [],
+      streamingText: "",
+      generatedPluginName: config.plugin.name,
+      buildAttempt: 0,
+      elapsedSeconds: 0,
+      completedSteps: new Set(),
+      highWaterStep: 0,
+      progress: 0,
+      config: null,
+      refineConfig: config,
+    });
+    try {
+      const environment = await commands.prepareBuildEnvironment(true);
+      if (environment.state !== "ready") {
+        set({ isRunning: false });
+        return;
+      }
+      await commands.startRefine(config);
+    } catch (error) {
+      console.error("Failed to start refine:", error);
+      set({ isRunning: false });
+    }
   },
 
-  cancel: async () => { await commands.cancelBuild(); set({ isRunning: false }); },
+  cancel: async () => {
+    await commands.cancelBuild();
+    set({ isRunning: false });
+  },
   setShowConsole: (show) => set({ showConsole: show }),
   tick: () => set((s) => ({ elapsedSeconds: s.elapsedSeconds + 1 })),
-  reset: () => set({ isRunning: false, currentStep: "preparingProject", logLines: [], streamingText: "", generatedPluginName: null, buildAttempt: 0, elapsedSeconds: 0, completedSteps: new Set(), highWaterStep: 0, showConsole: false, progress: 0, config: null, refineConfig: null }),
+  reset: () =>
+    set({
+      isRunning: false,
+      currentStep: "preparingEnvironment",
+      logLines: [],
+      streamingText: "",
+      generatedPluginName: null,
+      buildAttempt: 0,
+      elapsedSeconds: 0,
+      completedSteps: new Set(),
+      highWaterStep: 0,
+      showConsole: false,
+      progress: 0,
+      config: null,
+      refineConfig: null,
+    }),
 
   handleStep: (step) => {
     const idx = stepIndex[step];
     set((s) => {
       const newCompleted = new Set(s.completedSteps);
       if (idx > s.highWaterStep) newCompleted.add(stepIndex[s.currentStep]);
-      const totalSteps = s.refineConfig ? 3 : 5;
-      return { currentStep: step, highWaterStep: Math.max(s.highWaterStep, idx), completedSteps: newCompleted, progress: idx / totalSteps };
+      const visibleSteps = s.refineConfig ? 4 : 6;
+      const visibleIndex = s.refineConfig
+        ? refineVisibleIndex[step]
+        : generationVisibleIndex[step];
+      return {
+        currentStep: step,
+        highWaterStep: Math.max(s.highWaterStep, idx),
+        completedSteps: newCompleted,
+        progress: visibleIndex / Math.max(visibleSteps - 1, 1),
+      };
     });
   },
 
-  handleLog: (line) => set((s) => ({ logLines: [...s.logLines, line] })),
-  handleStreaming: (text) => set({ streamingText: text }),
+  handleLog: (line) =>
+    set((s) => {
+      const lastLine = s.logLines[s.logLines.length - 1];
+      if (
+        lastLine &&
+        lastLine.timestamp === line.timestamp &&
+        lastLine.message === line.message
+      ) {
+        return s;
+      }
+      return { logLines: [...s.logLines, line] };
+    }),
+  handleStreaming: (text) =>
+    set((s) => ({
+      streamingText: text === "" ? "" : `${s.streamingText}${text}`,
+    })),
   handleName: (name) => set({ generatedPluginName: name }),
   handleProgress: (progress) => set({ progress }),
   handleBuildAttempt: (attempt) => set({ buildAttempt: attempt }),

@@ -1,27 +1,50 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::services::foundry_paths;
-
 pub struct AssembledProject {
     pub directory: PathBuf,
     pub plugin_name: String,
-    pub plugin_type: String,  // "instrument", "effect", "utility"
+    pub plugin_type: String, // "instrument", "effect", "utility"
 }
 
 pub fn infer_plugin_type(prompt: &str) -> String {
     let lower = prompt.to_lowercase();
     let utility_keywords = [
-        "utility", "analyzer", "meter", "scope", "monitor", "phase", "mono",
-        "gain staging", "trim", "width", "balance", "imager", "tool",
+        "utility",
+        "analyzer",
+        "meter",
+        "scope",
+        "monitor",
+        "phase",
+        "mono",
+        "gain staging",
+        "trim",
+        "width",
+        "balance",
+        "imager",
+        "tool",
     ];
     if utility_keywords.iter().any(|kw| lower.contains(kw)) {
         return "utility".to_string();
     }
     let instrument_keywords = [
-        "instrument", "synth", "synthesizer", "oscillator", "polyphon",
-        "monophon", "keys", "pad", "lead", "bass synth", "arpeggiator",
-        "sampler", "rompler", "drum machine", "keyboard", "organ", "piano",
+        "instrument",
+        "synth",
+        "synthesizer",
+        "oscillator",
+        "polyphon",
+        "monophon",
+        "keys",
+        "pad",
+        "lead",
+        "bass synth",
+        "arpeggiator",
+        "sampler",
+        "rompler",
+        "drum machine",
+        "keyboard",
+        "organ",
+        "piano",
     ];
     if instrument_keywords.iter().any(|kw| lower.contains(kw)) {
         return "instrument".to_string();
@@ -31,15 +54,45 @@ pub fn infer_plugin_type(prompt: &str) -> String {
 
 fn infer_interface_style(prompt: &str, plugin_type: &str) -> &'static str {
     let lower = prompt.to_lowercase();
-    let focused = ["simple", "minimal", "clean", "focused", "few controls", "macro", "one knob", "two knobs", "three knobs", "fast"];
-    if focused.iter().any(|kw| lower.contains(kw)) { return "Focused"; }
-    let exploratory = [
-        "advanced", "deep", "modular", "matrix", "granular", "sequencer",
-        "multi-stage", "complex", "dense", "experimental", "modulation",
-        "synth", "synthesizer", "analog", "subtractive", "fm", "wavetable",
-        "polysynth", "poly synth",
+    let focused = [
+        "simple",
+        "minimal",
+        "clean",
+        "focused",
+        "few controls",
+        "macro",
+        "one knob",
+        "two knobs",
+        "three knobs",
+        "fast",
     ];
-    if exploratory.iter().any(|kw| lower.contains(kw)) { return "Exploratory"; }
+    if focused.iter().any(|kw| lower.contains(kw)) {
+        return "Focused";
+    }
+    let exploratory = [
+        "advanced",
+        "deep",
+        "modular",
+        "matrix",
+        "granular",
+        "sequencer",
+        "multi-stage",
+        "complex",
+        "dense",
+        "experimental",
+        "modulation",
+        "synth",
+        "synthesizer",
+        "analog",
+        "subtractive",
+        "fm",
+        "wavetable",
+        "polysynth",
+        "poly synth",
+    ];
+    if exploratory.iter().any(|kw| lower.contains(kw)) {
+        return "Exploratory";
+    }
     match plugin_type {
         "utility" => "Focused",
         "instrument" => "Exploratory",
@@ -50,26 +103,34 @@ fn infer_interface_style(prompt: &str, plugin_type: &str) -> &'static str {
 pub fn assemble(
     prompt: &str,
     plugin_name: &str,
-    format: &str,        // "au", "vst3", "both"
+    format: &str,         // "au", "vst3", "both"
     channel_layout: &str, // "mono", "stereo"
     _preset_count: i32,
     _model: &str,
+    juce_path: &Path,
 ) -> Result<AssembledProject, String> {
     let plugin_type = infer_plugin_type(prompt);
     let interface_style = infer_interface_style(prompt, &plugin_type);
 
     let uuid = uuid::Uuid::new_v4().to_string();
     let short = &uuid[..8];
-    let project_dir = PathBuf::from(format!("/tmp/foundry-build-{}", short));
+    let project_dir = crate::platform::temp_build_dir(short);
     let source_dir = project_dir.join("Source");
     let kit_dir = project_dir.join("juce-kit");
 
     fs::create_dir_all(&source_dir).map_err(|e| e.to_string())?;
     fs::create_dir_all(&kit_dir).map_err(|e| e.to_string())?;
 
-    write_cmake_lists(&project_dir, plugin_name, &plugin_type, format)?;
+    write_cmake_lists(&project_dir, plugin_name, &plugin_type, format, juce_path)?;
     write_juce_kit(&kit_dir, plugin_name, &plugin_type)?;
-    write_claude_md(&project_dir, plugin_name, &plugin_type, interface_style, prompt, channel_layout)?;
+    write_claude_md(
+        &project_dir,
+        plugin_name,
+        &plugin_type,
+        interface_style,
+        prompt,
+        channel_layout,
+    )?;
 
     Ok(AssembledProject {
         directory: project_dir,
@@ -78,19 +139,20 @@ pub fn assemble(
     })
 }
 
-fn write_cmake_lists(dir: &Path, name: &str, plugin_type: &str, format: &str) -> Result<(), String> {
-    let juce_path = foundry_paths::juce_dir();
+fn write_cmake_lists(
+    dir: &Path,
+    name: &str,
+    plugin_type: &str,
+    format: &str,
+    juce_path: &Path,
+) -> Result<(), String> {
     let juce_str = juce_path.to_string_lossy();
     let prefix: String = name.chars().take(2).collect::<String>().to_uppercase();
     let suffix = format!("{:02X}", rand_byte());
     let plugin_code: String = format!("{}{}", prefix, suffix).chars().take(4).collect();
     let is_instrument = plugin_type == "instrument";
 
-    let formats = match format.to_uppercase().as_str() {
-        "AU" => "AU",
-        "VST3" => "VST3",
-        _ => "AU VST3",
-    };
+    let formats = crate::platform::cmake_formats(format);
 
     let content = format!(
         r#"cmake_minimum_required(VERSION 3.22)
@@ -239,7 +301,9 @@ synth.renderNextBlock(buffer, midi, 0, numSamples);
 
 Voice must override: `canPlaySound()`, `startNote()`, `stopNote()`, `renderNextBlock()`, `pitchWheelMoved()`, `controllerMoved()`.
 "#
-    } else { "" };
+    } else {
+        ""
+    };
 
     let content = format!(
         r#"# JUCE API Reference
@@ -289,35 +353,38 @@ juce::dsp::Oversampling<float>
 
 fn write_dsp_patterns(dir: &Path, plugin_type: &str) -> Result<(), String> {
     let type_patterns = match plugin_type {
-        "instrument" => r#"
+        "instrument" => {
+            r#"
 ## Instrument Patterns
 - Synthesiser manages voices; each voice has its own oscillator + envelope
 - ADSR envelope controls amplitude; optionally filter envelope
 - Voice::renderNextBlock fills a buffer for one voice; Synthesiser sums them
 - Use juce::dsp::Oscillator or manual wavetable for sound generation
 - Map MIDI note to frequency: juce::MidiMessage::getMidiNoteInHertz(noteNumber)
-"#,
-        "utility" => r#"
+"#
+        }
+        "utility" => {
+            r#"
 ## Utility Patterns
 - Gain: multiply samples by linear gain (dB → linear: juce::Decibels::decibelsToGain)
 - Width: mid/side processing (mid = (L+R)/2, side = (L-R)/2)
 - Phase: invert one or both channels
 - Metering: track RMS/peak per channel, update UI via atomic floats
-"#,
-        _ => r#"
+"#
+        }
+        _ => {
+            r#"
 ## Effect Patterns
 - Serial chain: input → effect1 → effect2 → output
 - Parallel: split → process each path → sum
 - Feedback: output → delay → mix back to input
 - Modulation: LFO modulates a parameter (rate, depth, shape)
 - Envelope follower: track amplitude → control another parameter
-"#,
+"#
+        }
     };
 
-    let content = format!(
-        "# DSP Patterns\n{}\n",
-        type_patterns
-    );
+    let content = format!("# DSP Patterns\n{}\n", type_patterns);
     fs::write(dir.join("dsp-patterns.md"), content).map_err(|e| e.to_string())
 }
 

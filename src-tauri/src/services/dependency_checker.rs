@@ -1,36 +1,37 @@
-use std::process::Command;
 use crate::commands::dependencies::DependencyStatus;
+use crate::platform;
+use crate::services::build_environment;
 
-pub async fn check_all() -> Result<Vec<DependencyStatus>, Box<dyn std::error::Error>> {
+pub async fn check_all() -> Result<Vec<DependencyStatus>, String> {
     let mut deps = Vec::new();
 
-    let xcode = check_cmd("xcode-select", &["-p"]).await;
-    deps.push(DependencyStatus { name: "Xcode Command Line Tools".into(), installed: xcode.is_some(), detail: xcode.clone(), version: xcode });
+    // Platform-specific dependencies (C++ toolchain, CMake, Claude CLI, etc.)
+    for spec in platform::required_dependencies() {
+        let result = platform::check_dependency(&spec);
+        deps.push(DependencyStatus {
+            name: spec.name.to_string(),
+            installed: result.is_some(),
+            detail: result.clone(),
+            version: result,
+        });
+    }
 
-    let cmake = check_cmd("cmake", &["--version"]).await;
-    deps.push(DependencyStatus { name: "CMake".into(), installed: cmake.is_some(), detail: cmake.clone(), version: cmake });
-
-    let juce_dir = crate::services::foundry_paths::juce_dir();
-    deps.push(DependencyStatus { name: "JUCE SDK".into(), installed: juce_dir.exists(), detail: if juce_dir.exists() { Some(juce_dir.to_string_lossy().into()) } else { None }, version: None });
-
-    let claude = check_cmd("claude", &["--version"]).await;
-    deps.push(DependencyStatus { name: "Claude Code CLI".into(), installed: claude.is_some(), detail: claude.clone(), version: claude });
+    let environment = build_environment::get_build_environment().await?;
+    deps.push(DependencyStatus {
+        name: "JUCE SDK".into(),
+        installed: environment.juce_path.is_some(),
+        detail: environment.juce_path.as_ref().map(|path| {
+            match environment.juce_source.as_deref() {
+                Some(source) => format!("{} ({})", path, source),
+                None => path.clone(),
+            }
+        }),
+        version: Some(environment.juce_version),
+    });
 
     Ok(deps)
 }
 
-async fn check_cmd(cmd: &str, args: &[&str]) -> Option<String> {
-    let resolved = Command::new("/bin/zsh")
-        .args(["-l", "-c", &format!("which {}", cmd)])
-        .output().ok()
-        .and_then(|o| if o.status.success() { String::from_utf8(o.stdout).ok().map(|s| s.trim().to_string()) } else { None })
-        .unwrap_or_else(|| cmd.to_string());
-
-    Command::new(&resolved).args(args).output().ok()
-        .and_then(|o| if o.status.success() { String::from_utf8(o.stdout).ok().map(|s| s.trim().to_string()) } else { None })
-}
-
-pub async fn install_juce() -> Result<(), Box<dyn std::error::Error>> {
-    log::info!("JUCE installation not yet implemented");
-    Ok(())
+pub async fn install_juce() -> Result<build_environment::BuildEnvironmentStatus, String> {
+    build_environment::install_managed_juce().await
 }

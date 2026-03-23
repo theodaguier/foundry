@@ -1,6 +1,6 @@
-use tauri::command;
 use crate::models::agent::AgentProvider;
 use crate::services::model_catalog;
+use tauri::command;
 
 #[command]
 pub async fn get_model_catalog() -> Result<Vec<AgentProvider>, String> {

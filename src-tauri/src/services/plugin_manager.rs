@@ -1,7 +1,7 @@
-use std::fs;
-use serde::{Deserialize, Serialize};
 use crate::models::plugin::Plugin;
 use crate::services::foundry_paths;
+use serde::{Deserialize, Serialize};
+use std::fs;
 
 /// Swift format: `{ "plugins": [...] }`
 #[derive(Serialize, Deserialize)]
@@ -49,7 +49,9 @@ pub fn save_plugins(plugins: &[Plugin]) -> Result<(), Box<dyn std::error::Error>
         fs::create_dir_all(parent)?;
     }
     // Write in Swift-compatible format
-    let file = PluginFile { plugins: plugins.to_vec() };
+    let file = PluginFile {
+        plugins: plugins.to_vec(),
+    };
     let data = serde_json::to_string_pretty(&file)?;
     fs::write(&path, data)?;
     Ok(())

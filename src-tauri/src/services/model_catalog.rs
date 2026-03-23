@@ -1,9 +1,11 @@
-use std::fs;
-use crate::models::agent::{AgentProvider, AgentModel};
+use crate::models::agent::{AgentModel, AgentProvider};
 use crate::services::foundry_paths;
+use std::fs;
 
 #[derive(serde::Deserialize)]
-struct CatalogRoot { providers: Vec<AgentProvider> }
+struct CatalogRoot {
+    providers: Vec<AgentProvider>,
+}
 
 pub fn load_catalog() -> Result<Vec<AgentProvider>, Box<dyn std::error::Error>> {
     let user_path = foundry_paths::models_user_override_path();
@@ -19,10 +21,25 @@ pub fn load_catalog() -> Result<Vec<AgentProvider>, Box<dyn std::error::Error>> 
         return Ok(root.providers);
     }
     Ok(vec![AgentProvider {
-        id: "claude-code".into(), name: "Claude Code".into(), icon: "ProviderAnthropic".into(), command: "claude".into(),
+        id: "claude-code".into(),
+        name: "Claude Code".into(),
+        icon: "ProviderAnthropic".into(),
+        command: "claude".into(),
         models: vec![
-            AgentModel { id: "sonnet".into(), name: "Sonnet".into(), subtitle: "Fast & capable".into(), flag: "sonnet".into(), default: Some(true) },
-            AgentModel { id: "opus".into(), name: "Opus".into(), subtitle: "Most capable".into(), flag: "opus".into(), default: None },
+            AgentModel {
+                id: "sonnet".into(),
+                name: "Sonnet".into(),
+                subtitle: "Fast & capable".into(),
+                flag: "sonnet".into(),
+                default: Some(true),
+            },
+            AgentModel {
+                id: "opus".into(),
+                name: "Opus".into(),
+                subtitle: "Most capable".into(),
+                flag: "opus".into(),
+                default: None,
+            },
         ],
     }])
 }

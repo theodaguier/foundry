@@ -18,7 +18,7 @@ export interface PluginVersion {
   iconColor: string;
   isActive: boolean;
   agent?: string;
-  model?: string;
+  model?: AgentModel;
   telemetryId?: string;
 }
 
@@ -36,7 +36,7 @@ export interface Plugin {
   buildDirectory?: string;
   generationLogPath?: string;
   agent?: string;
-  model?: string;
+  model?: AgentModel;
   currentVersion: number;
   versions: PluginVersion[];
 }
@@ -76,6 +76,7 @@ export interface RefineConfig {
 }
 
 export type GenerationStep =
+  | "preparingEnvironment"
   | "preparingProject"
   | "generatingDSP"
   | "generatingUI"
@@ -92,8 +93,12 @@ export type AuthState = "checking" | "unauthenticated" | "authenticated";
 
 export interface UserProfile {
   id: string;
-  email?: string;
+  email: string;
   displayName?: string;
+  avatarUrl?: string;
+  plan: "free" | "pro";
+  pluginsGenerated: number;
+  createdAt: string;
 }
 
 export interface DependencyStatus {
@@ -101,6 +106,22 @@ export interface DependencyStatus {
   installed: boolean;
   detail?: string;
   version?: string;
+}
+
+export interface BuildEnvironmentIssue {
+  code: string;
+  title: string;
+  detail: string;
+  recoverable: boolean;
+  actionLabel?: string;
+}
+
+export interface BuildEnvironmentStatus {
+  state: "ready" | "repairing" | "blocked";
+  issues: BuildEnvironmentIssue[];
+  juceSource?: "managed" | "override";
+  jucePath?: string;
+  juceVersion: string;
 }
 
 export type PluginFilter = "ALL" | "INSTRUMENTS" | "EFFECTS" | "UTILITIES";

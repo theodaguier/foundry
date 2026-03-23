@@ -1,103 +1,158 @@
-import type { ReactNode } from "react";
-import Button from "./Button";
+import * as React from "react"
+import { Dialog as DialogPrimitive } from "@base-ui/react/dialog"
 
-interface DialogProps {
-  open: boolean;
-  onClose: () => void;
-  children: ReactNode;
-  width?: string;
+import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
+import { XIcon } from "lucide-react"
+
+function Dialog({ ...props }: DialogPrimitive.Root.Props) {
+  return <DialogPrimitive.Root data-slot="dialog" {...props} />
 }
 
-/**
- * Modal dialog overlay — matches Swift .alert / .sheet pattern.
- */
-export function Dialog({ open, onClose, children, width = "max-w-[320px]" }: DialogProps) {
-  if (!open) return null;
+function DialogTrigger({ ...props }: DialogPrimitive.Trigger.Props) {
+  return <DialogPrimitive.Trigger data-slot="dialog-trigger" {...props} />
+}
 
+function DialogPortal({ ...props }: DialogPrimitive.Portal.Props) {
+  return <DialogPrimitive.Portal data-slot="dialog-portal" {...props} />
+}
+
+function DialogClose({ ...props }: DialogPrimitive.Close.Props) {
+  return <DialogPrimitive.Close data-slot="dialog-close" {...props} />
+}
+
+function DialogOverlay({
+  className,
+  ...props
+}: DialogPrimitive.Backdrop.Props) {
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={onClose}>
-      <div
-        className={`${width} w-full bg-[var(--color-bg-elevated)] rounded-lg p-5 shadow-xl`}
-        onClick={(e) => e.stopPropagation()}
+    <DialogPrimitive.Backdrop
+      data-slot="dialog-overlay"
+      className={cn(
+        "fixed inset-0 isolate z-50 bg-foreground/10 duration-100 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+function DialogContent({
+  className,
+  children,
+  showCloseButton = true,
+  ...props
+}: DialogPrimitive.Popup.Props & {
+  showCloseButton?: boolean
+}) {
+  return (
+    <DialogPortal>
+      <DialogOverlay />
+      <DialogPrimitive.Popup
+        data-slot="dialog-content"
+        className={cn(
+          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-background p-4 text-sm ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          className
+        )}
+        {...props}
       >
         {children}
-      </div>
+        {showCloseButton && (
+          <DialogPrimitive.Close
+            data-slot="dialog-close"
+            render={
+              <Button
+                variant="ghost"
+                className="absolute top-2 right-2"
+                size="icon-sm"
+              />
+            }
+          >
+            <XIcon
+            />
+            <span className="sr-only">Close</span>
+          </DialogPrimitive.Close>
+        )}
+      </DialogPrimitive.Popup>
+    </DialogPortal>
+  )
+}
+
+function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="dialog-header"
+      className={cn("flex flex-col gap-2", className)}
+      {...props}
+    />
+  )
+}
+
+function DialogFooter({
+  className,
+  showCloseButton = false,
+  children,
+  ...props
+}: React.ComponentProps<"div"> & {
+  showCloseButton?: boolean
+}) {
+  return (
+    <div
+      data-slot="dialog-footer"
+      className={cn(
+        "-mx-4 -mb-4 flex flex-col-reverse gap-2 rounded-b-xl border-t bg-muted/50 p-4 sm:flex-row sm:justify-end",
+        className
+      )}
+      {...props}
+    >
+      {children}
+      {showCloseButton && (
+        <DialogPrimitive.Close render={<Button variant="outline" />}>
+          Close
+        </DialogPrimitive.Close>
+      )}
     </div>
-  );
+  )
 }
 
-interface ConfirmDialogProps {
-  open: boolean;
-  title: string;
-  message: string;
-  confirmLabel?: string;
-  cancelLabel?: string;
-  destructive?: boolean;
-  onConfirm: () => void;
-  onCancel: () => void;
-}
-
-/**
- * Confirmation dialog — matches Swift .alert with Cancel + Confirm buttons.
- */
-export function ConfirmDialog({
-  open,
-  title,
-  message,
-  confirmLabel = "Confirm",
-  cancelLabel = "Cancel",
-  destructive = false,
-  onConfirm,
-  onCancel,
-}: ConfirmDialogProps) {
+function DialogTitle({ className, ...props }: DialogPrimitive.Title.Props) {
   return (
-    <Dialog open={open} onClose={onCancel} width="max-w-[280px]">
-      <h3 className="text-[13px] font-medium mb-1">{title}</h3>
-      <p className="text-[11px] text-[var(--color-text-secondary)] mb-4 leading-relaxed">{message}</p>
-      <div className="flex gap-2 justify-end">
-        <Button variant="secondary" size="sm" onClick={onCancel}>{cancelLabel}</Button>
-        <Button variant={destructive ? "destructive" : "primary"} size="sm" onClick={onConfirm}>{confirmLabel}</Button>
-      </div>
-    </Dialog>
-  );
+    <DialogPrimitive.Title
+      data-slot="dialog-title"
+      className={cn(
+        "font-heading text-base leading-none font-medium",
+        className
+      )}
+      {...props}
+    />
+  )
 }
 
-interface InputDialogProps {
-  open: boolean;
-  title: string;
-  value: string;
-  onChange: (value: string) => void;
-  confirmLabel?: string;
-  onConfirm: () => void;
-  onCancel: () => void;
-}
-
-/**
- * Input dialog — matches Swift .alert with TextField.
- */
-export function InputDialog({
-  open,
-  title,
-  value,
-  onChange,
-  confirmLabel = "Done",
-  onConfirm,
-  onCancel,
-}: InputDialogProps) {
+function DialogDescription({
+  className,
+  ...props
+}: DialogPrimitive.Description.Props) {
   return (
-    <Dialog open={open} onClose={onCancel}>
-      <h3 className="text-[13px] font-medium mb-3">{title}</h3>
-      <input
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onKeyDown={(e) => { if (e.key === "Enter" && value.trim()) onConfirm(); }}
-        autoFocus
-        className="w-full px-3 py-2 bg-[var(--color-bg-text)] border border-[var(--color-border)] rounded-md text-[13px] text-[var(--color-text-primary)] outline-none focus:border-[var(--color-accent)] font-[var(--font-mono)]"
-      />
-      <div className="flex gap-2 justify-end mt-4">
-        <Button variant="secondary" size="sm" onClick={onCancel}>Cancel</Button>
-        <Button variant="primary" size="sm" onClick={onConfirm} disabled={!value.trim()}>{confirmLabel}</Button>
-      </div>
-    </Dialog>
-  );
+    <DialogPrimitive.Description
+      data-slot="dialog-description"
+      className={cn(
+        "text-sm text-muted-foreground *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+export {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogOverlay,
+  DialogPortal,
+  DialogTitle,
+  DialogTrigger,
 }

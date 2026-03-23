@@ -1,7 +1,10 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useBuildStore } from "../stores/build-store";
-import { useSettingsStore } from "../stores/settings-store";
+import { useBuildStore } from "@/stores/build-store"
+import { useSettingsStore } from "@/stores/settings-store"
+import { Button } from "@/components/ui/button"
+import { Textarea } from "@/components/ui/textarea"
+import { FoundryLogo } from "@/components/app/foundry-logo"
 
 const suggestions = [
   {
@@ -45,7 +48,8 @@ export default function Prompt() {
 
   const generate = async () => {
     if (isEmpty) return;
-    await startGeneration({
+    navigate("/generation");
+    void startGeneration({
       prompt: prompt.trim(),
       format: "Both",
       channelLayout: "Stereo",
@@ -53,7 +57,6 @@ export default function Prompt() {
       agent: "Claude Code",
       model: selectedModel,
     });
-    navigate("/generation");
   };
 
   return (
@@ -64,20 +67,20 @@ export default function Prompt() {
       <div className="flex-1 max-w-[1024px] mx-auto flex flex-col justify-center py-8 overflow-y-auto">
         {/* Hero — Swift: logo 48px, VStack spacing 10 */}
         <div className="flex flex-col items-center gap-2.5 mb-8">
-          <span className="text-5xl font-[ArchitypeStedelijk] text-[var(--color-text-primary)] opacity-70 leading-none h-[48px] flex items-center">F</span>
-          <span className="text-[14px] text-[var(--color-text-secondary)]">Describe your plugin, Foundry builds it.</span>
+          <FoundryLogo height={48} className="text-foreground opacity-70" />
+          <span className="text-[14px] text-muted-foreground">Describe your plugin, Foundry builds it.</span>
         </div>
 
         {/* Prompt input — Swift: minHeight 100, cornerRadius 8, bg textBackgroundColor 0.5 */}
         <div className="mb-6">
-          <textarea
+          <Textarea
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && e.metaKey) generate(); }}
             placeholder="A warm analog synth with detuned oscillators…"
             autoFocus
             rows={5}
-            className="w-full min-h-[100px] p-3 bg-[color-mix(in_srgb,var(--color-bg-text)_50%,transparent)] text-[14px] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-dimmed)] rounded-lg border border-[var(--color-border)] outline-none resize-none font-[var(--font-mono)] focus:border-[var(--color-text-muted)] transition-colors"
+            className="min-h-[100px] resize-none font-mono text-[14px]"
           />
 
           {/* Controls row — Swift: HStack spacing 6, pt 10 */}
@@ -86,18 +89,18 @@ export default function Prompt() {
             <div className="relative">
               <button
                 onClick={() => setShowModelMenu(!showModelMenu)}
-                className="flex items-center gap-1.5 px-2.5 py-[5px] bg-[var(--color-bg-control)] rounded-md text-[12px] font-medium"
+                className="flex items-center gap-1.5 px-2.5 py-[5px] bg-secondary rounded-md text-[12px] font-medium"
               >
                 <span className="text-[14px]">⬡</span>
                 <span>{selectedModel}</span>
-                <svg className="w-2 h-2 text-[var(--color-text-secondary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                <svg className="w-2 h-2 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
               {showModelMenu && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setShowModelMenu(false)} />
-                  <div className="absolute top-full left-0 mt-1 bg-[var(--color-bg-elevated)] border border-[var(--color-border)] rounded-md shadow-xl z-20 min-w-[200px]">
+                  <div className="absolute top-full left-0 mt-1 bg-card border border-border rounded-md shadow-xl z-20 min-w-[200px]">
                     {(modelCatalog.length > 0 ? modelCatalog : [{
                       id: "claude-code", name: "Claude Code", icon: "", command: "claude",
                       models: [
@@ -106,17 +109,17 @@ export default function Prompt() {
                       ]
                     }]).map((provider) => (
                       <div key={provider.id}>
-                        <div className="px-3 py-1.5 text-[9px] tracking-[1px] text-[var(--color-text-muted)] uppercase">{provider.name}</div>
+                        <div className="px-3 py-1.5 text-[9px] tracking-[1px] text-muted-foreground/60 uppercase">{provider.name}</div>
                         {provider.models.map((model) => (
                           <button
                             key={model.id}
                             onClick={() => { setSelectedModel(model.flag || model.id); setShowModelMenu(false); }}
-                            className={`w-full px-3 py-2 text-left text-[12px] hover:bg-[var(--color-bg-control)] flex items-center gap-2 ${
-                              selectedModel === (model.flag || model.id) ? "text-[var(--color-accent)]" : ""
+                            className={`w-full px-3 py-2 text-left text-[12px] hover:bg-secondary flex items-center gap-2 ${
+                              selectedModel === (model.flag || model.id) ? "text-primary" : ""
                             }`}
                           >
                             <span>{model.name}</span>
-                            <span className="text-[var(--color-text-muted)] text-[10px]">— {model.subtitle}</span>
+                            <span className="text-muted-foreground/60 text-[10px]">— {model.subtitle}</span>
                           </button>
                         ))}
                       </div>
@@ -129,28 +132,20 @@ export default function Prompt() {
             <div className="flex-1" />
 
             {/* Generate button — Swift: borderedProminent, controlSize large */}
-            <button
-              onClick={generate}
-              disabled={isEmpty}
-              className="px-5 py-2 text-[13px] rounded-lg font-medium transition-colors disabled:opacity-30"
-              style={{
-                backgroundColor: isEmpty ? "rgba(255,255,255,0.08)" : "var(--color-accent)",
-                color: isEmpty ? "var(--color-text-muted)" : "white",
-              }}
-            >
+            <Button onClick={generate} disabled={isEmpty}>
               Generate
-            </button>
+            </Button>
           </div>
         </div>
 
         {/* Category grid — Swift: 3 columns, 1px gap, separatorColor border */}
-        <div className="grid grid-cols-3 gap-px bg-[var(--color-border)] border border-[var(--color-border)]">
+        <div className="grid grid-cols-3 gap-px bg-border border border-border">
           {suggestions.map((cat) => (
-            <div key={cat.title} className="bg-[var(--color-bg-text)] p-5">
+            <div key={cat.title} className="bg-muted p-5">
               {/* Header — Swift: HStack spacing sm (12), mb lg (24) */}
               <div className="flex items-center gap-3 mb-6">
                 <span className="text-[11px]">{cat.icon}</span>
-                <span className="text-[12px] font-[var(--font-mono)] tracking-[2.4px] text-[var(--color-text-primary)]">{cat.title}</span>
+                <span className="text-[12px] font-mono tracking-[2.4px] text-foreground">{cat.title}</span>
               </div>
               {/* Items — Swift: spacing md (16) */}
               <div className="flex flex-col gap-4">
@@ -160,11 +155,11 @@ export default function Prompt() {
                     onClick={() => setPrompt(item.prompt)}
                     className="flex items-center gap-2 group text-left"
                   >
-                    <span className="text-[11px] font-[var(--font-mono)] tracking-[-0.275px] text-[var(--color-text-secondary)] group-hover:text-[var(--color-text-primary)] transition-colors">
+                    <span className="text-[11px] font-mono tracking-[-0.275px] text-muted-foreground group-hover:text-foreground transition-colors">
                       {item.display}
                     </span>
                     <span className="flex-1" />
-                    <svg className="w-[7px] h-[7px] text-[var(--color-text-muted)] shrink-0 group-hover:text-[var(--color-text-secondary)] transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                    <svg className="w-[7px] h-[7px] text-muted-foreground/60 shrink-0 group-hover:text-muted-foreground transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M7 17L17 7M17 7H7M17 7v10" />
                     </svg>
                   </button>

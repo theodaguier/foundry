@@ -1,6 +1,6 @@
-use tauri::command;
 use crate::models::telemetry::GenerationTelemetry;
 use crate::services::telemetry_service;
+use tauri::command;
 
 #[command]
 pub async fn load_telemetry(id: String) -> Result<Option<GenerationTelemetry>, String> {
