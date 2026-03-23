@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.13.0](https://github.com/theodaguier/foundry/compare/v1.12.0...v1.13.0) (2026-03-23)
+
+
+### Features
+
+* env-based credentials setup with conductor.json ([6c9da7d](https://github.com/theodaguier/foundry/commit/6c9da7d522dbf07021e33e24a3ce1cdbcdaec696))
+
 ## [1.12.0](https://github.com/theodaguier/foundry/compare/v1.11.0...v1.12.0) (2026-03-23)
 
 
