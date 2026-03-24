@@ -188,6 +188,10 @@ pub fn show_in_file_manager(path: &str) -> Result<(), String> {
     Ok(())
 }
 
+pub fn invalidate_shell_cache() {
+    // No-op on Linux — shell env is not cached with OnceLock on this platform.
+}
+
 fn copy_dir_all(src: &std::path::Path, dst: &std::path::Path) -> std::io::Result<()> {
     std::fs::create_dir_all(dst)?;
     for entry in std::fs::read_dir(src)? {

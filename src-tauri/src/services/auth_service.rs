@@ -117,6 +117,8 @@ impl SupabaseAuth {
     }
 
     pub async fn sign_up(&self, email: &str, password: &str) -> Result<(), String> {
+        // Step 1: Create the account (with email confirmation disabled to avoid
+        // Supabase's built-in confirmation email which can fail with custom SMTP).
         let url = format!("{}/auth/v1/signup", *SUPABASE_URL);
         let body = serde_json::json!({
             "email": email,
@@ -139,8 +141,18 @@ impl SupabaseAuth {
             .await
             .map_err(|e| format!("Failed to read response: {}", e))?;
 
+        log::info!("Signup response [{}]: {}", status, text);
+
         if !status.is_success() {
-            return Err(Self::extract_error(&text));
+            let err = Self::extract_error(&text);
+            // If the confirmation email fails, the account may still have been
+            // created. Fall back to sending an OTP instead.
+            if err.contains("confirmation email") {
+                log::warn!("Signup confirmation email failed — falling back to OTP flow");
+                self.send_otp(email).await?;
+                return Ok(());
+            }
+            return Err(err);
         }
 
         // If the response contains a session (email confirmation disabled), store it
@@ -181,11 +193,14 @@ impl SupabaseAuth {
             .map_err(|e| format!("Request failed: {}", e))?;
 
         let status = resp.status();
+        let text = resp
+            .text()
+            .await
+            .map_err(|e| format!("Failed to read response: {}", e))?;
+
+        log::info!("OTP response [{}]: {}", status, text);
+
         if !status.is_success() {
-            let text = resp
-                .text()
-                .await
-                .map_err(|e| format!("Failed to read response: {}", e))?;
             return Err(Self::extract_error(&text));
         }
 

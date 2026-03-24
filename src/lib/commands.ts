@@ -8,6 +8,8 @@ import type {
   AgentProvider,
   GenerationTelemetry,
   UserProfile,
+  OnboardingState,
+  DependencyInstallResult,
 } from "@/lib/types"
 
 export const sendOtp = (email: string) => invoke<void>("send_otp", { email });
@@ -54,3 +56,8 @@ export const loadTelemetry = (id: string) =>
 export const loadAllTelemetry = () => invoke<GenerationTelemetry[]>("load_all_telemetry");
 
 export const showInFinder = (path: string) => invoke<void>("show_in_finder", { path });
+
+export const getOnboardingState = () => invoke<OnboardingState>("get_onboarding_state");
+export const completeOnboarding = () => invoke<OnboardingState>("complete_onboarding");
+export const installDependency = (name: string) =>
+  invoke<DependencyInstallResult>("install_dependency", { name });

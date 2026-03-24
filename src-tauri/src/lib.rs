@@ -46,6 +46,9 @@ pub fn run() {
             commands::telemetry::load_telemetry,
             commands::telemetry::load_all_telemetry,
             commands::filesystem::show_in_finder,
+            commands::onboarding::get_onboarding_state,
+            commands::onboarding::complete_onboarding,
+            commands::onboarding::install_dependency,
         ])
         .setup(|app| {
             // Set dock icon (ensures correct icon in dev mode)

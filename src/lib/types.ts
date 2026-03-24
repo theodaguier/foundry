@@ -99,6 +99,7 @@ export interface UserProfile {
   plan: "free" | "pro";
   pluginsGenerated: number;
   createdAt: string;
+  onboardingCompletedAt?: string;
 }
 
 export interface DependencyStatus {
@@ -156,4 +157,14 @@ export interface BuildAttemptLog {
   success: boolean;
   duration: number;
   errorSnippet?: string;
+}
+
+export interface OnboardingState {
+  completed: boolean;
+  completedAt?: string;
+}
+
+export interface DependencyInstallResult {
+  success: boolean;
+  message: string;
 }

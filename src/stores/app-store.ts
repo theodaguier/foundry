@@ -9,6 +9,7 @@ interface AppStore {
   filter: PluginFilter;
   selectedPlugin: Plugin | null;
   showSetup: boolean;
+  onboardingComplete: boolean | null;
 
   setAuthState: (state: AuthState) => void;
   setUserProfile: (profile: UserProfile | null) => void;
@@ -20,6 +21,7 @@ interface AppStore {
   renamePlugin: (id: string, newName: string) => Promise<void>;
   signOut: () => Promise<void>;
   checkSession: () => Promise<void>;
+  checkOnboarding: () => Promise<void>;
   filteredPlugins: () => Plugin[];
 }
 
@@ -30,6 +32,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   filter: "ALL",
   selectedPlugin: null,
   showSetup: false,
+  onboardingComplete: null,
 
   setAuthState: (authState) => set({ authState }),
   setUserProfile: (userProfile) => set({ userProfile }),
@@ -84,6 +87,16 @@ export const useAppStore = create<AppStore>((set, get) => ({
       }
     } catch {
       set({ authState: "unauthenticated" });
+    }
+  },
+
+  checkOnboarding: async () => {
+    try {
+      const state = await commands.getOnboardingState();
+      set({ onboardingComplete: state.completed });
+    } catch (e) {
+      console.error("Failed to check onboarding:", e);
+      set({ onboardingComplete: false });
     }
   },
 
