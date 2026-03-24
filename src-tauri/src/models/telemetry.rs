@@ -163,13 +163,13 @@ pub struct TelemetryBuilder {
 }
 
 impl TelemetryBuilder {
-    pub fn new(generation_type: &str, prompt: &str, model: &str) -> Self {
+    pub fn new(generation_type: &str, prompt: &str, agent: &str, model: &str) -> Self {
         Self {
             id: uuid::Uuid::new_v4().to_string(),
             plugin_id: None,
             version_number: None,
             generation_type: generation_type.to_string(),
-            agent: "claude-code".to_string(),
+            agent: normalize_agent(agent),
             model: model.to_string(),
             original_prompt: prompt.to_string(),
             started_at: std::time::Instant::now(),
@@ -313,6 +313,14 @@ impl TelemetryBuilder {
             juce_version: self.juce_version,
             created_at: chrono::Utc::now().to_rfc3339(),
         }
+    }
+}
+
+fn normalize_agent(agent: &str) -> String {
+    if agent.to_ascii_lowercase().contains("codex") {
+        "codex".to_string()
+    } else {
+        "claude-code".to_string()
     }
 }
 

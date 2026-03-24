@@ -3,12 +3,13 @@ use std::hash::{Hash, Hasher};
 use std::path::Path;
 use tauri::{AppHandle, Emitter};
 
+use crate::models::agent::{AgentModel, GenerationAgent};
 use crate::models::config::{GenerationConfig, RefineConfig};
 use crate::models::plugin::{InstallPaths, Plugin, PluginFormat, PluginVersion};
 use crate::models::telemetry::TelemetryBuilder;
 use crate::services::{
     agent_service, build_environment, build_runner, claude_code_service, foundry_paths,
-    plugin_manager, project_assembler, telemetry_service,
+    model_catalog, plugin_manager, project_assembler, telemetry_service,
 };
 
 #[derive(Clone, serde::Serialize)]
@@ -92,7 +93,14 @@ pub async fn run_generation(
         let _ = cancel_tx.send(true);
     });
 
-    let mut tb = TelemetryBuilder::new("generate", &config.prompt, &config.model);
+    let telemetry_agent = config.agent.clone();
+    let telemetry_model = config.model.clone();
+    let mut tb = TelemetryBuilder::new(
+        "generate",
+        &config.prompt,
+        &telemetry_agent,
+        &telemetry_model,
+    );
     tb.format = Some(config.format.clone());
     tb.channel_layout = Some(config.channel_layout.clone());
 
@@ -102,6 +110,14 @@ pub async fn run_generation(
             tb.version_number = Some(1);
             let telemetry = tb.build();
             save_telemetry(&app, &telemetry);
+            let plugin = sync_plugin_generation_metadata(
+                &plugin.id,
+                telemetry.version_number.unwrap_or(1),
+                &telemetry.id,
+                &telemetry_agent,
+                &telemetry_model,
+            )
+            .unwrap_or(plugin);
             let _ = app.emit("pipeline:complete", CompleteEvent { plugin });
         }
         Err(e) => {
@@ -581,13 +597,9 @@ pub async fn run_refine(
         let _ = cancel_tx.send(true);
     });
 
-    let model_str = config
-        .plugin
-        .model
-        .as_ref()
-        .map(|m| m.flag.clone())
-        .unwrap_or_else(|| "sonnet".into());
-    let mut tb = TelemetryBuilder::new("refine", &config.modification, &model_str);
+    let refine_agent = preferred_plugin_agent_name(&config.plugin);
+    let model_str = preferred_plugin_model_flag(&config.plugin);
+    let mut tb = TelemetryBuilder::new("refine", &config.modification, &refine_agent, &model_str);
     tb.plugin_id = Some(config.plugin.id.clone());
     tb.version_number = Some(config.plugin.current_version + 1);
 
@@ -595,6 +607,14 @@ pub async fn run_refine(
         Ok(plugin) => {
             let telemetry = tb.build();
             save_telemetry(&app, &telemetry);
+            let plugin = sync_plugin_generation_metadata(
+                &plugin.id,
+                telemetry.version_number.unwrap_or(plugin.current_version),
+                &telemetry.id,
+                &refine_agent,
+                &model_str,
+            )
+            .unwrap_or(plugin);
             let _ = app.emit("pipeline:complete", CompleteEvent { plugin });
         }
         Err(e) => {
@@ -632,12 +652,9 @@ async fn execute_refine(
     tb: &mut TelemetryBuilder,
 ) -> Result<Plugin, String> {
     // Resolve agent CLI — refine uses the agent that built the original plugin
-    let refine_agent = match &config.plugin.agent {
-        Some(crate::models::agent::GenerationAgent::Codex) => "Codex",
-        _ => "Claude Code",
-    };
-    let refine_display = agent_service::agent_display_name(refine_agent);
-    let cli_path = agent_service::resolve_agent_path(refine_agent)
+    let refine_agent = preferred_plugin_agent_name(&config.plugin);
+    let refine_display = agent_service::agent_display_name(&refine_agent);
+    let cli_path = agent_service::resolve_agent_path(&refine_agent)
         .ok_or_else(|| format!("{} CLI is not available", refine_display))?;
 
     let build_dir = config
@@ -651,12 +668,7 @@ async fn execute_refine(
     }
 
     let project_dir = Path::new(build_dir);
-    let model_flag = config
-        .plugin
-        .model
-        .as_ref()
-        .map(|m| m.flag.as_str())
-        .unwrap_or("sonnet");
+    let model_flag = preferred_plugin_model_flag(&config.plugin);
 
     // Backup Source/
     let source_dir = project_dir.join("Source");
@@ -713,11 +725,11 @@ async fn execute_refine(
 
     let app_clone = app.clone();
     let gen_result = agent_service::run(
-        refine_agent,
+        &refine_agent,
         &cli_path,
         &refine_prompt,
         build_dir,
-        model_flag,
+        &model_flag,
         "refine",
         move |event| handle_claude_event(&app_clone, &event),
         cancel_watch.clone(),
@@ -762,10 +774,10 @@ async fn execute_refine(
     tb.start_build();
 
     if let Err(e) = run_build_loop_with_skip(
-        refine_agent,
+        &refine_agent,
         &cli_path,
         project_dir,
-        model_flag,
+        &model_flag,
         app,
         tb,
         cancel_watch.clone(),
@@ -851,6 +863,107 @@ async fn execute_refine(
     plugin_manager::save_plugins(&plugins).map_err(|e| e.to_string())?;
 
     Ok(updated)
+}
+
+fn preferred_plugin_agent_name(plugin: &Plugin) -> String {
+    match &plugin.agent {
+        Some(GenerationAgent::Codex) => "Codex".to_string(),
+        Some(GenerationAgent::ClaudeCode) => "Claude Code".to_string(),
+        None => plugin
+            .model
+            .as_ref()
+            .map(|model| model.flag.to_ascii_lowercase())
+            .filter(|flag| flag.contains("gpt") || flag.contains("codex"))
+            .map(|_| "Codex".to_string())
+            .unwrap_or_else(|| "Claude Code".to_string()),
+    }
+}
+
+fn preferred_plugin_model_flag(plugin: &Plugin) -> String {
+    plugin
+        .model
+        .as_ref()
+        .map(|model| model.flag.clone())
+        .unwrap_or_else(|| {
+            if matches!(plugin.agent, Some(GenerationAgent::Codex)) {
+                "gpt-5.4".to_string()
+            } else {
+                "sonnet".to_string()
+            }
+        })
+}
+
+fn canonical_agent_id(agent: &str) -> &'static str {
+    if agent.to_ascii_lowercase().contains("codex") {
+        "codex"
+    } else {
+        "claude-code"
+    }
+}
+
+fn generation_agent_from_name(agent: &str) -> GenerationAgent {
+    if canonical_agent_id(agent) == "codex" {
+        GenerationAgent::Codex
+    } else {
+        GenerationAgent::ClaudeCode
+    }
+}
+
+fn resolve_agent_model(agent: &str, model_flag: &str) -> AgentModel {
+    let provider_id = canonical_agent_id(agent);
+    if let Ok(catalog) = model_catalog::load_catalog() {
+        if let Some(model) = catalog
+            .into_iter()
+            .find(|provider| provider.id == provider_id || provider.name == agent)
+            .and_then(|provider| {
+                provider
+                    .models
+                    .into_iter()
+                    .find(|model| model.flag == model_flag || model.id == model_flag)
+            })
+        {
+            return model;
+        }
+    }
+
+    AgentModel {
+        id: model_flag.to_string(),
+        name: model_flag.to_string(),
+        subtitle: String::new(),
+        flag: model_flag.to_string(),
+        default: None,
+    }
+}
+
+fn sync_plugin_generation_metadata(
+    plugin_id: &str,
+    version_number: i32,
+    telemetry_id: &str,
+    agent: &str,
+    model_flag: &str,
+) -> Option<Plugin> {
+    let resolved_agent = generation_agent_from_name(agent);
+    let resolved_model = resolve_agent_model(agent, model_flag);
+
+    let mut plugins = plugin_manager::load_plugins().ok()?;
+    let plugin = plugins.iter_mut().find(|plugin| plugin.id == plugin_id)?;
+
+    plugin.agent = Some(resolved_agent.clone());
+    plugin.model = Some(resolved_model.clone());
+
+    if let Some(version) = plugin
+        .versions
+        .iter_mut()
+        .find(|version| version.version_number == version_number)
+    {
+        version.agent = Some(resolved_agent);
+        version.model = Some(resolved_model);
+        version.telemetry_id = Some(telemetry_id.to_string());
+    }
+
+    let updated = plugin.clone();
+    plugin_manager::save_plugins(&plugins).ok()?;
+    Some(updated)
 }
 
 // ---- Build Loop ----
