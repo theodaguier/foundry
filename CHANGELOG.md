@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.15.0](https://github.com/theodaguier/foundry/compare/v1.14.0...v1.15.0) (2026-03-24)
+
+
+### Features
+
+* add Codex CLI support as a generation backend ([#61](https://github.com/theodaguier/foundry/issues/61)) ([2a5271a](https://github.com/theodaguier/foundry/commit/2a5271a770a8b5d615d26525e41362df1770844a))
+
 ## [1.14.0](https://github.com/theodaguier/foundry/compare/v1.13.0...v1.14.0) (2026-03-24)
 
 
