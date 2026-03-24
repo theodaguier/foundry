@@ -9,4 +9,5 @@ pub mod generation_pipeline;
 pub mod model_catalog;
 pub mod plugin_manager;
 pub mod project_assembler;
+pub mod onboarding;
 pub mod telemetry_service;

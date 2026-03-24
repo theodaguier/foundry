@@ -2,10 +2,10 @@ use super::types::{BundleMapping, DependencySpec, InstallDir, InstallOperation};
 use crate::models::plugin::PluginFormat;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::sync::OnceLock;
+use std::sync::RwLock;
 
-static SHELL_ENV: OnceLock<Vec<(String, String)>> = OnceLock::new();
-static CLAUDE_PATH: OnceLock<Option<String>> = OnceLock::new();
+static SHELL_ENV: RwLock<Option<Vec<(String, String)>>> = RwLock::new(None);
+static CLAUDE_PATH: RwLock<Option<Option<String>>> = RwLock::new(None);
 
 fn resolve_shell_environment() -> Vec<(String, String)> {
     let output = Command::new("/bin/zsh")
@@ -25,21 +25,39 @@ fn resolve_shell_environment() -> Vec<(String, String)> {
 
 /// Resolve the shell environment by spawning a login shell once and caching the result.
 pub fn shell_environment() -> Vec<(String, String)> {
-    SHELL_ENV.get_or_init(resolve_shell_environment).clone()
+    {
+        let guard = SHELL_ENV.read().unwrap();
+        if let Some(env) = guard.as_ref() {
+            return env.clone();
+        }
+    }
+    let env = resolve_shell_environment();
+    *SHELL_ENV.write().unwrap() = Some(env.clone());
+    env
 }
 
 /// Resolve the Claude CLI binary path via the cached shell environment.
 pub fn resolve_claude_path() -> Option<String> {
-    CLAUDE_PATH
-        .get_or_init(|| {
-            let resolved = resolve_command("claude");
-            if resolved == "claude" {
-                None
-            } else {
-                Some(resolved)
-            }
-        })
-        .clone()
+    {
+        let guard = CLAUDE_PATH.read().unwrap();
+        if let Some(cached) = guard.as_ref() {
+            return cached.clone();
+        }
+    }
+    let resolved = resolve_command("claude");
+    let result = if resolved == "claude" {
+        None
+    } else {
+        Some(resolved)
+    };
+    *CLAUDE_PATH.write().unwrap() = Some(result.clone());
+    result
+}
+
+/// Clear cached shell environment and tool paths so newly installed tools are detected.
+pub fn invalidate_shell_cache() {
+    *SHELL_ENV.write().unwrap() = None;
+    *CLAUDE_PATH.write().unwrap() = None;
 }
 
 fn path_from_cached_env(cmd: &str) -> Option<String> {
@@ -240,6 +258,11 @@ pub fn required_dependencies() -> Vec<DependencySpec> {
         DependencySpec {
             name: "Claude Code CLI",
             check_command: "claude",
+            check_args: &["--version"],
+        },
+        DependencySpec {
+            name: "Codex CLI",
+            check_command: "codex",
             check_args: &["--version"],
         },
     ]

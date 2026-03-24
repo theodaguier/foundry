@@ -6,6 +6,7 @@ import { useBuildStore } from "@/stores/build-store"
 import { useTauriEvent } from "@/hooks/use-tauri-event"
 import { FoundryLogo } from "@/components/app/foundry-logo"
 import AuthContainer from "@/pages/auth/auth-container"
+import Onboarding from "@/pages/onboarding"
 import Welcome from "@/pages/welcome"
 import PluginLibrary from "@/pages/plugin-library"
 import Prompt from "@/pages/prompt"
@@ -92,7 +93,7 @@ function GlobalPipelineListener() {
   return null
 }
 
-const noBackRoutes = new Set(["/"])
+const noBackRoutes = new Set(["/", "/onboarding"])
 
 function TitleBar() {
   const navigate = useNavigate()
@@ -132,6 +133,8 @@ export default function App() {
   const checkSession = useAppStore((s) => s.checkSession)
   const loadPlugins = useAppStore((s) => s.loadPlugins)
   const plugins = useAppStore((s) => s.plugins)
+  const onboardingComplete = useAppStore((s) => s.onboardingComplete)
+  const checkOnboarding = useAppStore((s) => s.checkOnboarding)
   const initTheme = useSettingsStore((s) => s.initTheme)
   const loadBuildEnvironment = useSettingsStore((s) => s.loadBuildEnvironment)
 
@@ -149,9 +152,10 @@ export default function App() {
 
   useEffect(() => {
     if (authState === "authenticated") {
+      checkOnboarding()
       loadPlugins()
     }
-  }, [authState, loadPlugins])
+  }, [authState, checkOnboarding, loadPlugins])
 
   if (authState === "checking") {
     return <LaunchScreen />
@@ -159,6 +163,23 @@ export default function App() {
 
   if (authState === "unauthenticated") {
     return <AuthContainer />
+  }
+
+  // Still checking onboarding state
+  if (onboardingComplete === null) {
+    return <LaunchScreen />
+  }
+
+  // Show onboarding wizard if not completed
+  if (!onboardingComplete) {
+    return (
+      <div className="flex flex-col h-full">
+        <TitleBar />
+        <div className="flex-1 overflow-hidden">
+          <Onboarding />
+        </div>
+      </div>
+    )
   }
 
   return (

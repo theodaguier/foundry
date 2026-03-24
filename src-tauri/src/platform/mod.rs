@@ -105,6 +105,12 @@ pub fn check_dependency(spec: &DependencySpec) -> Option<String> {
     imp::check_dependency(spec)
 }
 
+// ---- Cache ----
+
+pub fn invalidate_shell_cache() {
+    imp::invalidate_shell_cache()
+}
+
 // ---- File manager ----
 
 pub fn show_in_file_manager(path: &str) -> Result<(), String> {

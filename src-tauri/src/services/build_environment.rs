@@ -271,6 +271,10 @@ fn collect_dependency_issues() -> Vec<BuildEnvironmentIssue> {
                     "Claude Code CLI is required before Foundry can generate code.",
                     Some("Install Claude CLI"),
                 ),
+                "Codex CLI" => {
+                    // Codex is optional — don't block the build environment
+                    return None;
+                }
                 _ => (
                     "dependency_missing",
                     "A required build dependency is missing.",
