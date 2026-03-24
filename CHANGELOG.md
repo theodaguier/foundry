@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.14.0](https://github.com/theodaguier/foundry/compare/v1.13.0...v1.14.0) (2026-03-24)
+
+
+### Features
+
+* plug-and-play onboarding with auto-install ([#59](https://github.com/theodaguier/foundry/issues/59)) ([7f18e5c](https://github.com/theodaguier/foundry/commit/7f18e5c9b95e2c40d85081c211e64d17c9db67a4))
+
 ## [1.13.0](https://github.com/theodaguier/foundry/compare/v1.12.0...v1.13.0) (2026-03-23)
 
 
