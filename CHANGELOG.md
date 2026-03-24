@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.16.0](https://github.com/theodaguier/foundry/compare/v1.15.0...v1.16.0) (2026-03-24)
+
+
+### Features
+
+* rewrite settings page with proper shadcn components and configurable install paths ([#63](https://github.com/theodaguier/foundry/issues/63)) ([a4b7214](https://github.com/theodaguier/foundry/commit/a4b7214ec9df6cf6e5df1f92ae5f470e77c7c139))
+
 ## [1.15.0](https://github.com/theodaguier/foundry/compare/v1.14.0...v1.15.0) (2026-03-24)
 
 
