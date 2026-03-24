@@ -51,6 +51,19 @@ export const clearJuceOverridePath = () =>
 export const getModelCatalog = () => invoke<AgentProvider[]>("get_model_catalog");
 export const refreshModelCatalog = () => invoke<AgentProvider[]>("refresh_model_catalog");
 
+export interface InstallPathsConfig {
+  auPath: string;
+  vst3Path: string;
+  auIsDefault: boolean;
+  vst3IsDefault: boolean;
+}
+
+export const getInstallPaths = () => invoke<InstallPathsConfig>("get_install_paths");
+export const setInstallPath = (format: string, path: string) =>
+  invoke<InstallPathsConfig>("set_install_path", { format, path });
+export const resetInstallPath = (format: string) =>
+  invoke<InstallPathsConfig>("reset_install_path", { format });
+
 export const loadTelemetry = (id: string) =>
   invoke<GenerationTelemetry | null>("load_telemetry", { id });
 export const loadAllTelemetry = () => invoke<GenerationTelemetry[]>("load_all_telemetry");

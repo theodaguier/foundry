@@ -69,7 +69,20 @@ pub fn available_plugin_formats() -> Vec<PluginFormat> {
     imp::available_plugin_formats()
 }
 
+/// Returns the platform default install directory (ignoring user overrides).
+pub fn default_plugin_install_dir(format: &PluginFormat) -> InstallDir {
+    imp::plugin_install_dir(format)
+}
+
+/// Returns the effective install directory, checking user overrides first.
 pub fn plugin_install_dir(format: &PluginFormat) -> InstallDir {
+    if let Some(override_path) = crate::services::foundry_paths::install_path_override(format) {
+        return InstallDir {
+            format: format.clone(),
+            path: override_path,
+            needs_elevation: false,
+        };
+    }
     imp::plugin_install_dir(format)
 }
 
