@@ -41,6 +41,7 @@ export default function Prompt() {
   const startGeneration = useBuildStore((s) => s.startGeneration);
   const modelCatalog = useSettingsStore((s) => s.modelCatalog);
   const [prompt, setPrompt] = useState("");
+  const [selectedAgent, setSelectedAgent] = useState("Claude Code");
   const [selectedModel, setSelectedModel] = useState("sonnet");
   const [showModelMenu, setShowModelMenu] = useState(false);
 
@@ -54,7 +55,7 @@ export default function Prompt() {
       format: "Both",
       channelLayout: "Stereo",
       presetCount: 5,
-      agent: "Claude Code",
+      agent: selectedAgent,
       model: selectedModel,
     });
   };
@@ -101,19 +102,17 @@ export default function Prompt() {
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setShowModelMenu(false)} />
                   <div className="absolute top-full left-0 mt-1 bg-card border border-border rounded-md shadow-xl z-20 min-w-[200px]">
-                    {(modelCatalog.length > 0 ? modelCatalog : [{
-                      id: "claude-code", name: "Claude Code", icon: "", command: "claude",
-                      models: [
-                        { id: "sonnet", name: "Sonnet", subtitle: "Fast & capable", flag: "sonnet", default: true },
-                        { id: "opus", name: "Opus", subtitle: "Most capable", flag: "opus" },
-                      ]
-                    }]).map((provider) => (
+                    {modelCatalog.length === 0 ? (
+                      <div className="px-3 py-3 text-[11px] text-muted-foreground">
+                        No agent CLI installed. Open Setup to install Claude Code or Codex.
+                      </div>
+                    ) : modelCatalog.map((provider) => (
                       <div key={provider.id}>
                         <div className="px-3 py-1.5 text-[9px] tracking-[1px] text-muted-foreground/60 uppercase">{provider.name}</div>
                         {provider.models.map((model) => (
                           <button
                             key={model.id}
-                            onClick={() => { setSelectedModel(model.flag || model.id); setShowModelMenu(false); }}
+                            onClick={() => { setSelectedAgent(provider.name); setSelectedModel(model.flag || model.id); setShowModelMenu(false); }}
                             className={`w-full px-3 py-2 text-left text-[12px] hover:bg-secondary flex items-center gap-2 ${
                               selectedModel === (model.flag || model.id) ? "text-primary" : ""
                             }`}

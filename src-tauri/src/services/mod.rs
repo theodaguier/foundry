@@ -1,13 +1,15 @@
+pub mod agent_service;
 pub mod auth_service;
 pub mod build_directory_cleaner;
 pub mod build_environment;
 pub mod build_runner;
 pub mod claude_code_service;
+pub mod codex_service;
 pub mod dependency_checker;
 pub mod foundry_paths;
 pub mod generation_pipeline;
 pub mod model_catalog;
+pub mod onboarding;
 pub mod plugin_manager;
 pub mod project_assembler;
-pub mod onboarding;
 pub mod telemetry_service;

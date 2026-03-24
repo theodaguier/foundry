@@ -7,8 +7,8 @@ use crate::models::config::{GenerationConfig, RefineConfig};
 use crate::models::plugin::{InstallPaths, Plugin, PluginFormat, PluginVersion};
 use crate::models::telemetry::TelemetryBuilder;
 use crate::services::{
-    build_environment, build_runner, claude_code_service, foundry_paths, plugin_manager,
-    project_assembler, telemetry_service,
+    agent_service, build_environment, build_runner, claude_code_service, foundry_paths,
+    plugin_manager, project_assembler, telemetry_service,
 };
 
 #[derive(Clone, serde::Serialize)]
@@ -126,9 +126,14 @@ async fn execute_generation(
     cancel_watch: tokio::sync::watch::Receiver<bool>,
     tb: &mut TelemetryBuilder,
 ) -> Result<Plugin, String> {
-    // Resolve Claude CLI path
-    let claude_path = claude_code_service::resolve_claude_path().ok_or_else(|| {
-        "Claude Code CLI is not available. Open Setup and install it.".to_string()
+    // Resolve agent CLI path (Claude Code or Codex)
+    let agent_name = &config.agent;
+    let agent_display = agent_service::agent_display_name(agent_name);
+    let cli_path = agent_service::resolve_agent_path(agent_name).ok_or_else(|| {
+        format!(
+            "{} CLI is not available. Open Setup and install it.",
+            agent_display
+        )
     })?;
 
     let model_flag = &config.model;
@@ -199,7 +204,11 @@ async fn execute_generation(
 
     emit_log(
         app,
-        &format!("── claude · {}: DSP pass ──", model_flag),
+        &format!(
+            "── {} · {}: DSP pass ──",
+            agent_display.to_lowercase(),
+            model_flag
+        ),
         Some("active"),
     );
     let processor_prompt = build_fast_processor_prompt(
@@ -212,8 +221,9 @@ async fn execute_generation(
     );
 
     let app_clone = app.clone();
-    let processor_result = claude_code_service::run(
-        &claude_path,
+    let processor_result = agent_service::run(
+        agent_name,
+        &cli_path,
         &processor_prompt,
         &project_dir_str,
         model_flag,
@@ -238,10 +248,61 @@ async fn execute_generation(
             .unwrap_or_else(|| "Claude Code CLI is unavailable".into()));
     }
 
-    let processor_missing: Vec<&str> = ["Source/PluginProcessor.h", "Source/PluginProcessor.cpp"]
-        .into_iter()
-        .filter(|path| !project.directory.join(path).exists())
-        .collect();
+    let mut processor_missing: Vec<&str> =
+        ["Source/PluginProcessor.h", "Source/PluginProcessor.cpp"]
+            .into_iter()
+            .filter(|path| !project.directory.join(path).exists())
+            .collect();
+
+    if !processor_missing.is_empty() {
+        emit_log(
+            app,
+            &format!(
+                "DSP pass incomplete — attempting recovery before UI pass. Missing: {}",
+                processor_missing.join(", ")
+            ),
+            Some("active"),
+        );
+
+        let repair_prompt = build_generation_repair_prompt(
+            &plugin_name,
+            plugin_role,
+            &config.prompt,
+            &config.channel_layout,
+            &processor_missing,
+            &[],
+        );
+
+        let app_clone = app.clone();
+        let repair_result = agent_service::run(
+            agent_name,
+            &cli_path,
+            &repair_prompt,
+            &project_dir_str,
+            model_flag,
+            "repair_generation",
+            move |event| handle_claude_event(&app_clone, &event),
+            cancel_watch.clone(),
+        )
+        .await;
+
+        tb.accumulate_run(&repair_result);
+
+        if is_infra_failure(&repair_result.error) {
+            tb.fail(
+                "generation",
+                repair_result.error.as_deref().unwrap_or("CLI unavailable"),
+            );
+            return Err(repair_result
+                .error
+                .unwrap_or_else(|| "Claude Code CLI is unavailable".into()));
+        }
+
+        processor_missing = ["Source/PluginProcessor.h", "Source/PluginProcessor.cpp"]
+            .into_iter()
+            .filter(|path| !project.directory.join(path).exists())
+            .collect();
+    }
 
     if !processor_missing.is_empty() {
         let message = format!(
@@ -257,7 +318,11 @@ async fn execute_generation(
     emit_step(app, "generatingUI");
     emit_log(
         app,
-        &format!("── claude · {}: UI pass ──", model_flag),
+        &format!(
+            "── {} · {}: UI pass ──",
+            agent_display.to_lowercase(),
+            model_flag
+        ),
         Some("active"),
     );
     let parameter_manifest = extract_parameter_manifest(&project.directory);
@@ -272,8 +337,9 @@ async fn execute_generation(
     );
 
     let app_clone = app.clone();
-    let mut ui_result = claude_code_service::run(
-        &claude_path,
+    let mut ui_result = agent_service::run(
+        agent_name,
+        &cli_path,
         &ui_prompt,
         &project_dir_str,
         model_flag,
@@ -296,8 +362,9 @@ async fn execute_generation(
         let emergency_ui_prompt =
             build_emergency_ui_prompt(&plugin_name, &parameter_manifest, &creative_profile);
         let app_clone = app.clone();
-        ui_result = claude_code_service::run(
-            &claude_path,
+        ui_result = agent_service::run(
+            agent_name,
+            &cli_path,
             &emergency_ui_prompt,
             &project_dir_str,
             model_flag,
@@ -354,8 +421,9 @@ async fn execute_generation(
         );
 
         let app_clone = app.clone();
-        let repair_result = claude_code_service::run(
-            &claude_path,
+        let repair_result = agent_service::run(
+            agent_name,
+            &cli_path,
             &repair_prompt,
             &project_dir_str,
             model_flag,
@@ -412,7 +480,8 @@ async fn execute_generation(
     tb.start_build();
 
     run_build_loop(
-        &claude_path,
+        agent_name,
+        &cli_path,
         &project.directory,
         model_flag,
         app,
@@ -562,8 +631,14 @@ async fn execute_refine(
     cancel_watch: tokio::sync::watch::Receiver<bool>,
     tb: &mut TelemetryBuilder,
 ) -> Result<Plugin, String> {
-    let claude_path = claude_code_service::resolve_claude_path()
-        .ok_or_else(|| "Claude Code CLI is not available".to_string())?;
+    // Resolve agent CLI — refine uses the agent that built the original plugin
+    let refine_agent = match &config.plugin.agent {
+        Some(crate::models::agent::GenerationAgent::Codex) => "Codex",
+        _ => "Claude Code",
+    };
+    let refine_display = agent_service::agent_display_name(refine_agent);
+    let cli_path = agent_service::resolve_agent_path(refine_agent)
+        .ok_or_else(|| format!("{} CLI is not available", refine_display))?;
 
     let build_dir = config
         .plugin
@@ -637,8 +712,9 @@ async fn execute_refine(
     );
 
     let app_clone = app.clone();
-    let gen_result = claude_code_service::run(
-        &claude_path,
+    let gen_result = agent_service::run(
+        refine_agent,
+        &cli_path,
         &refine_prompt,
         build_dir,
         model_flag,
@@ -686,7 +762,8 @@ async fn execute_refine(
     tb.start_build();
 
     if let Err(e) = run_build_loop_with_skip(
-        &claude_path,
+        refine_agent,
+        &cli_path,
         project_dir,
         model_flag,
         app,
@@ -779,7 +856,8 @@ async fn execute_refine(
 // ---- Build Loop ----
 
 async fn run_build_loop(
-    claude_path: &str,
+    agent: &str,
+    cli_path: &str,
     project_dir: &Path,
     model_flag: &str,
     app: &AppHandle,
@@ -788,7 +866,8 @@ async fn run_build_loop(
     max_attempts: Option<i32>,
 ) -> Result<(), String> {
     run_build_loop_with_skip(
-        claude_path,
+        agent,
+        cli_path,
         project_dir,
         model_flag,
         app,
@@ -801,7 +880,8 @@ async fn run_build_loop(
 }
 
 async fn run_build_loop_with_skip(
-    claude_path: &str,
+    agent: &str,
+    cli_path: &str,
     project_dir: &Path,
     model_flag: &str,
     app: &AppHandle,
@@ -869,8 +949,9 @@ async fn run_build_loop_with_skip(
                 Some("error"),
             );
 
-            let fix_result = claude_code_service::fix(
-                claude_path,
+            let fix_result = agent_service::fix(
+                agent,
+                cli_path,
                 "Build succeeded but smoke test failed: plugin bundles are missing or invalid.",
                 &project_dir_str,
                 attempt,
@@ -933,8 +1014,9 @@ async fn run_build_loop_with_skip(
 
         let app_clone = app.clone();
         let project_dir_str = project_dir.to_string_lossy().to_string();
-        let fix_result = claude_code_service::fix(
-            claude_path,
+        let fix_result = agent_service::fix(
+            agent,
+            cli_path,
             &result.errors,
             &project_dir_str,
             attempt,
@@ -1387,6 +1469,11 @@ Rules:
 - Use FoundryLookAndFeel in the editor.
 - Avoid a flat row of generic knobs; create one hero interaction zone.
 - Prefer showing the 8-12 most important parameters if the processor exposes many internals.
+- Use a sane landscape editor size, typically around 760-920 px wide and 420-560 px tall.
+- Build the layout from `getLocalBounds().reduced(...)` plus `removeFrom*`, or use `juce::Grid` / `juce::FlexBox`; do not scatter arbitrary overlapping coordinates.
+- Keep outer padding around 20-28 px and internal gaps around 12-20 px.
+- Keep rotary controls square and readable, labels aligned, and widgets away from the window edges.
+- Make the interface clean and balanced before it is flashy.
 - Keep class name exactly {name}Editor.
 - Use juce:: prefixes everywhere.
 - Do not read files.
@@ -1445,7 +1532,9 @@ Rules:
 - No explanation after writing.
 - Use FoundryLookAndFeel.
 - Use APVTS attachments for every visible control.
-- Keep the UI compact and compile-safe.
+- Use a landscape editor size with a clean, non-overlapping layout.
+- Derive geometry from `getLocalBounds()` with consistent padding and gaps.
+- Keep the UI compact, legible, and compile-safe.
 "#,
         name = plugin_name,
         parameter_block = parameter_block,
@@ -1718,10 +1807,56 @@ fn validate_generated_source_tree(project_dir: &Path, plugin_name: &str) -> Vec<
     if !editor_header.contains("Attachment") && !editor_source.contains("Attachment") {
         issues.push("Editor must create APVTS attachments for controls".into());
     }
+    if let Some((width, height)) = extract_editor_size(&editor_source) {
+        if !(640..=1200).contains(&width) || !(360..=900).contains(&height) {
+            issues.push("Editor must use a reasonable fixed window size".into());
+        }
+        if width <= height {
+            issues.push(
+                "Editor should use a landscape window instead of a tall or square layout".into(),
+            );
+        }
+    } else {
+        issues.push("Editor must call setSize(...) with an explicit landscape window size".into());
+    }
+    if !uses_structured_editor_layout(&editor_source) {
+        issues.push(
+            "Editor must lay out controls from getLocalBounds() using reduced/removeFrom geometry, Grid, or FlexBox".into(),
+        );
+    }
 
     issues.sort();
     issues.dedup();
     issues
+}
+
+fn extract_editor_size(editor_source: &str) -> Option<(i32, i32)> {
+    let set_size_index = editor_source.find("setSize")?;
+    let after_call = &editor_source[set_size_index + "setSize".len()..];
+    let open_paren = after_call.find('(')?;
+    let args = &after_call[open_paren + 1..];
+    let comma = args.find(',')?;
+    let close_paren = args[comma + 1..].find(')')?;
+
+    let width: String = args[..comma]
+        .chars()
+        .filter(|ch| ch.is_ascii_digit())
+        .collect();
+    let height: String = args[comma + 1..comma + 1 + close_paren]
+        .chars()
+        .filter(|ch| ch.is_ascii_digit())
+        .collect();
+
+    Some((width.parse().ok()?, height.parse().ok()?))
+}
+
+fn uses_structured_editor_layout(editor_source: &str) -> bool {
+    let uses_bounds_flow = editor_source.contains("getLocalBounds()")
+        && (editor_source.contains("reduced(") || editor_source.contains("removeFrom"));
+
+    uses_bounds_flow
+        || editor_source.contains("juce::Grid")
+        || editor_source.contains("juce::FlexBox")
 }
 
 fn build_generation_repair_prompt(
@@ -1765,12 +1900,14 @@ Validation issues:
 {validation}
 
 Rules:
-- Read existing Source/ files first so your class names and APIs stay consistent.
+- Read existing Source/ files first if they exist so your class names and APIs stay consistent.
 - Create or repair only the required Source/ files.
 - Keep class names exactly `{name}Processor` and `{name}Editor`.
 - Keep parameter IDs stable whenever possible.
 - Every exposed control must have a matching APVTS attachment.
 - Ensure FoundryLookAndFeel is implemented and used by the editor.
+- UI must use a sane landscape editor size with consistent padding, spacing, and non-overlapping controls.
+- UI layout must come from `getLocalBounds()` flow, `juce::Grid`, or `juce::FlexBox`, not arbitrary scattered coordinates.
 - Remove any leftover `FoundryPlugin` placeholder text.
 - Do not touch CMakeLists.txt.
 
@@ -1942,6 +2079,54 @@ mod tests {
             .iter()
             .any(|issue| issue.contains("FoundryLookAndFeel")));
         assert!(issues.iter().any(|issue| issue.contains("attachments")));
+
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn extract_editor_size_reads_numeric_dimensions() {
+        assert_eq!(extract_editor_size("setSize (820, 480);"), Some((820, 480)));
+    }
+
+    #[test]
+    fn validation_reports_deformed_or_unstructured_ui() {
+        let dir = make_temp_dir();
+
+        std::fs::write(
+            dir.join("Source/PluginProcessor.h"),
+            "#include <JuceHeader.h>\nclass FluxProcessor { public: juce::AudioProcessorValueTreeState apvts; };",
+        )
+        .unwrap();
+        std::fs::write(
+            dir.join("Source/PluginProcessor.cpp"),
+            "#include \"PluginProcessor.h\"\n",
+        )
+        .unwrap();
+        std::fs::write(
+            dir.join("Source/PluginEditor.h"),
+            "#include <JuceHeader.h>\nclass FluxEditor { class FoundryLookAndFeel* lnf; using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment; };",
+        )
+        .unwrap();
+        std::fs::write(
+            dir.join("Source/PluginEditor.cpp"),
+            "#include \"PluginEditor.h\"\nvoid FluxEditor::resized() {}\nFluxEditor::FluxEditor() { setSize(320, 900); }\n",
+        )
+        .unwrap();
+        std::fs::write(
+            dir.join("Source/FoundryLookAndFeel.h"),
+            "#include <JuceHeader.h>\nclass FoundryLookAndFeel {};",
+        )
+        .unwrap();
+
+        let issues = validate_generated_source_tree(&dir, "Flux");
+
+        assert!(issues
+            .iter()
+            .any(|issue| issue.contains("reasonable fixed window size")));
+        assert!(issues
+            .iter()
+            .any(|issue| issue.contains("landscape window")));
+        assert!(issues.iter().any(|issue| issue.contains("getLocalBounds")));
 
         let _ = std::fs::remove_dir_all(dir);
     }
