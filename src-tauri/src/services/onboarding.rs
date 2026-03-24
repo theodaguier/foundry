@@ -3,7 +3,7 @@ use std::process::Command;
 use serde::{Deserialize, Serialize};
 
 use crate::platform;
-use crate::services::auth_service::{SupabaseAuth, SUPABASE_URL, SUPABASE_ANON_KEY};
+use crate::services::auth_service::{SupabaseAuth, SUPABASE_ANON_KEY, SUPABASE_URL};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
@@ -42,8 +42,7 @@ pub async fn get_onboarding_state(auth: &SupabaseAuth) -> OnboardingState {
     match resp {
         Ok(r) if r.status().is_success() => {
             let text = r.text().await.unwrap_or_default();
-            let rows: Vec<serde_json::Value> =
-                serde_json::from_str(&text).unwrap_or_default();
+            let rows: Vec<serde_json::Value> = serde_json::from_str(&text).unwrap_or_default();
             if let Some(row) = rows.first() {
                 let completed_at = row
                     .get("onboarding_completed_at")

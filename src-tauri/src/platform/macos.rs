@@ -6,6 +6,7 @@ use std::sync::RwLock;
 
 static SHELL_ENV: RwLock<Option<Vec<(String, String)>>> = RwLock::new(None);
 static CLAUDE_PATH: RwLock<Option<Option<String>>> = RwLock::new(None);
+static CODEX_PATH: RwLock<Option<Option<String>>> = RwLock::new(None);
 
 fn resolve_shell_environment() -> Vec<(String, String)> {
     let output = Command::new("/bin/zsh")
@@ -54,10 +55,29 @@ pub fn resolve_claude_path() -> Option<String> {
     result
 }
 
+/// Resolve the Codex CLI binary path via the cached shell environment.
+pub fn resolve_codex_path() -> Option<String> {
+    {
+        let guard = CODEX_PATH.read().unwrap();
+        if let Some(cached) = guard.as_ref() {
+            return cached.clone();
+        }
+    }
+    let resolved = resolve_command("codex");
+    let result = if resolved == "codex" {
+        None
+    } else {
+        Some(resolved)
+    };
+    *CODEX_PATH.write().unwrap() = Some(result.clone());
+    result
+}
+
 /// Clear cached shell environment and tool paths so newly installed tools are detected.
 pub fn invalidate_shell_cache() {
     *SHELL_ENV.write().unwrap() = None;
     *CLAUDE_PATH.write().unwrap() = None;
+    *CODEX_PATH.write().unwrap() = None;
 }
 
 fn path_from_cached_env(cmd: &str) -> Option<String> {

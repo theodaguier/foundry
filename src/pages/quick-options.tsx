@@ -9,6 +9,8 @@ export default function QuickOptions() {
   const location = useLocation();
   const startGeneration = useBuildStore((s) => s.startGeneration);
   const prompt = (location.state as any)?.prompt || "";
+  const agent = (location.state as any)?.agent || "Claude Code";
+  const model = (location.state as any)?.model || "sonnet";
 
   const [format, setFormat] = useState<FormatOption>("Both");
   const [channels, setChannels] = useState<ChannelLayout>("Stereo");
@@ -20,8 +22,8 @@ export default function QuickOptions() {
       format,
       channelLayout: channels,
       presetCount: presets,
-      agent: "Claude Code",
-      model: "sonnet",
+      agent,
+      model,
     });
     navigate("/generation");
   };

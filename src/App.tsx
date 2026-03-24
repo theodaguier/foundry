@@ -137,6 +137,7 @@ export default function App() {
   const checkOnboarding = useAppStore((s) => s.checkOnboarding)
   const initTheme = useSettingsStore((s) => s.initTheme)
   const loadBuildEnvironment = useSettingsStore((s) => s.loadBuildEnvironment)
+  const loadCatalog = useSettingsStore((s) => s.loadCatalog)
 
   useEffect(() => {
     initTheme()
@@ -145,6 +146,10 @@ export default function App() {
   useEffect(() => {
     loadBuildEnvironment()
   }, [loadBuildEnvironment])
+
+  useEffect(() => {
+    loadCatalog()
+  }, [loadCatalog])
 
   useEffect(() => {
     checkSession()

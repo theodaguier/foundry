@@ -131,6 +131,15 @@ pub fn assemble(
         prompt,
         channel_layout,
     )?;
+    // Codex reads AGENTS.md instead of CLAUDE.md — write both so either agent works.
+    write_agents_md(
+        &project_dir,
+        plugin_name,
+        &plugin_type,
+        interface_style,
+        prompt,
+        channel_layout,
+    )?;
 
     Ok(AssembledProject {
         directory: project_dir,
@@ -235,15 +244,15 @@ Build a JUCE {role} plugin: {prompt}
 ## Interface Direction
 {style} — adjust the number and complexity of controls accordingly.
 
-## Files to Create
+## Source Files
 - Source/PluginProcessor.h
 - Source/PluginProcessor.cpp
 - Source/PluginEditor.h
 - Source/PluginEditor.cpp
 - Source/FoundryLookAndFeel.h
 
-## Knowledge Kit
-Read these reference files for API patterns and build rules:
+## Reference Kit
+Optional reference files for API patterns and build rules:
 - juce-kit/juce-api.md
 - juce-kit/dsp-patterns.md
 - juce-kit/ui-patterns.md
@@ -251,10 +260,18 @@ Read these reference files for API patterns and build rules:
 - juce-kit/build-rules.md
 - juce-kit/presets.md
 
+## Phase Rules
+- The orchestration prompt is phase-aware and authoritative.
+- If the prompt asks only for processor files, create only `Source/PluginProcessor.h` and `Source/PluginProcessor.cpp`.
+- If the prompt asks only for UI files, create only `Source/FoundryLookAndFeel.h`, `Source/PluginEditor.h`, and `Source/PluginEditor.cpp`.
+- Do not create files outside the current phase unless the prompt explicitly asks for them.
+- If the prompt says it is self-contained or says not to read files, skip the reference kit.
+- Use the reference kit only when the prompt explicitly needs extra context.
+
 ## Workflow
-1. Read this file + all juce-kit/*.md files in PARALLEL
-2. Write all 5 source files using PARALLEL Write calls
-3. Do NOT verify — trust your output
+1. Follow the current prompt exactly.
+2. Write the requested files immediately instead of waiting for a full-plan dump.
+3. Stop when the requested phase is complete.
 
 ## Design Principles
 - Every parameter uses AudioProcessorValueTreeState (APVTS)
@@ -275,6 +292,87 @@ Make it sound and look professional. The plugin should feel like a premium comme
     );
 
     fs::write(dir.join("CLAUDE.md"), content).map_err(|e| e.to_string())
+}
+
+/// Write AGENTS.md — the Codex equivalent of CLAUDE.md.
+/// Same content, different filename so the Codex CLI picks it up automatically.
+fn write_agents_md(
+    dir: &Path,
+    name: &str,
+    plugin_type: &str,
+    interface_style: &str,
+    prompt: &str,
+    channel_layout: &str,
+) -> Result<(), String> {
+    let plugin_role = match plugin_type {
+        "instrument" => "playable instrument",
+        "utility" => "utility or analysis tool",
+        _ => "audio effect",
+    };
+
+    let content = format!(
+        r#"# {name} — JUCE Plugin
+
+## Mission
+Build a JUCE {role} plugin: {prompt}
+
+## Plugin Type
+{plugin_type}
+
+## Channel Layout
+{channels}
+
+## Interface Direction
+{style} — adjust the number and complexity of controls accordingly.
+
+## Source Files
+- Source/PluginProcessor.h
+- Source/PluginProcessor.cpp
+- Source/PluginEditor.h
+- Source/PluginEditor.cpp
+- Source/FoundryLookAndFeel.h
+
+## Reference Kit
+Optional reference files for API patterns and build rules:
+- juce-kit/juce-api.md
+- juce-kit/dsp-patterns.md
+- juce-kit/ui-patterns.md
+- juce-kit/look-and-feel.md
+- juce-kit/build-rules.md
+- juce-kit/presets.md
+
+## Phase Rules
+- The orchestration prompt is phase-aware and authoritative.
+- If the prompt asks only for processor files, create only `Source/PluginProcessor.h` and `Source/PluginProcessor.cpp`.
+- If the prompt asks only for UI files, create only `Source/FoundryLookAndFeel.h`, `Source/PluginEditor.h`, and `Source/PluginEditor.cpp`.
+- Do not create files outside the current phase unless the prompt explicitly asks for them.
+- If the prompt says it is self-contained or says not to read files, skip the reference kit.
+- Use the reference kit only when the prompt explicitly needs extra context.
+
+## Workflow
+1. Follow the current prompt exactly.
+2. Write the requested files immediately instead of waiting for a full-plan dump.
+3. Stop when the requested phase is complete.
+
+## Design Principles
+- Every parameter uses AudioProcessorValueTreeState (APVTS)
+- Every UI control has a matching Attachment (SliderAttachment, ComboBoxAttachment, ButtonAttachment)
+- All JUCE types use juce:: prefix
+- FoundryLookAndFeel customizes the visual appearance
+- C++17, no auto* parameters, .h/.cpp signatures must match
+
+## Creative Direction
+Make it sound and look professional. The plugin should feel like a premium commercial product.
+"#,
+        name = name,
+        role = plugin_role,
+        prompt = prompt,
+        plugin_type = plugin_type,
+        channels = channel_layout,
+        style = interface_style,
+    );
+
+    fs::write(dir.join("AGENTS.md"), content).map_err(|e| e.to_string())
 }
 
 fn write_juce_kit(dir: &Path, plugin_name: &str, plugin_type: &str) -> Result<(), String> {
@@ -421,6 +519,13 @@ auto bounds = getLocalBounds().reduced(20);
 auto topArea = bounds.removeFromTop(bounds.getHeight() / 2);
 gainSlider.setBounds(topArea.removeFromLeft(topArea.getWidth() / 2).reduced(10));
 ```
+
+## Layout Quality Rules
+- Prefer a landscape editor around 760x460 to 920x560 unless the brief explicitly needs something else
+- Start from `getLocalBounds().reduced(20-28)` and keep consistent 12-20 px gaps
+- Split the UI into clear zones: header, hero control area, secondary controls/footer
+- Keep rotary controls square and readable; avoid stretched knobs, clipped labels, or controls touching the edges
+- Use `removeFromTop/Left/Right/Bottom`, `juce::Grid`, or `juce::FlexBox` instead of scattered absolute coordinates
 "#;
     fs::write(dir.join("ui-patterns.md"), content).map_err(|e| e.to_string())
 }
@@ -454,6 +559,11 @@ Override `drawRotarySlider()` for custom knobs. Common styles:
 - Arc style: draw background arc + value arc
 - Filled dot: circle at value position on arc
 - Minimal: just a line indicator
+
+### Visual Restraint
+- Keep the palette tight: one background family, one accent family, and high-contrast text
+- Use clear section hierarchy before decoration
+- Avoid overdesigned gradients, noisy shadows, and cramped typography
 
 ### Font Constructor
 ALWAYS use: `juce::Font(juce::FontOptions(fontSize))`

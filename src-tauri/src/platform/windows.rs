@@ -23,6 +23,20 @@ pub fn resolve_claude_path() -> Option<String> {
     }
 }
 
+/// Resolve Codex CLI path using `where` on Windows.
+pub fn resolve_codex_path() -> Option<String> {
+    let output = Command::new("cmd")
+        .args(["/C", "where", "codex"])
+        .output()
+        .ok()?;
+    if output.status.success() {
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        stdout.lines().next().map(|s| s.trim().to_string())
+    } else {
+        None
+    }
+}
+
 /// Resolve a command path using `where`.
 pub fn resolve_command(cmd: &str) -> String {
     Command::new("cmd")

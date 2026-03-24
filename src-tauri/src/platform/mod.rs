@@ -33,6 +33,10 @@ pub fn resolve_claude_path() -> Option<String> {
     imp::resolve_claude_path()
 }
 
+pub fn resolve_codex_path() -> Option<String> {
+    imp::resolve_codex_path()
+}
+
 pub fn resolve_command(cmd: &str) -> String {
     imp::resolve_command(cmd)
 }

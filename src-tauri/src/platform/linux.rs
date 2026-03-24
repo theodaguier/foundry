@@ -33,6 +33,19 @@ pub fn resolve_claude_path() -> Option<String> {
     }
 }
 
+/// Resolve the Codex CLI binary path via login shell.
+pub fn resolve_codex_path() -> Option<String> {
+    let output = Command::new("/bin/bash")
+        .args(["-l", "-c", "which codex"])
+        .output()
+        .ok()?;
+    if output.status.success() {
+        Some(String::from_utf8_lossy(&output.stdout).trim().to_string())
+    } else {
+        None
+    }
+}
+
 /// Resolve a command path using the login shell.
 pub fn resolve_command(cmd: &str) -> String {
     Command::new("/bin/bash")

@@ -1,7 +1,7 @@
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use std::sync::{Mutex, LazyLock};
+use std::sync::{LazyLock, Mutex};
 
 static SUPABASE_URL_DEFAULT: &str = "https://bpqqfpdaigphewgobmpe.supabase.co";
 static SUPABASE_ANON_KEY_DEFAULT: &str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJwcXFmcGRhaWdwaGV3Z29ibXBlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQwODc3NTYsImV4cCI6MjA4OTY2Mzc1Nn0.YKFmmJk39st-P68Dvztn9YHSCteXWGAvMNyM3hNofy4";
