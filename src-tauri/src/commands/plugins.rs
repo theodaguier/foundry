@@ -1,4 +1,5 @@
-use crate::models::plugin::Plugin;
+use crate::models::plugin::{Plugin, PluginFormat};
+use crate::platform;
 use crate::services::plugin_manager;
 use crate::state::AppState;
 use std::path::Path;
@@ -63,9 +64,11 @@ pub async fn install_version(
         return Err(format!("Build directory does not exist: {}", build_dir));
     }
 
-    // Find and copy AU bundles
-    let au_dest = Path::new("/Library/Audio/Plug-Ins/Components");
-    let vst3_dest = Path::new("/Library/Audio/Plug-Ins/VST3");
+    // Resolve install directories (respects user overrides)
+    let au_dir = platform::plugin_install_dir(&PluginFormat::Au);
+    let vst3_dir = platform::plugin_install_dir(&PluginFormat::Vst3);
+    let au_dest = &au_dir.path;
+    let vst3_dest = &vst3_dir.path;
 
     let mut new_install_paths = crate::models::plugin::InstallPaths::default();
 

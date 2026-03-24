@@ -6,106 +6,129 @@ import { useSettingsStore } from "@/stores/settings-store"
 import { checkDependencies, showInFinder } from "@/lib/commands"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { SectionLabel } from "@/components/app/section-label"
+import { Label } from "@/components/ui/label"
+import { Separator } from "@/components/ui/separator"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
 import type { DependencyStatus } from "@/lib/types"
-
-type Tab = "general" | "models" | "dependencies" | "account"
-const tabItems: Tab[] = ["general", "models", "dependencies", "account"]
-const tabLabels: Record<Tab, string> = { general: "General", models: "Models", dependencies: "Dependencies", account: "Account" }
+import { FolderOpen, RotateCcw } from "lucide-react"
 
 export default function Settings() {
   const navigate = useNavigate()
-  const [tab, setTab] = useState<Tab>("general")
 
   return (
-    <div className="flex flex-col h-full max-w-[480px] mx-auto py-8 px-6">
+    <div className="flex flex-col h-full max-w-[520px] mx-auto py-8 px-6">
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-lg font-medium">Settings</h2>
-        <Button variant="ghost" onClick={() => navigate("/")}>Done</Button>
+        <h2 className="text-base font-medium">Settings</h2>
+        <Button variant="ghost" size="sm" onClick={() => navigate("/")}>Done</Button>
       </div>
 
-      <div className="flex mb-6 border-b border-border">
-        {tabItems.map((t, i) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className="relative flex flex-col items-center"
-            style={{ marginLeft: i === 0 ? 0 : 24 }}
-          >
-            <span className={`pb-2 text-[11px] tracking-[0.5px] font-mono transition-colors ${
-              tab === t ? "text-foreground" : "text-muted-foreground hover:text-foreground"
-            }`}>
-              {tabLabels[t]}
-            </span>
-            <div className={`absolute bottom-0 left-0 right-0 h-[2px] ${tab === t ? "bg-primary" : "bg-transparent"}`} />
-          </button>
-        ))}
-      </div>
+      <Tabs defaultValue="general">
+        <TabsList variant="line">
+          <TabsTrigger value="general">General</TabsTrigger>
+          <TabsTrigger value="models">Models</TabsTrigger>
+          <TabsTrigger value="dependencies">Dependencies</TabsTrigger>
+          <TabsTrigger value="account">Account</TabsTrigger>
+        </TabsList>
 
-      <div className="flex-1 overflow-y-auto">
-        {tab === "general" && <GeneralTab />}
-        {tab === "models" && <ModelsTab />}
-        {tab === "dependencies" && <DependenciesTab />}
-        {tab === "account" && <AccountTab />}
-      </div>
+        <div className="mt-4 flex-1 overflow-y-auto">
+          <TabsContent value="general"><GeneralTab /></TabsContent>
+          <TabsContent value="models"><ModelsTab /></TabsContent>
+          <TabsContent value="dependencies"><DependenciesTab /></TabsContent>
+          <TabsContent value="account"><AccountTab /></TabsContent>
+        </div>
+      </Tabs>
     </div>
   )
 }
 
 function GeneralTab() {
-  const { appearance, setAppearance } = useSettingsStore()
-  const pluginPaths = [
-    { label: "AU Components", path: "~/Library/Audio/Plug-Ins/Components/" },
-    { label: "VST3 Plugins", path: "~/Library/Audio/Plug-Ins/VST3/" },
-    { label: "Plugin Data", path: "~/Library/Application Support/Foundry/" },
-  ]
+  const { appearance, setAppearance, installPaths, loadInstallPaths, resetInstallPath } = useSettingsStore()
+
+  useEffect(() => { loadInstallPaths() }, [loadInstallPaths])
+
+  const chooseFolder = async (format: string) => {
+    const selection = await open({ directory: true, multiple: false })
+    if (typeof selection !== "string") return
+    await useSettingsStore.getState().setInstallPath(format, selection)
+  }
 
   return (
     <div className="flex flex-col gap-6">
-      <section>
-        <SectionLabel>Appearance</SectionLabel>
-        <div className="flex rounded-md overflow-hidden border border-border">
-          {(["system", "light", "dark"] as const).map((a) => (
-            <button
-              key={a}
-              onClick={() => setAppearance(a)}
-              className={`flex-1 py-2 text-[12px] capitalize transition-colors ${
-                appearance === a
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {a === "system" ? "System" : a === "light" ? "Light" : "Dark"}
-            </button>
-          ))}
-        </div>
-      </section>
+      <div className="flex flex-col gap-3">
+        <Label>Appearance</Label>
+        <Select value={appearance} onValueChange={(v) => v && setAppearance(v as typeof appearance)}>
+          <SelectTrigger className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="system">System</SelectItem>
+            <SelectItem value="light">Light</SelectItem>
+            <SelectItem value="dark">Dark</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
 
-      <section>
-        <SectionLabel>Plugin Paths</SectionLabel>
-        <div className="flex flex-col divide-y divide-border border border-border rounded-md overflow-hidden">
-          {pluginPaths.map((item) => (
-            <div key={item.label} className="flex items-center justify-between px-3 py-2.5 bg-muted">
-              <span className="text-[12px] text-foreground">{item.label}</span>
-              <span className="text-[11px] font-mono text-muted-foreground select-text">{item.path}</span>
+      <Separator />
+
+      <div className="flex flex-col gap-3">
+        <Label>Plugin install paths</Label>
+        <p className="text-xs text-muted-foreground -mt-1">
+          Choose where Foundry installs compiled plugins. DAWs scan these directories to discover your plugins.
+        </p>
+
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs text-muted-foreground">AU Components</span>
+            <div className="flex items-center gap-2">
+              <div className="flex-1 min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm text-foreground truncate">
+                {installPaths?.auPath ?? "/Library/Audio/Plug-Ins/Components"}
+              </div>
+              <Button variant="outline" size="sm" onClick={() => chooseFolder("AU")}>
+                <FolderOpen className="size-3.5" />
+              </Button>
+              {installPaths && !installPaths.auIsDefault && (
+                <Button variant="ghost" size="sm" onClick={() => resetInstallPath("AU")}>
+                  <RotateCcw className="size-3.5" />
+                </Button>
+              )}
             </div>
-          ))}
-        </div>
-      </section>
+          </div>
 
-      <section>
-        <SectionLabel>About</SectionLabel>
-        <div className="flex flex-col divide-y divide-border border border-border rounded-md overflow-hidden">
-          <div className="flex items-center justify-between px-3 py-2.5 bg-muted">
-            <span className="text-[12px] text-foreground">Version</span>
-            <span className="text-[12px] text-muted-foreground">1.0.0</span>
-          </div>
-          <div className="flex items-center justify-between px-3 py-2.5 bg-muted">
-            <span className="text-[12px] text-foreground">Build</span>
-            <span className="text-[12px] text-muted-foreground">1</span>
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs text-muted-foreground">VST3 Plugins</span>
+            <div className="flex items-center gap-2">
+              <div className="flex-1 min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm text-foreground truncate">
+                {installPaths?.vst3Path ?? "/Library/Audio/Plug-Ins/VST3"}
+              </div>
+              <Button variant="outline" size="sm" onClick={() => chooseFolder("VST3")}>
+                <FolderOpen className="size-3.5" />
+              </Button>
+              {installPaths && !installPaths.vst3IsDefault && (
+                <Button variant="ghost" size="sm" onClick={() => resetInstallPath("VST3")}>
+                  <RotateCcw className="size-3.5" />
+                </Button>
+              )}
+            </div>
           </div>
         </div>
-      </section>
+      </div>
+
+      <Separator />
+
+      <div className="flex flex-col gap-3">
+        <Label>About</Label>
+        <div className="flex flex-col gap-1 text-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">Version</span>
+            <span>1.0.0</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">Build</span>
+            <span>1</span>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
@@ -115,25 +138,28 @@ function ModelsTab() {
   useEffect(() => { loadCatalog() }, [loadCatalog])
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-5">
       {modelCatalog.map((provider) => (
-        <section key={provider.id}>
-          <SectionLabel>{provider.name}</SectionLabel>
-          <div className="flex flex-col divide-y divide-border border border-border rounded-md overflow-hidden">
-            {provider.models.map((model) => (
-              <div key={model.id} className="flex items-center gap-3 px-3 py-2.5 bg-muted">
-                <div className="flex-1">
-                  <div className="text-[12px] text-foreground">{model.name}</div>
-                  <div className="text-[11px] text-muted-foreground">{model.subtitle}</div>
+        <div key={provider.id} className="flex flex-col gap-2">
+          <Label>{provider.name}</Label>
+          <div className="flex flex-col rounded-lg border border-border overflow-hidden">
+            {provider.models.map((model, i) => (
+              <div key={model.id}>
+                {i > 0 && <Separator />}
+                <div className="flex items-center gap-3 px-3 py-2.5">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm">{model.name}</div>
+                    <div className="text-xs text-muted-foreground">{model.subtitle}</div>
+                  </div>
+                  {model.default && <Badge variant="secondary">Default</Badge>}
+                  <span className="text-[10px] font-mono text-muted-foreground/60">{model.flag}</span>
                 </div>
-                {model.default && <Badge variant="secondary">Default</Badge>}
-                <span className="text-[10px] font-mono text-muted-foreground/60">{model.flag}</span>
               </div>
             ))}
           </div>
-        </section>
+        </div>
       ))}
-      <Button variant="ghost" onClick={refreshModels} disabled={isRefreshing} className="self-start text-primary">
+      <Button variant="outline" size="sm" onClick={refreshModels} disabled={isRefreshing} className="self-start">
         {isRefreshing ? "Refreshing..." : "Refresh Models"}
       </Button>
     </div>
@@ -177,59 +203,63 @@ function DependenciesTab() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <section>
-        <SectionLabel>JUCE Environment</SectionLabel>
-        <div className="flex flex-col gap-3 border border-border rounded-md bg-muted p-3">
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <div className="text-[12px] text-foreground">Managed JUCE {buildEnvironment?.juceVersion ?? "8.0.12"}</div>
-              <div className="text-[11px] text-muted-foreground">
-                {isLoadingBuildEnvironment ? "Checking environment..." : buildEnvironment?.jucePath ?? "No validated JUCE path yet"}
-              </div>
-            </div>
-            <Badge
-              variant={buildEnvironment?.state === "ready" ? "default" : "destructive"}
-            >
-              {buildEnvironment?.state === "ready" ? "Ready" : "Blocked"}
-            </Badge>
-          </div>
+    <div className="flex flex-col gap-5">
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <Label>JUCE Environment</Label>
+          <Badge variant={buildEnvironment?.state === "ready" ? "default" : "destructive"}>
+            {buildEnvironment?.state === "ready" ? "Ready" : "Blocked"}
+          </Badge>
+        </div>
 
-          <div className="grid grid-cols-[96px_1fr] gap-x-3 gap-y-1 text-[11px]">
-            <span className="text-muted-foreground">Source</span>
-            <span className="text-foreground capitalize">{buildEnvironment?.juceSource ?? "none"}</span>
-            <span className="text-muted-foreground">Path</span>
-            <span className="text-foreground break-all">{buildEnvironment?.jucePath ?? "Not resolved"}</span>
-            <span className="text-muted-foreground">Version</span>
-            <span className="text-foreground">{buildEnvironment?.juceVersion ?? "8.0.12"}</span>
+        <div className="rounded-lg border border-border p-3 flex flex-col gap-3">
+          <div className="flex flex-col gap-1 text-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Source</span>
+              <span className="capitalize">{buildEnvironment?.juceSource ?? "none"}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Path</span>
+              <span className="text-xs truncate max-w-[260px]">
+                {isLoadingBuildEnvironment ? "Checking..." : buildEnvironment?.jucePath ?? "Not resolved"}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Version</span>
+              <span>{buildEnvironment?.juceVersion ?? "8.0.12"}</span>
+            </div>
           </div>
 
           {(buildEnvironment?.issues.length ?? 0) > 0 && (
-            <div className="flex flex-col gap-2 border border-border rounded-md bg-card/40 p-2.5">
-              {buildEnvironment?.issues.map((issue) => (
-                <div key={issue.code} className="flex items-start gap-2.5">
-                  <span className={`mt-1 h-2 w-2 rounded-full ${issue.recoverable ? "bg-amber-500" : "bg-destructive"}`} />
-                  <div className="min-w-0">
-                    <div className="text-[12px] text-foreground">{issue.title}</div>
-                    <div className="text-[11px] text-muted-foreground break-words">{issue.detail}</div>
+            <>
+              <Separator />
+              <div className="flex flex-col gap-2">
+                {buildEnvironment?.issues.map((issue) => (
+                  <div key={issue.code} className="flex items-start gap-2">
+                    <span className={`mt-1.5 size-2 rounded-full shrink-0 ${issue.recoverable ? "bg-amber-500" : "bg-destructive"}`} />
+                    <div className="min-w-0">
+                      <div className="text-sm">{issue.title}</div>
+                      <div className="text-xs text-muted-foreground break-words">{issue.detail}</div>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            </>
           )}
 
           <div className="flex flex-wrap gap-2">
-            <Button onClick={installManaged} disabled={isPreparingEnvironment}>
-              {isPreparingEnvironment ? "Installing..." : "Install / Reinstall JUCE"}
+            <Button size="sm" onClick={installManaged} disabled={isPreparingEnvironment}>
+              {isPreparingEnvironment ? "Installing..." : "Install / Reinstall"}
             </Button>
-            <Button variant="secondary" onClick={chooseJuceFolder} disabled={isPreparingEnvironment}>
-              Choose JUCE Folder
+            <Button variant="outline" size="sm" onClick={chooseJuceFolder} disabled={isPreparingEnvironment}>
+              Choose Folder
             </Button>
-            <Button variant="ghost" onClick={useManaged} disabled={isPreparingEnvironment}>
-              Use Managed Copy
+            <Button variant="ghost" size="sm" onClick={useManaged} disabled={isPreparingEnvironment}>
+              Use Managed
             </Button>
             <Button
               variant="ghost"
+              size="sm"
               onClick={() => buildEnvironment?.jucePath && showInFinder(buildEnvironment.jucePath)}
               disabled={!buildEnvironment?.jucePath}
             >
@@ -237,25 +267,30 @@ function DependenciesTab() {
             </Button>
           </div>
         </div>
-      </section>
+      </div>
 
-      <section>
-        <SectionLabel>Required</SectionLabel>
-        <div className="flex flex-col divide-y divide-border border border-border rounded-md overflow-hidden">
-          {deps.map((dep) => (
-            <div key={dep.name} className="flex items-center gap-3 px-3 py-2.5 bg-muted">
-              <span className={`w-2 h-2 rounded-full shrink-0 ${dep.installed ? "bg-success" : "bg-destructive"}`} />
-              <div className="flex-1 min-w-0">
-                <div className="text-[12px] text-foreground">{dep.name}</div>
-                {dep.detail && <div className="text-[11px] text-muted-foreground truncate">{dep.detail}</div>}
+      <Separator />
+
+      <div className="flex flex-col gap-3">
+        <Label>Required</Label>
+        <div className="flex flex-col rounded-lg border border-border overflow-hidden">
+          {deps.map((dep, i) => (
+            <div key={dep.name}>
+              {i > 0 && <Separator />}
+              <div className="flex items-center gap-3 px-3 py-2.5">
+                <span className={`size-2 rounded-full shrink-0 ${dep.installed ? "bg-emerald-500" : "bg-destructive"}`} />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm">{dep.name}</div>
+                  {dep.detail && <div className="text-xs text-muted-foreground truncate">{dep.detail}</div>}
+                </div>
+                <Badge variant={dep.installed ? "default" : "destructive"}>
+                  {dep.installed ? "Installed" : "Missing"}
+                </Badge>
               </div>
-              <Badge variant={dep.installed ? "default" : "destructive"}>
-                {dep.installed ? "Installed" : "Missing"}
-              </Badge>
             </div>
           ))}
         </div>
-      </section>
+      </div>
     </div>
   )
 }
@@ -267,11 +302,13 @@ function AccountTab() {
   return (
     <div className="flex flex-col gap-4">
       {userProfile && (
-        <div className="text-[12px] text-muted-foreground">
+        <p className="text-sm text-muted-foreground">
           Signed in as {userProfile.email || userProfile.displayName || userProfile.id}
-        </div>
+        </p>
       )}
-      <Button variant="ghost" onClick={signOut} className="self-start text-destructive">Sign Out</Button>
+      <Button variant="outline" size="sm" onClick={signOut} className="self-start text-destructive">
+        Sign Out
+      </Button>
     </div>
   )
 }

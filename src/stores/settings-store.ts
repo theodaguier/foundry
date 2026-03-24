@@ -1,5 +1,6 @@
 import { create } from "zustand"
 import type { AgentProvider, BuildEnvironmentStatus } from "@/lib/types"
+import type { InstallPathsConfig } from "@/lib/commands"
 import * as commands from "@/lib/commands"
 
 type Appearance = "system" | "light" | "dark"
@@ -14,6 +15,7 @@ interface SettingsStore {
   appearance: Appearance
   modelCatalog: AgentProvider[]
   buildEnvironment: BuildEnvironmentStatus | null
+  installPaths: InstallPathsConfig | null
   lastModelUpdate: string | null
   isRefreshing: boolean
   isLoadingBuildEnvironment: boolean
@@ -26,12 +28,16 @@ interface SettingsStore {
   installManagedJuce: () => Promise<BuildEnvironmentStatus | null>
   setJuceOverride: (path: string) => Promise<BuildEnvironmentStatus | null>
   clearJuceOverride: () => Promise<BuildEnvironmentStatus | null>
+  loadInstallPaths: () => Promise<void>
+  setInstallPath: (format: string, path: string) => Promise<void>
+  resetInstallPath: (format: string) => Promise<void>
 }
 
 export const useSettingsStore = create<SettingsStore>((set, get) => ({
   appearance: "dark",
   modelCatalog: [],
   buildEnvironment: null,
+  installPaths: null,
   lastModelUpdate: null,
   isRefreshing: false,
   isLoadingBuildEnvironment: false,
@@ -126,6 +132,33 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
       return null
     } finally {
       set({ isPreparingEnvironment: false })
+    }
+  },
+
+  loadInstallPaths: async () => {
+    try {
+      const installPaths = await commands.getInstallPaths()
+      set({ installPaths })
+    } catch (e) {
+      console.error("Failed to load install paths:", e)
+    }
+  },
+
+  setInstallPath: async (format, path) => {
+    try {
+      const installPaths = await commands.setInstallPath(format, path)
+      set({ installPaths })
+    } catch (e) {
+      console.error("Failed to set install path:", e)
+    }
+  },
+
+  resetInstallPath: async (format) => {
+    try {
+      const installPaths = await commands.resetInstallPath(format)
+      set({ installPaths })
+    } catch (e) {
+      console.error("Failed to reset install path:", e)
     }
   },
 }))
