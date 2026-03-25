@@ -2253,10 +2253,22 @@ mod tests {
 }
 
 fn resolve_formats(format: &str) -> Vec<PluginFormat> {
-    match format.to_uppercase().as_str() {
+    let requested = match format.to_uppercase().as_str() {
         "AU" => vec![PluginFormat::Au],
         "VST3" => vec![PluginFormat::Vst3],
         _ => vec![PluginFormat::Au, PluginFormat::Vst3],
+    };
+
+    let supported = crate::platform::available_plugin_formats();
+    let resolved: Vec<PluginFormat> = requested
+        .into_iter()
+        .filter(|plugin_format| supported.contains(plugin_format))
+        .collect();
+
+    if resolved.is_empty() {
+        supported
+    } else {
+        resolved
     }
 }
 

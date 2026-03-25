@@ -163,6 +163,11 @@ pub fn required_dependencies() -> Vec<DependencySpec> {
             check_command: "claude",
             check_args: &["--version"],
         },
+        DependencySpec {
+            name: "Codex CLI",
+            check_command: "codex",
+            check_args: &["--version"],
+        },
     ]
 }
 

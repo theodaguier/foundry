@@ -65,10 +65,7 @@ impl SupabaseAuth {
     }
 
     fn session_file_path() -> PathBuf {
-        let mut path = dirs::home_dir().unwrap_or_default();
-        path.push("Library/Application Support/Foundry");
-        path.push("auth_session.json");
-        path
+        crate::services::foundry_paths::application_support_dir().join("auth_session.json")
     }
 
     fn persist_session(session: &AuthSession) -> Result<(), String> {
@@ -387,10 +384,7 @@ impl SupabaseAuth {
             None => return Err("Not authenticated".to_string()),
         };
 
-        let url = format!(
-            "{}/rest/v1/profiles?id=eq.{}",
-            *SUPABASE_URL, user_id
-        );
+        let url = format!("{}/rest/v1/profiles?id=eq.{}", *SUPABASE_URL, user_id);
 
         let body = serde_json::json!({
             "card_variant": variant,
@@ -417,7 +411,11 @@ impl SupabaseAuth {
     }
 
     /// Batch assign a card variant to multiple users by email.
-    pub async fn assign_card_variant_batch(&self, emails: Vec<String>, variant: &str) -> Result<u32, String> {
+    pub async fn assign_card_variant_batch(
+        &self,
+        emails: Vec<String>,
+        variant: &str,
+    ) -> Result<u32, String> {
         let session = self.session.lock().unwrap().clone();
         let session = match session {
             Some(s) => s,
@@ -444,15 +442,11 @@ impl SupabaseAuth {
                 .map_err(|e| format!("Request failed: {}", e))?;
 
             let text = resp.text().await.unwrap_or_default();
-            let profiles: Vec<serde_json::Value> =
-                serde_json::from_str(&text).unwrap_or_default();
+            let profiles: Vec<serde_json::Value> = serde_json::from_str(&text).unwrap_or_default();
 
             if let Some(profile) = profiles.first() {
                 if let Some(id) = profile.get("id").and_then(|v| v.as_str()) {
-                    let patch_url = format!(
-                        "{}/rest/v1/profiles?id=eq.{}",
-                        *SUPABASE_URL, id
-                    );
+                    let patch_url = format!("{}/rest/v1/profiles?id=eq.{}", *SUPABASE_URL, id);
 
                     let body = serde_json::json!({
                         "card_variant": variant,

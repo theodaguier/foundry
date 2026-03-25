@@ -64,8 +64,9 @@ pub fn create_command(cmd: &str) -> Command {
 pub fn cmake_configure_args() -> Vec<String> {
     vec![
         "-G".into(),
-        "Ninja".into(),
-        "-DCMAKE_BUILD_TYPE=Debug".into(),
+        "Visual Studio 17 2022".into(),
+        "-A".into(),
+        "x64".into(),
     ]
 }
 
@@ -196,7 +197,7 @@ pub fn required_dependencies() -> Vec<DependencySpec> {
     vec![
         DependencySpec {
             name: "C++ Build Tools",
-            check_command: "cl",
+            check_command: "__vs_build_tools__",
             check_args: &[],
         },
         DependencySpec {
@@ -205,13 +206,13 @@ pub fn required_dependencies() -> Vec<DependencySpec> {
             check_args: &["--version"],
         },
         DependencySpec {
-            name: "Ninja",
-            check_command: "ninja",
+            name: "Claude Code CLI",
+            check_command: "claude",
             check_args: &["--version"],
         },
         DependencySpec {
-            name: "Claude Code CLI",
-            check_command: "claude",
+            name: "Codex CLI",
+            check_command: "codex",
             check_args: &["--version"],
         },
     ]
@@ -219,6 +220,10 @@ pub fn required_dependencies() -> Vec<DependencySpec> {
 
 /// Check a dependency by resolving and running its command.
 pub fn check_dependency(spec: &DependencySpec) -> Option<String> {
+    if spec.check_command == "__vs_build_tools__" {
+        return resolve_visual_studio_installation();
+    }
+
     let resolved = resolve_command(spec.check_command);
     Command::new(&resolved)
         .args(spec.check_args)
@@ -254,6 +259,41 @@ pub fn show_in_file_manager(path: &str) -> Result<(), String> {
 
 pub fn invalidate_shell_cache() {
     // No-op on Windows — shell env is not cached with OnceLock on this platform.
+}
+
+fn resolve_visual_studio_installation() -> Option<String> {
+    let program_files_x86 = std::env::var("ProgramFiles(x86)")
+        .or_else(|_| std::env::var("ProgramFiles"))
+        .ok()?;
+    let vswhere = PathBuf::from(program_files_x86)
+        .join("Microsoft Visual Studio")
+        .join("Installer")
+        .join("vswhere.exe");
+
+    if !vswhere.is_file() {
+        return None;
+    }
+
+    let output = Command::new(vswhere)
+        .args([
+            "-latest",
+            "-products",
+            "*",
+            "-requires",
+            "Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
+            "-property",
+            "installationPath",
+        ])
+        .output()
+        .ok()?;
+
+    if !output.status.success() {
+        return None;
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let installation_path = stdout.trim();
+    (!installation_path.is_empty()).then(|| installation_path.to_string())
 }
 
 fn copy_dir_all(src: &std::path::Path, dst: &std::path::Path) -> std::io::Result<()> {

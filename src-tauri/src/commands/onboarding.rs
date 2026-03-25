@@ -24,6 +24,7 @@ pub async fn install_dependency(
 ) -> Result<onboarding::DependencyInstallResult, String> {
     let result = tokio::task::spawn_blocking(move || match name.as_str() {
         "xcode_clt" => onboarding::install_xcode_clt(),
+        "cpp_build_tools" => onboarding::install_cpp_build_tools(),
         "cmake" => onboarding::install_cmake(),
         "claude_code" => onboarding::install_claude_code(),
         "codex" => onboarding::install_codex(),

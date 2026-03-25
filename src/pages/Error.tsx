@@ -15,6 +15,11 @@ function classifyFailure(message: string) {
     lower.includes("juce_add_plugin") ||
     lower.includes("add_subdirectory given source") ||
     lower.includes("xcode command line tools") ||
+    lower.includes("c++ build tools") ||
+    lower.includes("visual studio 2022 build tools") ||
+    lower.includes("visual studio build tools") ||
+    lower.includes("desktop c++ workload") ||
+    lower.includes("ninja is required") ||
     lower.includes("cmake is required") ||
     lower.includes("claude code cli")
   ) {
@@ -30,7 +35,7 @@ function classifyFailure(message: string) {
   }
 
   if (lower.includes("no plugin bundles found") || lower.includes("bundle")) {
-    return { title: "Build Output Invalid", subtitle: "The build completed without producing a usable AU or VST3 bundle.", kind: "build" }
+    return { title: "Build Output Invalid", subtitle: "The build completed without producing a usable plugin bundle.", kind: "build" }
   }
 
   if (lower.includes("compile") || lower.includes("cmake") || lower.includes("error:") || lower.includes("build failed")) {

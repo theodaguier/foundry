@@ -3,7 +3,7 @@ import { getVersion } from "@tauri-apps/api/app"
 import { open } from "@tauri-apps/plugin-dialog"
 import { useAppStore } from "@/stores/app-store"
 import { useSettingsStore } from "@/stores/settings-store"
-import { checkDependencies, showInFinder } from "@/lib/commands"
+import { checkDependencies } from "@/lib/commands"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Label } from "@/components/ui/label"
@@ -46,6 +46,8 @@ export default function Settings() {
 function GeneralTab() {
   const { appearance, setAppearance, installPaths, loadInstallPaths, resetInstallPath } = useSettingsStore()
   const [appVersion, setAppVersion] = useState<string>("")
+  const supportsAu = installPaths?.supportedFormats.includes("AU") ?? false
+  const supportsVst3 = installPaths?.supportedFormats.includes("VST3") ?? false
 
   useEffect(() => { loadInstallPaths() }, [loadInstallPaths])
   useEffect(() => { getVersion().then(setAppVersion) }, [])
@@ -81,43 +83,47 @@ function GeneralTab() {
         </p>
 
         <div className="flex flex-col gap-2">
-          <div className="flex flex-col gap-1.5">
-            <Label className="text-xs text-muted-foreground">AU Components</Label>
-            <div className="flex items-center gap-2">
-              <Input
-                readOnly
-                value={installPaths?.auPath ?? "/Library/Audio/Plug-Ins/Components"}
-                className="flex-1 cursor-default"
-              />
-              <Button variant="outline" size="sm" onClick={() => chooseFolder("AU")}>
-                <FolderOpen className="size-3.5" />
-              </Button>
-              {installPaths && !installPaths.auIsDefault && (
-                <Button variant="ghost" size="sm" onClick={() => resetInstallPath("AU")}>
-                  <RotateCcw className="size-3.5" />
+          {supportsAu && (
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-xs text-muted-foreground">AU Components</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  readOnly
+                  value={installPaths?.auPath ?? ""}
+                  className="flex-1 cursor-default"
+                />
+                <Button variant="outline" size="sm" onClick={() => chooseFolder("AU")}>
+                  <FolderOpen className="size-3.5" />
                 </Button>
-              )}
+                {installPaths && !installPaths.auIsDefault && (
+                  <Button variant="ghost" size="sm" onClick={() => resetInstallPath("AU")}>
+                    <RotateCcw className="size-3.5" />
+                  </Button>
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
-          <div className="flex flex-col gap-1.5">
-            <Label className="text-xs text-muted-foreground">VST3 Plugins</Label>
-            <div className="flex items-center gap-2">
-              <Input
-                readOnly
-                value={installPaths?.vst3Path ?? "/Library/Audio/Plug-Ins/VST3"}
-                className="flex-1 cursor-default"
-              />
-              <Button variant="outline" size="sm" onClick={() => chooseFolder("VST3")}>
-                <FolderOpen className="size-3.5" />
-              </Button>
-              {installPaths && !installPaths.vst3IsDefault && (
-                <Button variant="ghost" size="sm" onClick={() => resetInstallPath("VST3")}>
-                  <RotateCcw className="size-3.5" />
+          {supportsVst3 && (
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-xs text-muted-foreground">VST3 Plugins</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  readOnly
+                  value={installPaths?.vst3Path ?? ""}
+                  className="flex-1 cursor-default"
+                />
+                <Button variant="outline" size="sm" onClick={() => chooseFolder("VST3")}>
+                  <FolderOpen className="size-3.5" />
                 </Button>
-              )}
+                {installPaths && !installPaths.vst3IsDefault && (
+                  <Button variant="ghost" size="sm" onClick={() => resetInstallPath("VST3")}>
+                    <RotateCcw className="size-3.5" />
+                  </Button>
+                )}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
 
@@ -175,13 +181,112 @@ function ModelsTab() {
 
 function DependenciesTab() {
   const [deps, setDeps] = useState<DependencyStatus[]>([])
+  const buildEnvironment = useSettingsStore((s) => s.buildEnvironment)
+  const loadBuildEnvironment = useSettingsStore((s) => s.loadBuildEnvironment)
+  const installManagedJuce = useSettingsStore((s) => s.installManagedJuce)
+  const setJuceOverride = useSettingsStore((s) => s.setJuceOverride)
+  const clearJuceOverride = useSettingsStore((s) => s.clearJuceOverride)
+  const isPreparingEnvironment = useSettingsStore((s) => s.isPreparingEnvironment)
+  const isLoadingBuildEnvironment = useSettingsStore((s) => s.isLoadingBuildEnvironment)
+
+  const optionalDeps = new Set(["Codex CLI"])
+
+  const refreshDeps = useCallback(async () => {
+    try {
+      const next = await checkDependencies()
+      setDeps(next)
+    } catch {
+      setDeps([])
+    }
+  }, [])
 
   useEffect(() => {
-    checkDependencies().then(setDeps).catch(() => setDeps([]))
-  }, [])
+    void refreshDeps()
+    void loadBuildEnvironment()
+  }, [refreshDeps, loadBuildEnvironment])
+
+  const chooseJuceFolder = useCallback(async () => {
+    const selection = await open({ directory: true, multiple: false })
+    if (typeof selection !== "string") return
+    await setJuceOverride(selection)
+    await refreshDeps()
+  }, [refreshDeps, setJuceOverride])
+
+  const installManagedCopy = useCallback(async () => {
+    await installManagedJuce()
+    await refreshDeps()
+  }, [installManagedJuce, refreshDeps])
+
+  const restoreManagedCopy = useCallback(async () => {
+    await clearJuceOverride()
+    await refreshDeps()
+  }, [clearJuceOverride, refreshDeps])
+
+  const recheckEnvironment = useCallback(async () => {
+    await Promise.all([refreshDeps(), loadBuildEnvironment()])
+  }, [loadBuildEnvironment, refreshDeps])
 
   return (
     <div className="flex flex-col gap-5">
+      <div className="flex flex-col gap-3">
+        <Label>Build Environment</Label>
+        <Card size="sm">
+          <CardContent className="flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-sm">JUCE SDK</div>
+                <div className="text-xs text-muted-foreground">
+                  {buildEnvironment?.jucePath
+                    ? `${buildEnvironment.juceVersion} · ${buildEnvironment.juceSource === "override" ? "custom path" : "managed copy"}`
+                    : "Not configured"}
+                </div>
+              </div>
+              <Badge variant={buildEnvironment?.state === "ready" ? "default" : "destructive"}>
+                {isLoadingBuildEnvironment ? "Checking..." : buildEnvironment?.state === "ready" ? "Ready" : "Blocked"}
+              </Badge>
+            </div>
+
+            {buildEnvironment?.jucePath && (
+              <div className="text-xs font-mono text-muted-foreground break-all">
+                {buildEnvironment.jucePath}
+              </div>
+            )}
+
+            {buildEnvironment?.issues.length ? (
+              <div className="flex flex-col gap-2">
+                {buildEnvironment.issues.map((issue) => (
+                  <div key={issue.code} className="rounded-lg border border-border/60 bg-muted/40 p-3">
+                    <div className="text-sm">{issue.title}</div>
+                    <div className="text-xs text-muted-foreground mt-1">{issue.detail}</div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-xs text-muted-foreground">
+                The build toolchain and managed JUCE copy are ready.
+              </div>
+            )}
+
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" onClick={recheckEnvironment} disabled={isPreparingEnvironment}>
+                Re-check
+              </Button>
+              <Button size="sm" onClick={installManagedCopy} disabled={isPreparingEnvironment}>
+                {isPreparingEnvironment ? "Preparing..." : "Install Managed JUCE"}
+              </Button>
+              <Button variant="secondary" size="sm" onClick={chooseJuceFolder} disabled={isPreparingEnvironment}>
+                Choose JUCE Folder
+              </Button>
+              {buildEnvironment?.juceSource === "override" && (
+                <Button variant="ghost" size="sm" onClick={restoreManagedCopy} disabled={isPreparingEnvironment}>
+                  Use Managed Copy
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       <div className="flex flex-col gap-3">
         <Label>Required</Label>
         <Card size="sm">
@@ -195,9 +300,13 @@ function DependenciesTab() {
                     <div className="text-sm">{dep.name}</div>
                     {dep.detail && <div className="text-xs text-muted-foreground truncate">{dep.detail}</div>}
                   </div>
-                  <Badge variant={dep.installed ? "default" : "destructive"}>
-                    {dep.installed ? "Installed" : "Missing"}
-                  </Badge>
+                  {optionalDeps.has(dep.name) && !dep.installed ? (
+                    <Badge variant="secondary">Optional</Badge>
+                  ) : (
+                    <Badge variant={dep.installed ? "default" : "destructive"}>
+                      {dep.installed ? "Installed" : "Missing"}
+                    </Badge>
+                  )}
                 </div>
               </div>
             ))}

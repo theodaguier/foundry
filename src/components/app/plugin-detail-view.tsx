@@ -24,7 +24,7 @@ export function PluginDetailView({ plugin }: Props) {
   const setMainView = useAppStore((s) => s.setMainView)
   const deletePlugin = useAppStore((s) => s.deletePlugin)
   const loadPlugins = useAppStore((s) => s.loadPlugins)
-  const openFinder = () => {
+  const openFolder = () => {
     const path = plugin.installPaths.vst3 || plugin.installPaths.au
     if (path) showInFinder(path)
   }
@@ -73,8 +73,8 @@ export function PluginDetailView({ plugin }: Props) {
                 }
               />
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={openFinder}>
-                  Show in Finder
+                <DropdownMenuItem onClick={openFolder}>
+                  Show in Folder
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={handleDelete} className="text-destructive">
                   Delete

@@ -204,7 +204,7 @@ export function AppSidebar() {
         <DialogContent showCloseButton={false}>
           <DialogHeader>
             <DialogTitle>Delete Plugin?</DialogTitle>
-            <DialogDescription>This will uninstall the AU/VST3 files from your system. This cannot be undone.</DialogDescription>
+            <DialogDescription>This removes the plugin from Foundry. Installed files on disk are not deleted automatically.</DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setPluginToDelete(null)}>Cancel</Button>

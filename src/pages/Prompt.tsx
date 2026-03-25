@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { AgentIcon } from "@/components/app/agent-icon"
 import { ArrowUpRight } from "lucide-react"
+import type { FormatOption } from "@/lib/types"
 
 const suggestions = [
   {
@@ -74,6 +75,7 @@ export default function Prompt() {
   const setMainView = useAppStore((s) => s.setMainView)
   const startGeneration = useBuildStore((s) => s.startGeneration)
   const modelCatalog = useSettingsStore((s) => s.modelCatalog)
+  const installPaths = useSettingsStore((s) => s.installPaths)
   const [prompt, setPrompt] = useState("")
   const [selectedAgent, setSelectedAgent] = useState("Claude Code")
   const [selectedModel, setSelectedModel] = useState("sonnet")
@@ -81,10 +83,14 @@ export default function Prompt() {
 
   const generate = async () => {
     if (isEmpty) return
+    const format: FormatOption =
+      installPaths?.supportedFormats.length === 1
+        ? installPaths.supportedFormats[0]
+        : "Both"
     setMainView({ kind: "generation" })
     void startGeneration({
       prompt: prompt.trim(),
-      format: "Both",
+      format,
       channelLayout: "Stereo",
       presetCount: 5,
       agent: selectedAgent,
@@ -98,6 +104,11 @@ export default function Prompt() {
         {/* Hero */}
         <div className="flex flex-col items-center gap-2.5 mb-8">
           <span className="text-[14px] text-muted-foreground">Describe your plugin, Foundry builds it.</span>
+          {installPaths?.supportedFormats.length === 1 && (
+            <span className="text-[11px] uppercase tracking-[1px] text-muted-foreground/60">
+              {installPaths.supportedFormats[0]} only on this platform
+            </span>
+          )}
         </div>
 
         {/* Prompt input */}

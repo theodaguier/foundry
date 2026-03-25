@@ -172,6 +172,9 @@ fn classify_build_failure(raw: &str, configure_phase: bool) -> BuildFailureStage
         "no cxx compiler could be found",
         "cmake error at cmakelists.txt",
         "unable to find utility",
+        "could not find any instance of visual studio",
+        "could not find a version of visual studio",
+        "desktop c++ workload",
     ];
 
     if environment_markers

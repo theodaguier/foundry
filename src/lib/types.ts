@@ -105,6 +105,15 @@ export interface UserProfile {
   cardVariant?: CardVariant;
 }
 
+export interface RawUserProfile extends Partial<UserProfile> {
+  display_name?: string;
+  avatar_url?: string;
+  plugins_generated?: number;
+  created_at?: string;
+  onboarding_completed_at?: string;
+  card_variant?: CardVariant;
+}
+
 export interface DependencyStatus {
   name: string;
   installed: boolean;

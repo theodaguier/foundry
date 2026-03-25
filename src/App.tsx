@@ -182,10 +182,14 @@ export default function App() {
   const initTheme = useSettingsStore((s) => s.initTheme)
   const loadBuildEnvironment = useSettingsStore((s) => s.loadBuildEnvironment)
   const loadCatalog = useSettingsStore((s) => s.loadCatalog)
+  const loadInstallPaths = useSettingsStore((s) => s.loadInstallPaths)
+  const installPaths = useSettingsStore((s) => s.installPaths)
+  const titlebarInset = installPaths?.platform === "macos" ? 52 : 0
 
   useEffect(() => { initTheme() }, [initTheme])
   useEffect(() => { loadBuildEnvironment() }, [loadBuildEnvironment])
   useEffect(() => { loadCatalog() }, [loadCatalog])
+  useEffect(() => { loadInstallPaths() }, [loadInstallPaths])
   useEffect(() => { checkSession() }, [checkSession])
 
   useEffect(() => {
@@ -212,9 +216,10 @@ export default function App() {
       <div className="flex flex-col h-full">
         <div
           data-tauri-drag-region
-          className="h-[52px] shrink-0 select-none"
+          className="shrink-0 select-none"
+          style={{ height: titlebarInset }}
         >
-          <div className="w-[78px] shrink-0" data-tauri-drag-region />
+          {titlebarInset > 0 && <div className="w-[78px] h-full shrink-0" data-tauri-drag-region />}
         </div>
         <div className="flex-1 overflow-hidden">
           <Onboarding />
@@ -231,9 +236,10 @@ export default function App() {
         {/* Drag region for main content area */}
         <div
           data-tauri-drag-region
-          className="h-[52px] shrink-0 select-none"
+          className="shrink-0 select-none"
+          style={{ height: titlebarInset }}
         />
-        <div className="h-[calc(100%-52px)] overflow-hidden">
+        <div className="flex-1 overflow-hidden">
           <MainContent />
         </div>
       </SidebarInset>
