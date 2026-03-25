@@ -82,6 +82,7 @@ jobs:
         run: |
           CERT_PATH="$RUNNER_TEMP/foundry-signing.p12"
           KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
+          echo "APPLE_SIGNING_READY=false" >> "$GITHUB_ENV"
 
           CERT_PATH="$CERT_PATH" python - <<'PY'
           import base64
@@ -93,47 +94,53 @@ jobs:
           normalized = re.sub(r"\s+", "", raw).strip("\"'")
           pathlib.Path(os.environ["CERT_PATH"]).write_bytes(base64.b64decode(normalized))
           PY
-          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security default-keychain -s "$KEYCHAIN_PATH"
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security set-keychain-settings -t 3600 -u "$KEYCHAIN_PATH"
-          security import "$CERT_PATH" \
-            -f pkcs12 \
-            -k "$KEYCHAIN_PATH" \
-            -P "$APPLE_CERTIFICATE_PASSWORD" \
-            -A \
-            -T /usr/bin/codesign
-          security set-key-partition-list -S apple-tool:,apple:,codesign: \
-            -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          if security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH" \
+            && security default-keychain -s "$KEYCHAIN_PATH" \
+            && security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH" \
+            && security set-keychain-settings -t 3600 -u "$KEYCHAIN_PATH" \
+            && security import "$CERT_PATH" \
+              -f pkcs12 \
+              -k "$KEYCHAIN_PATH" \
+              -P "$APPLE_CERTIFICATE_PASSWORD" \
+              -A \
+              -T /usr/bin/codesign \
+            && security set-key-partition-list -S apple-tool:,apple:,codesign: \
+              -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"; then
+            IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" \
+              | grep -E "Developer ID Application|Apple Distribution" \
+              | head -n 1 \
+              | sed -E 's/.*"(.+)".*/\1/')
 
-          IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" \
-            | grep -E "Developer ID Application|Apple Distribution" \
-            | head -n 1 \
-            | sed -E 's/.*"(.+)".*/\1/')
+            if [ -n "$IDENTITY" ]; then
+              {
+                echo "APPLE_SIGNING_READY=true"
+                echo "APPLE_SIGNING_IDENTITY=$IDENTITY"
+              } >> "$GITHUB_ENV"
 
-          if [ -z "$IDENTITY" ]; then
-            echo "No supported macOS signing certificate found in keychain." >&2
-            exit 1
-          fi
-
-          echo "APPLE_SIGNING_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
-
-          if [ -n "$APPLE_API_ISSUER" ] && [ -n "$APPLE_API_KEY" ] && [ -n "$APPLE_API_PRIVATE_KEY" ]; then
-            API_KEY_PATH="$RUNNER_TEMP/AuthKey_${APPLE_API_KEY}.p8"
-            printf '%s' "$APPLE_API_PRIVATE_KEY" > "$API_KEY_PATH"
-            {
-              echo "APPLE_API_ISSUER=$APPLE_API_ISSUER"
-              echo "APPLE_API_KEY=$APPLE_API_KEY"
-              echo "APPLE_API_KEY_PATH=$API_KEY_PATH"
-            } >> "$GITHUB_ENV"
+              if [ -n "$APPLE_API_ISSUER" ] && [ -n "$APPLE_API_KEY" ] && [ -n "$APPLE_API_PRIVATE_KEY" ]; then
+                API_KEY_PATH="$RUNNER_TEMP/AuthKey_${APPLE_API_KEY}.p8"
+                printf '%s' "$APPLE_API_PRIVATE_KEY" > "$API_KEY_PATH"
+                {
+                  echo "APPLE_API_ISSUER=$APPLE_API_ISSUER"
+                  echo "APPLE_API_KEY=$APPLE_API_KEY"
+                  echo "APPLE_API_KEY_PATH=$API_KEY_PATH"
+                } >> "$GITHUB_ENV"
+              else
+                echo "Skipping notarization because App Store Connect credentials are incomplete."
+              fi
+            else
+              echo "::warning::No supported macOS signing certificate found. Building unsigned artifacts."
+            fi
           else
-            echo "Skipping notarization because App Store Connect credentials are incomplete."
+            echo "::warning::Failed to import macOS signing certificate. Building unsigned artifacts."
           fi
 
       - name: Build macOS artifacts
         shell: bash
         run: |
-          if [ -z "${APPLE_API_ISSUER:-}" ] || [ -z "${APPLE_API_KEY:-}" ] || [ -z "${APPLE_API_KEY_PATH:-}" ]; then
+          if [ "${APPLE_SIGNING_READY:-false}" != "true" ]; then
+            unset APPLE_SIGNING_IDENTITY APPLE_API_ISSUER APPLE_API_KEY APPLE_API_KEY_PATH
+          elif [ -z "${APPLE_API_ISSUER:-}" ] || [ -z "${APPLE_API_KEY:-}" ] || [ -z "${APPLE_API_KEY_PATH:-}" ]; then
             unset APPLE_API_ISSUER APPLE_API_KEY APPLE_API_KEY_PATH
           fi
 
@@ -200,26 +207,37 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path certificate | Out-Null
+          $tempConfig = Join-Path $env:RUNNER_TEMP "tauri.windows.release.conf.json"
+          $baseConfig = Get-Content src-tauri/tauri.windows.conf.json -Raw | ConvertFrom-Json
           $normalizedCertificate = ($env:WINDOWS_CERTIFICATE -replace '\s', '').Trim('"', "'")
-          [System.IO.File]::WriteAllBytes(
-            (Join-Path $PWD "certificate/certificate.pfx"),
-            [System.Convert]::FromBase64String($normalizedCertificate)
-          )
+          $certificateImported = $false
 
-          $cert = Import-PfxCertificate `
-            -FilePath certificate/certificate.pfx `
-            -CertStoreLocation Cert:\CurrentUser\My `
-            -Password (ConvertTo-SecureString -String $env:WINDOWS_CERTIFICATE_PASSWORD -Force -AsPlainText)
+          try {
+            [System.IO.File]::WriteAllBytes(
+              (Join-Path $PWD "certificate/certificate.pfx"),
+              [System.Convert]::FromBase64String($normalizedCertificate)
+            )
 
-          $thumbprint = $cert.Thumbprint
-          if (-not $thumbprint) {
-            throw "Failed to import Windows signing certificate."
+            $cert = Import-PfxCertificate `
+              -FilePath certificate/certificate.pfx `
+              -CertStoreLocation Cert:\CurrentUser\My `
+              -Password (ConvertTo-SecureString -String $env:WINDOWS_CERTIFICATE_PASSWORD -Force -AsPlainText)
+
+            $thumbprint = $cert.Thumbprint
+            if ($thumbprint) {
+              $baseConfig.bundle.windows.certificateThumbprint = $thumbprint
+              $certificateImported = $true
+            }
+          } catch {
+            Write-Warning "Failed to import Windows signing certificate. Building unsigned artifacts."
           }
 
-          $config = Get-Content src-tauri/tauri.windows.conf.json -Raw
-          $config = $config.Replace("REPLACE_WITH_WINDOWS_CERTIFICATE_THUMBPRINT", $thumbprint)
-          $tempConfig = Join-Path $env:RUNNER_TEMP "tauri.windows.release.conf.json"
-          Set-Content -Path $tempConfig -Value $config
+          if (-not $certificateImported) {
+            $baseConfig.bundle.PSObject.Properties.Remove('windows')
+          }
+
+          $configJson = $baseConfig | ConvertTo-Json -Depth 100
+          Set-Content -Path $tempConfig -Value $configJson
           "TAURI_WINDOWS_RELEASE_CONFIG=$tempConfig" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Build Windows artifacts
