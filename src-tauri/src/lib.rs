@@ -27,6 +27,8 @@ pub fn run() {
             commands::auth::sign_up,
             commands::auth::sign_out,
             commands::auth::get_profile,
+            commands::auth::update_card_variant,
+            commands::auth::assign_card_variant_batch,
             commands::plugins::load_plugins,
             commands::plugins::delete_plugin,
             commands::plugins::rename_plugin,

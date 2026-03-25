@@ -91,6 +91,8 @@ export interface PipelineLogLine {
 
 export type AuthState = "checking" | "unauthenticated" | "authenticated";
 
+export type CardVariant = "default" | "gold" | "diamond" | "ambassador";
+
 export interface UserProfile {
   id: string;
   email: string;
@@ -100,6 +102,7 @@ export interface UserProfile {
   pluginsGenerated: number;
   createdAt: string;
   onboardingCompletedAt?: string;
+  cardVariant?: CardVariant;
 }
 
 export interface DependencyStatus {

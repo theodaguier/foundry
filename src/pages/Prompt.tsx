@@ -1,55 +1,87 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState } from "react"
+import { useAppStore } from "@/stores/app-store"
 import { useBuildStore } from "@/stores/build-store"
 import { useSettingsStore } from "@/stores/settings-store"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { FoundryLogo } from "@/components/app/foundry-logo"
+import { Label } from "@/components/ui/label"
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuGroup,
+  DropdownMenuLabel,
+} from "@/components/ui/dropdown-menu"
+import { AgentIcon } from "@/components/app/agent-icon"
+import { ArrowUpRight } from "lucide-react"
 
 const suggestions = [
   {
-    title: "INSTRUMENTS",
-    icon: "♪",
+    title: "Instruments",
     items: [
-      { display: "SUBTRACTIVE SYNTH", prompt: "Warm analog polysynth with detuned oscillators and a low-pass filter" },
-      { display: "FM ENGINE", prompt: "FM pad synth with slow attack, chorus, and stereo spread" },
-      { display: "WAVETABLE OSC", prompt: "Wavetable synthesizer with morphable waveforms and built-in effects" },
+      { display: "Subtractive Synth", prompt: "Warm analog polysynth with detuned oscillators, a resonant low-pass filter, and ADSR envelope" },
+      { display: "FM Pad", prompt: "FM pad synth with slow attack, chorus, stereo spread, and 4-operator modulation" },
+      { display: "Wavetable Synth", prompt: "Wavetable synthesizer with morphable waveforms, unison voices, and built-in delay" },
+      { display: "Pluck Synth", prompt: "Karplus-Strong plucked string synth with damping, body resonance, and stereo chorus" },
+      { display: "Organ", prompt: "Tonewheel organ with drawbar controls, rotary speaker simulation, and overdrive" },
+      { display: "Drum Machine", prompt: "808-style drum machine with kick, snare, hi-hat, and clap with individual tuning and decay" },
+      { display: "Acid Bass", prompt: "303-style acid bassline synth with squelchy resonant filter, accent, slide, and distortion" },
+      { display: "Noise Synth", prompt: "Noise-based texture synth with filtered white/pink noise, sample and hold modulation, and stereo panning" },
+      { display: "Supersaw Lead", prompt: "Massive supersaw lead synth with 7 detuned saw oscillators, unison spread, and portamento" },
+      { display: "Granular Drone", prompt: "Granular drone synth with grain size, density, pitch scatter, and freeze control for ambient textures" },
+      { display: "Kalimba", prompt: "Physical modeling kalimba with tine stiffness, damping, body resonance, and sympathetic resonance" },
+      { display: "Lo-fi Piano", prompt: "Detuned felt piano synth with wow and flutter, tape hiss, and a soft low-pass filter" },
     ],
   },
   {
-    title: "EFFECTS",
-    icon: "~",
+    title: "Effects",
     items: [
-      { display: "ALGORITHMIC REVERB", prompt: "Algorithmic reverb with room size, damping, and pre-delay" },
-      { display: "TAPE DELAY", prompt: "Lo-fi tape delay with wow, flutter, and saturation" },
-      { display: "BITCRUSHER", prompt: "Bitcrusher with sample rate reduction and dithering" },
+      { display: "Algorithmic Reverb", prompt: "Algorithmic reverb with room size, damping, pre-delay, and stereo width" },
+      { display: "Tape Delay", prompt: "Lo-fi tape delay with wow, flutter, saturation, and tempo sync" },
+      { display: "Bitcrusher", prompt: "Bitcrusher with sample rate reduction, bit depth control, and dithering" },
+      { display: "Chorus", prompt: "Stereo chorus with rate, depth, feedback, and mix controls" },
+      { display: "Phaser", prompt: "12-stage phaser with rate, depth, feedback, and stereo spread" },
+      { display: "Compressor", prompt: "Optical compressor with threshold, ratio, attack, release, and sidechain filter" },
+      { display: "Distortion", prompt: "Multi-mode distortion with tube, tape, and fuzz algorithms plus tone shaping" },
+      { display: "Flanger", prompt: "Through-zero flanger with rate, depth, feedback, and manual controls" },
+      { display: "Parametric EQ", prompt: "4-band parametric EQ with low shelf, two parametric mids, and high shelf with Q control" },
+      { display: "Tremolo", prompt: "Stereo tremolo with sine, triangle, and square LFO shapes and tempo sync" },
+      { display: "Ring Modulator", prompt: "Ring modulator with carrier frequency, LFO modulation, and wet/dry mix" },
+      { display: "Shimmer Reverb", prompt: "Shimmer reverb with pitch-shifted octave feedback, long decay tail, and modulated diffusion" },
+      { display: "Vinyl Crackle", prompt: "Vinyl emulation with crackle density, surface noise, wow and flutter, and dustiness control" },
+      { display: "Stutter Gate", prompt: "Rhythmic gate effect with step sequencer, variable gate length, and tempo-synced patterns" },
+      { display: "Pitch Shifter", prompt: "Polyphonic pitch shifter with semitone and cent control, formant preservation, and stereo detune" },
+      { display: "Spring Reverb", prompt: "Vintage spring reverb emulation with tension, drip intensity, and tone control" },
+      { display: "Auto-Wah", prompt: "Envelope follower wah with sensitivity, frequency range, resonance, and up/down sweep modes" },
+      { display: "Glitch Machine", prompt: "Glitch effect with random buffer repeat, reverse, stutter, tape stop, and probability controls" },
     ],
   },
   {
-    title: "UTILITIES",
-    icon: "◎",
+    title: "Utilities",
     items: [
-      { display: "MODULATION MATRIX", prompt: "Flexible modulation matrix with multiple sources and destinations" },
-      { display: "STEP SEQUENCER", prompt: "8-step sequencer with rate, swing, and gate controls" },
-      { display: "ADSR ENVELOPE", prompt: "ADSR envelope follower with output level and retrigger" },
+      { display: "Gain Utility", prompt: "Precision gain staging utility with level, pan, phase invert, and mono summing" },
+      { display: "Spectrum Analyzer", prompt: "Real-time spectrum analyzer with FFT display, peak hold, and adjustable resolution" },
+      { display: "Stereo Widener", prompt: "Mid-side stereo width plugin with width control, bass mono, and correlation meter" },
+      { display: "Tuner", prompt: "Chromatic tuner with cent deviation display, reference pitch adjustment, and note detection" },
+      { display: "Test Tone", prompt: "Test tone generator with sine, white noise, pink noise, and sweep modes with frequency and level controls" },
+      { display: "Loudness Meter", prompt: "LUFS loudness meter with integrated, short-term, momentary readings, and true peak display" },
     ],
   },
-];
+]
 
 export default function Prompt() {
-  const navigate = useNavigate();
-  const startGeneration = useBuildStore((s) => s.startGeneration);
-  const modelCatalog = useSettingsStore((s) => s.modelCatalog);
-  const [prompt, setPrompt] = useState("");
-  const [selectedAgent, setSelectedAgent] = useState("Claude Code");
-  const [selectedModel, setSelectedModel] = useState("sonnet");
-  const [showModelMenu, setShowModelMenu] = useState(false);
-
-  const isEmpty = !prompt.trim();
+  const setMainView = useAppStore((s) => s.setMainView)
+  const startGeneration = useBuildStore((s) => s.startGeneration)
+  const modelCatalog = useSettingsStore((s) => s.modelCatalog)
+  const [prompt, setPrompt] = useState("")
+  const [selectedAgent, setSelectedAgent] = useState("Claude Code")
+  const [selectedModel, setSelectedModel] = useState("sonnet")
+  const isEmpty = !prompt.trim()
 
   const generate = async () => {
-    if (isEmpty) return;
-    navigate("/generation");
+    if (isEmpty) return
+    setMainView({ kind: "generation" })
     void startGeneration({
       prompt: prompt.trim(),
       format: "Both",
@@ -57,120 +89,98 @@ export default function Prompt() {
       presetCount: 5,
       agent: selectedAgent,
       model: selectedModel,
-    });
-  };
+    })
+  }
 
   return (
-    <div className="flex h-full">
-      {/* Side spacer — Swift: Spacer(minLength: 80) */}
-      <div className="min-w-[80px] flex-shrink-0" />
-
-      <div className="flex-1 max-w-[1024px] mx-auto flex flex-col justify-center py-8 overflow-y-auto">
-        {/* Hero — Swift: logo 48px, VStack spacing 10 */}
+    <div className="h-full overflow-y-auto">
+      <div className="max-w-[520px] mx-auto flex flex-col py-8 px-6">
+        {/* Hero */}
         <div className="flex flex-col items-center gap-2.5 mb-8">
-          <FoundryLogo height={48} className="text-foreground opacity-70" />
           <span className="text-[14px] text-muted-foreground">Describe your plugin, Foundry builds it.</span>
         </div>
 
-        {/* Prompt input — Swift: minHeight 100, cornerRadius 8, bg textBackgroundColor 0.5 */}
+        {/* Prompt input */}
         <div className="mb-6">
           <Textarea
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter" && e.metaKey) generate(); }}
-            placeholder="A warm analog synth with detuned oscillators…"
+            onKeyDown={(e) => { if (e.key === "Enter" && e.metaKey) generate() }}
+            placeholder="A warm analog synth with detuned oscillators..."
             autoFocus
             rows={5}
             className="min-h-[100px] resize-none font-mono text-[14px]"
           />
 
-          {/* Controls row — Swift: HStack spacing 6, pt 10 */}
+          {/* Controls row */}
           <div className="flex items-center gap-1.5 mt-2.5">
-            {/* Model picker — Swift: px 10, py 5, cornerRadius 6, controlBg */}
-            <div className="relative">
-              <button
-                onClick={() => setShowModelMenu(!showModelMenu)}
-                className="flex items-center gap-1.5 px-2.5 py-[5px] bg-secondary rounded-md text-[12px] font-medium"
-              >
-                <span className="text-[14px]">⬡</span>
-                <span>{selectedModel}</span>
-                <svg className="w-2 h-2 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-              {showModelMenu && (
-                <>
-                  <div className="fixed inset-0 z-10" onClick={() => setShowModelMenu(false)} />
-                  <div className="absolute top-full left-0 mt-1 bg-card border border-border rounded-md shadow-xl z-20 min-w-[200px]">
-                    {modelCatalog.length === 0 ? (
-                      <div className="px-3 py-3 text-[11px] text-muted-foreground">
-                        No agent CLI installed. Open Setup to install Claude Code or Codex.
-                      </div>
-                    ) : modelCatalog.map((provider) => (
-                      <div key={provider.id}>
-                        <div className="px-3 py-1.5 text-[9px] tracking-[1px] text-muted-foreground/60 uppercase">{provider.name}</div>
-                        {provider.models.map((model) => (
-                          <button
-                            key={model.id}
-                            onClick={() => { setSelectedAgent(provider.name); setSelectedModel(model.flag || model.id); setShowModelMenu(false); }}
-                            className={`w-full px-3 py-2 text-left text-[12px] hover:bg-secondary flex items-center gap-2 ${
-                              selectedModel === (model.flag || model.id) ? "text-primary" : ""
-                            }`}
-                          >
-                            <span>{model.name}</span>
-                            <span className="text-muted-foreground/60 text-[10px]">— {model.subtitle}</span>
-                          </button>
-                        ))}
-                      </div>
-                    ))}
+            {/* Model picker */}
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button variant="secondary" size="sm" className="gap-1.5 text-[12px]">
+                    <AgentIcon agent={selectedAgent} className="size-3.5" />
+                    <span>{selectedModel}</span>
+                  </Button>
+                }
+              />
+              <DropdownMenuContent align="start" className="min-w-[200px] w-auto">
+                {modelCatalog.length === 0 ? (
+                  <div className="px-3 py-3 text-xs text-muted-foreground">
+                    No agent CLI installed. Open Setup to install Claude Code or Codex.
                   </div>
-                </>
-              )}
-            </div>
+                ) : modelCatalog.map((provider) => (
+                  <DropdownMenuGroup key={provider.id}>
+                    <DropdownMenuLabel className="flex items-center gap-1.5 text-[9px] tracking-[1px] text-muted-foreground/60 uppercase">
+                      <AgentIcon agent={provider.name} className="size-3" />
+                      {provider.name}
+                    </DropdownMenuLabel>
+                    {provider.models.map((model) => (
+                      <DropdownMenuItem
+                        key={model.id}
+                        onClick={() => { setSelectedAgent(provider.name); setSelectedModel(model.flag || model.id) }}
+                        className={selectedModel === (model.flag || model.id) ? "text-primary" : ""}
+                      >
+                        <span>{model.name}</span>
+                        <span className="text-muted-foreground/60 text-[10px]">— {model.subtitle}</span>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuGroup>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
 
             <div className="flex-1" />
 
-            {/* Generate button — Swift: borderedProminent, controlSize large */}
-            <Button onClick={generate} disabled={isEmpty}>
+            <Button size="sm" onClick={generate} disabled={isEmpty}>
               Generate
             </Button>
           </div>
         </div>
 
-        {/* Category grid — Swift: 3 columns, 1px gap, separatorColor border */}
-        <div className="grid grid-cols-3 gap-px bg-border border border-border">
-          {suggestions.map((cat) => (
-            <div key={cat.title} className="bg-muted p-5">
-              {/* Header — Swift: HStack spacing sm (12), mb lg (24) */}
-              <div className="flex items-center gap-3 mb-6">
-                <span className="text-[11px]">{cat.icon}</span>
-                <span className="text-[12px] font-mono tracking-[2.4px] text-foreground">{cat.title}</span>
-              </div>
-              {/* Items — Swift: spacing md (16) */}
-              <div className="flex flex-col gap-4">
+        {/* Suggestions */}
+        <div className="flex flex-col gap-5">
+          {suggestions.map((cat, catIdx) => (
+            <div key={cat.title} className="flex flex-col gap-2">
+              <Label>{cat.title}</Label>
+              <div className="flex flex-wrap gap-1.5">
                 {cat.items.map((item) => (
-                  <button
+                  <Button
                     key={item.display}
+                    variant="outline"
+                    size="sm"
                     onClick={() => setPrompt(item.prompt)}
-                    className="flex items-center gap-2 group text-left"
+                    className="gap-1.5"
                   >
-                    <span className="text-[11px] font-mono tracking-[-0.275px] text-muted-foreground group-hover:text-foreground transition-colors">
-                      {item.display}
-                    </span>
-                    <span className="flex-1" />
-                    <svg className="w-[7px] h-[7px] text-muted-foreground/60 shrink-0 group-hover:text-muted-foreground transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M7 17L17 7M17 7H7M17 7v10" />
-                    </svg>
-                  </button>
+                    <span className="text-xs">{item.display}</span>
+                    <ArrowUpRight className="size-3 text-muted-foreground/60 shrink-0" />
+                  </Button>
                 ))}
               </div>
             </div>
           ))}
         </div>
       </div>
-
-      {/* Side spacer */}
-      <div className="min-w-[80px] flex-shrink-0" />
     </div>
-  );
+  )
 }

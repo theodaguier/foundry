@@ -378,4 +378,105 @@ impl SupabaseAuth {
 
         Ok(profiles.into_iter().next())
     }
+
+    /// Update the card_variant field on a profile by user ID.
+    pub async fn update_card_variant(&self, user_id: &str, variant: &str) -> Result<(), String> {
+        let session = self.session.lock().unwrap().clone();
+        let session = match session {
+            Some(s) => s,
+            None => return Err("Not authenticated".to_string()),
+        };
+
+        let url = format!(
+            "{}/rest/v1/profiles?id=eq.{}",
+            *SUPABASE_URL, user_id
+        );
+
+        let body = serde_json::json!({
+            "card_variant": variant,
+        });
+
+        let resp = self
+            .client
+            .patch(&url)
+            .header("apikey", SUPABASE_ANON_KEY.as_str())
+            .header("Authorization", format!("Bearer {}", session.access_token))
+            .header("Content-Type", "application/json")
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| format!("Request failed: {}", e))?;
+
+        let status = resp.status();
+        if !status.is_success() {
+            let text = resp.text().await.unwrap_or_default();
+            return Err(Self::extract_error(&text));
+        }
+
+        Ok(())
+    }
+
+    /// Batch assign a card variant to multiple users by email.
+    pub async fn assign_card_variant_batch(&self, emails: Vec<String>, variant: &str) -> Result<u32, String> {
+        let session = self.session.lock().unwrap().clone();
+        let session = match session {
+            Some(s) => s,
+            None => return Err("Not authenticated".to_string()),
+        };
+
+        let mut success_count: u32 = 0;
+
+        for email in &emails {
+            // Look up user by email
+            let lookup_url = format!(
+                "{}/rest/v1/profiles?email=eq.{}&select=id",
+                *SUPABASE_URL, email
+            );
+
+            let resp = self
+                .client
+                .get(&lookup_url)
+                .header("apikey", SUPABASE_ANON_KEY.as_str())
+                .header("Authorization", format!("Bearer {}", session.access_token))
+                .header("Content-Type", "application/json")
+                .send()
+                .await
+                .map_err(|e| format!("Request failed: {}", e))?;
+
+            let text = resp.text().await.unwrap_or_default();
+            let profiles: Vec<serde_json::Value> =
+                serde_json::from_str(&text).unwrap_or_default();
+
+            if let Some(profile) = profiles.first() {
+                if let Some(id) = profile.get("id").and_then(|v| v.as_str()) {
+                    let patch_url = format!(
+                        "{}/rest/v1/profiles?id=eq.{}",
+                        *SUPABASE_URL, id
+                    );
+
+                    let body = serde_json::json!({
+                        "card_variant": variant,
+                    });
+
+                    let patch_resp = self
+                        .client
+                        .patch(&patch_url)
+                        .header("apikey", SUPABASE_ANON_KEY.as_str())
+                        .header("Authorization", format!("Bearer {}", session.access_token))
+                        .header("Content-Type", "application/json")
+                        .json(&body)
+                        .send()
+                        .await;
+
+                    if let Ok(r) = patch_resp {
+                        if r.status().is_success() {
+                            success_count += 1;
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(success_count)
+    }
 }

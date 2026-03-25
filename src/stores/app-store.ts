@@ -2,6 +2,18 @@ import { create } from "zustand";
 import type { Plugin, AuthState, UserProfile, PluginFilter } from "@/lib/types"
 import * as commands from "@/lib/commands"
 
+export type MainView =
+  | { kind: "empty" }
+  | { kind: "detail"; pluginId: string }
+  | { kind: "prompt" }
+  | { kind: "refine"; pluginId: string }
+  | { kind: "generation" }
+  | { kind: "refinement" }
+  | { kind: "error"; message: string }
+  | { kind: "settings" }
+  | { kind: "build-queue" }
+  | { kind: "profile" }
+
 interface AppStore {
   authState: AuthState;
   userProfile: UserProfile | null;
@@ -10,12 +22,16 @@ interface AppStore {
   selectedPlugin: Plugin | null;
   showSetup: boolean;
   onboardingComplete: boolean | null;
+  mainView: MainView;
+  sidebarCollapsed: boolean;
 
   setAuthState: (state: AuthState) => void;
   setUserProfile: (profile: UserProfile | null) => void;
   setFilter: (filter: PluginFilter) => void;
   setSelectedPlugin: (plugin: Plugin | null) => void;
   setShowSetup: (show: boolean) => void;
+  setMainView: (view: MainView) => void;
+  toggleSidebar: () => void;
   loadPlugins: () => Promise<void>;
   deletePlugin: (id: string) => Promise<void>;
   renamePlugin: (id: string, newName: string) => Promise<void>;
@@ -33,12 +49,16 @@ export const useAppStore = create<AppStore>((set, get) => ({
   selectedPlugin: null,
   showSetup: false,
   onboardingComplete: null,
+  mainView: { kind: "empty" },
+  sidebarCollapsed: false,
 
   setAuthState: (authState) => set({ authState }),
   setUserProfile: (userProfile) => set({ userProfile }),
   setFilter: (filter) => set({ filter }),
   setSelectedPlugin: (selectedPlugin) => set({ selectedPlugin }),
   setShowSetup: (showSetup) => set({ showSetup }),
+  setMainView: (mainView) => set({ mainView }),
+  toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
 
   loadPlugins: async () => {
     try {
@@ -81,7 +101,19 @@ export const useAppStore = create<AppStore>((set, get) => ({
       if (userId) {
         set({ authState: "authenticated" });
         const profile = await commands.getProfile(userId);
-        if (profile) set({ userProfile: profile });
+        if (profile) {
+          // Map snake_case from Supabase to camelCase
+          const mapped: UserProfile = {
+            ...profile,
+            displayName: profile.display_name ?? profile.displayName,
+            avatarUrl: profile.avatar_url ?? profile.avatarUrl,
+            pluginsGenerated: profile.plugins_generated ?? profile.pluginsGenerated ?? 0,
+            createdAt: profile.created_at ?? profile.createdAt,
+            onboardingCompletedAt: profile.onboarding_completed_at ?? profile.onboardingCompletedAt,
+            cardVariant: profile.card_variant ?? profile.cardVariant ?? "default",
+          };
+          set({ userProfile: mapped });
+        }
       } else {
         set({ authState: "unauthenticated" });
       }

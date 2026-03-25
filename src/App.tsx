@@ -1,22 +1,22 @@
 import { useEffect, useCallback } from "react"
-import { Routes, Route, useNavigate, useLocation } from "react-router-dom"
 import { useAppStore } from "@/stores/app-store"
 import { useSettingsStore } from "@/stores/settings-store"
 import { useBuildStore } from "@/stores/build-store"
 import { useTauriEvent } from "@/hooks/use-tauri-event"
 import { FoundryLogo } from "@/components/app/foundry-logo"
+import { AppSidebar } from "@/components/app/sidebar"
+import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
+import { Button } from "@/components/ui/button"
+import { PluginDetailView } from "@/components/app/plugin-detail-view"
 import AuthContainer from "@/pages/auth/auth-container"
 import Onboarding from "@/pages/onboarding"
-import Welcome from "@/pages/welcome"
-import PluginLibrary from "@/pages/plugin-library"
-import Prompt from "@/pages/prompt"
-import QuickOptions from "@/pages/quick-options"
+import Prompt from "@/pages/Prompt"
 import GenerationProgress from "@/pages/generation-progress"
-import Result from "@/pages/result"
-import ErrorPage from "@/pages/error"
-import Refine from "@/pages/refine"
-import Settings from "@/pages/settings"
+import ErrorPage from "@/pages/Error"
+import Refine from "@/pages/Refine"
+import Settings from "@/pages/Settings"
 import BuildQueue from "@/pages/build-queue"
+import Profile from "@/pages/profile"
 import type { GenerationStep, PipelineLogLine } from "@/lib/types"
 
 function LaunchScreen() {
@@ -28,9 +28,88 @@ function LaunchScreen() {
   )
 }
 
+function EmptyState() {
+  const plugins = useAppStore((s) => s.plugins)
+  const setMainView = useAppStore((s) => s.setMainView)
+
+  if (plugins.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-5">
+        <FoundryLogo height={48} className="text-muted-foreground" />
+        <div className="flex flex-col items-center gap-1.5">
+          <h2 className="text-xl font-medium">Welcome to Foundry</h2>
+          <p className="text-sm text-muted-foreground text-center">
+            AI-powered audio plugin generator.<br />Describe it, build it, play it.
+          </p>
+        </div>
+        <Button
+          onClick={() => setMainView({ kind: "prompt" })}
+          size="sm"
+        >
+          Build Your First Plugin
+        </Button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col items-center justify-center h-full gap-3">
+      <FoundryLogo height={36} className="text-muted-foreground/30" />
+      <p className="text-sm text-muted-foreground/50">
+        Select a plugin from the sidebar
+      </p>
+    </div>
+  )
+}
+
+function MainContent() {
+  const mainView = useAppStore((s) => s.mainView)
+  const plugins = useAppStore((s) => s.plugins)
+
+  switch (mainView.kind) {
+    case "empty":
+      return <EmptyState />
+
+    case "detail": {
+      const plugin = plugins.find((p) => p.id === mainView.pluginId)
+      if (!plugin) return <EmptyState />
+      return <PluginDetailView plugin={plugin} />
+    }
+
+    case "prompt":
+      return <Prompt />
+
+    case "generation":
+      return <GenerationProgress mode="generation" />
+
+    case "refinement":
+      return <GenerationProgress mode="refinement" />
+
+    case "refine": {
+      const plugin = plugins.find((p) => p.id === mainView.pluginId)
+      if (!plugin) return <EmptyState />
+      return <Refine plugin={plugin} />
+    }
+
+    case "error":
+      return <ErrorPage message={mainView.message} />
+
+    case "settings":
+      return <Settings />
+
+    case "build-queue":
+      return <BuildQueue />
+
+    case "profile":
+      return <Profile />
+
+    default:
+      return <EmptyState />
+  }
+}
+
 /** Always-mounted component that listens to all pipeline Tauri events and updates the build store. */
 function GlobalPipelineListener() {
-  const navigate = useNavigate()
   const handleStepAction = useBuildStore((s) => s.handleStep)
   const handleLogAction = useBuildStore((s) => s.handleLog)
   const handleNameAction = useBuildStore((s) => s.handleName)
@@ -40,7 +119,7 @@ function GlobalPipelineListener() {
   const isRunning = useBuildStore((s) => s.isRunning)
   const tick = useBuildStore((s) => s.tick)
 
-  // Global elapsed timer — runs regardless of which page is visible
+  // Global elapsed timer
   useEffect(() => {
     if (!isRunning) return
     const interval = setInterval(() => tick(), 1000)
@@ -65,17 +144,17 @@ function GlobalPipelineListener() {
   const handleError = useCallback(
     (payload: { message: string }) => {
       handleErrorAction(payload.message)
-      navigate("/error", { state: { message: payload.message } })
+      useAppStore.getState().setMainView({ kind: "error", message: payload.message })
     },
-    [handleErrorAction, navigate],
+    [handleErrorAction],
   )
   const handleComplete = useCallback(
     (payload: { plugin: any }) => {
       handleCompleteAction(payload.plugin)
       useAppStore.getState().loadPlugins()
-      navigate(`/result/${payload.plugin.id}`)
+      useAppStore.getState().setMainView({ kind: "detail", pluginId: payload.plugin.id })
     },
-    [handleCompleteAction, navigate],
+    [handleCompleteAction],
   )
   const handleBuildAttempt = useCallback(
     (payload: { attempt: number }) => handleBuildAttemptAction(payload.attempt),
@@ -93,67 +172,21 @@ function GlobalPipelineListener() {
   return null
 }
 
-const noBackRoutes = new Set(["/", "/onboarding"])
-
-function TitleBar() {
-  const navigate = useNavigate()
-  const { pathname } = useLocation()
-  const showBack = !noBackRoutes.has(pathname)
-
-  return (
-    <div
-      data-tauri-drag-region
-      className="titlebar h-[52px] shrink-0 select-none flex items-center"
-    >
-      {/* Space for macOS traffic lights */}
-      <div className="w-[78px] shrink-0" data-tauri-drag-region />
-
-      {showBack && (
-        <button
-          onClick={() => navigate(-1)}
-          className="titlebar-back-btn"
-        >
-          <svg width="10" height="16" viewBox="0 0 10 16" fill="none">
-            <path
-              d="M8.5 1L1.5 8L8.5 15"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </button>
-      )}
-    </div>
-  )
-}
-
 export default function App() {
   const authState = useAppStore((s) => s.authState)
   const checkSession = useAppStore((s) => s.checkSession)
   const loadPlugins = useAppStore((s) => s.loadPlugins)
-  const plugins = useAppStore((s) => s.plugins)
   const onboardingComplete = useAppStore((s) => s.onboardingComplete)
   const checkOnboarding = useAppStore((s) => s.checkOnboarding)
+
   const initTheme = useSettingsStore((s) => s.initTheme)
   const loadBuildEnvironment = useSettingsStore((s) => s.loadBuildEnvironment)
   const loadCatalog = useSettingsStore((s) => s.loadCatalog)
 
-  useEffect(() => {
-    initTheme()
-  }, [initTheme])
-
-  useEffect(() => {
-    loadBuildEnvironment()
-  }, [loadBuildEnvironment])
-
-  useEffect(() => {
-    loadCatalog()
-  }, [loadCatalog])
-
-  useEffect(() => {
-    checkSession()
-  }, [checkSession])
+  useEffect(() => { initTheme() }, [initTheme])
+  useEffect(() => { loadBuildEnvironment() }, [loadBuildEnvironment])
+  useEffect(() => { loadCatalog() }, [loadCatalog])
+  useEffect(() => { checkSession() }, [checkSession])
 
   useEffect(() => {
     if (authState === "authenticated") {
@@ -170,16 +203,19 @@ export default function App() {
     return <AuthContainer />
   }
 
-  // Still checking onboarding state
   if (onboardingComplete === null) {
     return <LaunchScreen />
   }
 
-  // Show onboarding wizard if not completed
   if (!onboardingComplete) {
     return (
       <div className="flex flex-col h-full">
-        <TitleBar />
+        <div
+          data-tauri-drag-region
+          className="h-[52px] shrink-0 select-none"
+        >
+          <div className="w-[78px] shrink-0" data-tauri-drag-region />
+        </div>
         <div className="flex-1 overflow-hidden">
           <Onboarding />
         </div>
@@ -188,29 +224,19 @@ export default function App() {
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <SidebarProvider open={true}>
       <GlobalPipelineListener />
-      <TitleBar />
-
-      <div className="flex-1 overflow-hidden">
-        <Routes>
-          <Route
-            path="/"
-            element={
-              plugins.length === 0 ? <Welcome /> : <PluginLibrary />
-            }
-          />
-          <Route path="/prompt" element={<Prompt />} />
-          <Route path="/quick-options" element={<QuickOptions />} />
-          <Route path="/generation" element={<GenerationProgress mode="generation" />} />
-          <Route path="/refinement" element={<GenerationProgress mode="refinement" />} />
-          <Route path="/refine/:pluginId" element={<Refine />} />
-          <Route path="/result/:pluginId" element={<Result />} />
-          <Route path="/error" element={<ErrorPage />} />
-          <Route path="/queue" element={<BuildQueue />} />
-          <Route path="/settings" element={<Settings />} />
-        </Routes>
-      </div>
-    </div>
+      <AppSidebar />
+      <SidebarInset>
+        {/* Drag region for main content area */}
+        <div
+          data-tauri-drag-region
+          className="h-[52px] shrink-0 select-none"
+        />
+        <div className="h-[calc(100%-52px)] overflow-hidden">
+          <MainContent />
+        </div>
+      </SidebarInset>
+    </SidebarProvider>
   )
 }

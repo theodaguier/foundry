@@ -45,3 +45,21 @@ pub async fn get_profile(
 ) -> Result<Option<serde_json::Value>, String> {
     state.auth.get_profile(&user_id).await
 }
+
+#[command]
+pub async fn update_card_variant(
+    user_id: String,
+    variant: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    state.auth.update_card_variant(&user_id, &variant).await
+}
+
+#[command]
+pub async fn assign_card_variant_batch(
+    emails: Vec<String>,
+    variant: String,
+    state: State<'_, AppState>,
+) -> Result<u32, String> {
+    state.auth.assign_card_variant_batch(emails, &variant).await
+}

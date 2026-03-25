@@ -1,36 +1,46 @@
 import { useState } from "react"
-import { useNavigate, useParams } from "react-router-dom"
 import { useAppStore } from "@/stores/app-store"
 import { useBuildStore } from "@/stores/build-store"
+import { useSettingsStore } from "@/stores/settings-store"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuGroup,
+  DropdownMenuLabel,
+} from "@/components/ui/dropdown-menu"
+import { AgentIcon } from "@/components/app/agent-icon"
+import { Wrench } from "lucide-react"
+import type { Plugin } from "@/lib/types"
 
-export default function Refine() {
-  const navigate = useNavigate()
-  const { pluginId } = useParams()
-  const plugins = useAppStore((s) => s.plugins)
+interface Props {
+  plugin: Plugin
+}
+
+export default function Refine({ plugin }: Props) {
+  const setMainView = useAppStore((s) => s.setMainView)
   const startRefine = useBuildStore((s) => s.startRefine)
-  const plugin = plugins.find((p) => p.id === pluginId)
+  const modelCatalog = useSettingsStore((s) => s.modelCatalog)
   const [modification, setModification] = useState("")
-
-  if (!plugin) return <div className="flex items-center justify-center h-full text-muted-foreground/60">Plugin not found</div>
+  const [selectedAgent, setSelectedAgent] = useState(plugin.agent ?? "Claude Code")
+  const [selectedModel, setSelectedModel] = useState(plugin.model?.flag ?? plugin.model?.id ?? "sonnet")
 
   const isEmpty = !modification.trim()
 
   const refine = async () => {
     if (isEmpty) return
-    navigate("/refinement")
+    setMainView({ kind: "refinement" })
     void startRefine({ plugin, modification: modification.trim() })
   }
 
   return (
-    <div className="flex h-full">
-      <div className="min-w-[80px] flex-shrink-0" />
-      <div className="flex-1 max-w-[1024px] mx-auto flex flex-col justify-center py-8">
+    <div className="h-full overflow-y-auto">
+      <div className="max-w-[520px] mx-auto flex flex-col py-8 px-6">
         <div className="flex flex-col items-center gap-2.5 mb-8">
-          <svg className="w-12 h-12 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 11-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 004.486-6.336l-3.276 3.277a3.004 3.004 0 01-2.25-2.25l3.276-3.276a4.5 4.5 0 00-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085" />
-          </svg>
+          <Wrench className="size-12 text-muted-foreground" strokeWidth={1} />
           <span className="text-sm text-muted-foreground">Modify {plugin.name}</span>
         </div>
 
@@ -42,15 +52,56 @@ export default function Refine() {
             placeholder="Add a low-pass filter with resonance control..."
             autoFocus
             rows={5}
-            className="min-h-[100px] resize-none font-mono"
+            className="min-h-[100px] resize-none font-mono text-[14px]"
           />
-          <div className="flex items-center justify-end gap-2.5 mt-2.5">
-            <Button variant="ghost" onClick={() => navigate(-1)}>Cancel</Button>
-            <Button size="lg" onClick={refine} disabled={isEmpty}>Refine</Button>
+
+          <div className="flex items-center gap-1.5 mt-2.5">
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button variant="secondary" size="sm" className="gap-1.5 text-[12px]">
+                    <AgentIcon agent={selectedAgent} className="size-3.5" />
+                    <span>{selectedModel}</span>
+                  </Button>
+                }
+              />
+              <DropdownMenuContent align="start" className="min-w-[200px] w-auto">
+                {modelCatalog.length === 0 ? (
+                  <div className="px-3 py-3 text-xs text-muted-foreground">
+                    No agent CLI installed.
+                  </div>
+                ) : modelCatalog.map((provider) => (
+                  <DropdownMenuGroup key={provider.id}>
+                    <DropdownMenuLabel className="flex items-center gap-1.5 text-[9px] tracking-[1px] text-muted-foreground/60 uppercase">
+                      <AgentIcon agent={provider.name} className="size-3" />
+                      {provider.name}
+                    </DropdownMenuLabel>
+                    {provider.models.map((model) => (
+                      <DropdownMenuItem
+                        key={model.id}
+                        onClick={() => { setSelectedAgent(provider.name); setSelectedModel(model.flag || model.id) }}
+                        className={selectedModel === (model.flag || model.id) ? "text-primary" : ""}
+                      >
+                        <span>{model.name}</span>
+                        <span className="text-muted-foreground/60 text-[10px]">— {model.subtitle}</span>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuGroup>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <div className="flex-1" />
+
+            <Button variant="ghost" size="sm" onClick={() => setMainView({ kind: "detail", pluginId: plugin.id })}>
+              Cancel
+            </Button>
+            <Button size="sm" onClick={refine} disabled={isEmpty}>
+              Refine
+            </Button>
           </div>
         </div>
       </div>
-      <div className="min-w-[80px] flex-shrink-0" />
     </div>
   )
 }

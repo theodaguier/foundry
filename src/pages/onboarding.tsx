@@ -227,7 +227,7 @@ export default function Onboarding() {
               </p>
             </div>
 
-            <div className="flex flex-col divide-y divide-border border border-border rounded-lg overflow-hidden">
+            <div className="flex flex-col divide-y divide-muted rounded-lg overflow-hidden">
               {deps.map(dep => (
                 <div key={dep.key} className="flex items-center gap-3 px-4 py-3 bg-muted/50">
                   <StatusDot status={dep.status} />

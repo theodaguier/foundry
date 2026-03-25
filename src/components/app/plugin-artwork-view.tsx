@@ -1,6 +1,5 @@
-import type { Plugin } from "@/lib/types"
-import { hexToRgba } from "@/lib/utils"
-import { AbstractArtwork } from "@/components/app/abstract-artwork"
+import type { Plugin, PluginType } from "@/lib/types"
+import { Piano, Waves, Gauge } from "lucide-react"
 
 interface Props {
   plugin: Plugin
@@ -8,20 +7,47 @@ interface Props {
   className?: string
 }
 
+/**
+ * Type-based color system — cohesive, curated.
+ * No more random iconColor chaos.
+ */
+const typeStyles: Record<PluginType, { bg: string; icon: string; gradient: string }> = {
+  instrument: {
+    bg: "bg-foreground/[0.06]",
+    icon: "text-foreground/50",
+    gradient: "from-foreground/[0.04] via-foreground/[0.02] to-transparent",
+  },
+  effect: {
+    bg: "bg-foreground/[0.06]",
+    icon: "text-foreground/50",
+    gradient: "from-foreground/[0.04] via-foreground/[0.02] to-transparent",
+  },
+  utility: {
+    bg: "bg-foreground/[0.06]",
+    icon: "text-foreground/50",
+    gradient: "from-foreground/[0.04] via-foreground/[0.02] to-transparent",
+  },
+}
+
+function TypeIcon({ type, size }: { type: PluginType; size: number }) {
+  const props = { className: "shrink-0", size, strokeWidth: 1.5 }
+  switch (type) {
+    case "instrument": return <Piano {...props} />
+    case "effect": return <Waves {...props} />
+    case "utility": return <Gauge {...props} />
+  }
+}
+
 export function PluginArtworkView({ plugin, size = "full", className = "" }: Props) {
+  const style = typeStyles[plugin.type]
+
   if (size === "compact") {
     return (
       <div
-        className={`rounded-[10px] flex items-center justify-center overflow-hidden ${className}`}
-        style={{
-          width: 36,
-          height: 36,
-          backgroundColor: hexToRgba(plugin.iconColor, 0.15),
-        }}
+        className={`rounded-lg flex items-center justify-center ${style.bg} ${style.icon} ${className}`}
+        style={{ width: 32, height: 32 }}
       >
-        <span className="text-[15px]">
-          {plugin.type === "instrument" ? "♪" : plugin.type === "effect" ? "~" : "◎"}
-        </span>
+        <TypeIcon type={plugin.type} size={15} />
       </div>
     )
   }
@@ -29,9 +55,9 @@ export function PluginArtworkView({ plugin, size = "full", className = "" }: Pro
   return (
     <div className={`relative w-full h-full ${className}`}>
       <div className="absolute inset-0 bg-muted" />
-      <div className="absolute inset-0" style={{ backgroundColor: hexToRgba(plugin.iconColor, 0.07) }} />
-      <div className="absolute inset-0 flex items-center justify-center">
-        <AbstractArtwork pluginType={plugin.type} />
+      <div className={`absolute inset-0 bg-gradient-to-br ${style.gradient}`} />
+      <div className={`absolute inset-0 flex items-center justify-center ${style.icon}`}>
+        <TypeIcon type={plugin.type} size={32} />
       </div>
     </div>
   )
