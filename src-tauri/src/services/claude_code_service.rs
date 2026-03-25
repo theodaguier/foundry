@@ -102,6 +102,8 @@ pub async fn run(
                 "The prompt contains the parameter manifest and class names you need — do NOT read any files.\n",
                 "Immediately create Source/FoundryLookAndFeel.h, Source/PluginEditor.h, and Source/PluginEditor.cpp.\n",
                 "Use Write calls for missing files and Edit only if needed.\n",
+                "In PluginEditor.cpp, write an explicit numeric landscape call like setSize(820, 520); in the constructor.\n",
+                "Do not use named constants, helper variables, or portrait dimensions for setSize(...).\n",
                 "Do NOT modify CMakeLists.txt.\n",
                 "Do NOT rewrite processor files unless absolutely necessary.\n",
                 "Never respond with only text — always use tools after the initial sentence."
@@ -114,6 +116,8 @@ pub async fn run(
                 "Start with one short sentence describing the repair you are about to make.\n",
                 "Read existing Source/ files first, then repair them with Write or Edit as needed.\n",
                 "You MAY fully rewrite a broken Source/ file if that is faster and safer than patching it.\n",
+                "If PluginEditor.cpp has sizing issues, write an explicit numeric landscape call like setSize(820, 520); in the constructor.\n",
+                "Do not use named constants, helper variables, or portrait dimensions for setSize(...).\n",
                 "Only touch Source/ files. Do NOT modify CMakeLists.txt.\n",
                 "Do not spend turns on planning or todo tools.\n",
                 "Never respond with only text — always use tools after the initial sentence."

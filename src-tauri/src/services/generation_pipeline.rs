@@ -406,6 +406,13 @@ async fn execute_generation(
     }
 
     let missing_files = missing_required_source_files(&project.directory);
+    if normalize_generated_editor_size(&project.directory, &plugin_name) {
+        emit_log(
+            app,
+            "Normalized editor setSize(...) to explicit landscape literals.",
+            Some("active"),
+        );
+    }
     let validation_issues = validate_generated_source_tree(&project.directory, &plugin_name);
 
     if !missing_files.is_empty() || !validation_issues.is_empty() {
@@ -462,6 +469,13 @@ async fn execute_generation(
         }
 
         let missing_files = missing_required_source_files(&project.directory);
+        if normalize_generated_editor_size(&project.directory, &plugin_name) {
+            emit_log(
+                app,
+                "Normalized editor setSize(...) after recovery.",
+                Some("active"),
+            );
+        }
         let validation_issues = validate_generated_source_tree(&project.directory, &plugin_name);
         if !missing_files.is_empty() || !validation_issues.is_empty() {
             let message = format!(
@@ -1587,6 +1601,8 @@ Rules:
 - Keep outer padding around 20-28 px and internal gaps around 12-20 px.
 - Keep rotary controls square and readable, labels aligned, and widgets away from the window edges.
 - Make the interface clean and balanced before it is flashy.
+- In `PluginEditor.cpp`, the constructor must contain an explicit numeric call such as `setSize(820, 520);`.
+- Do not use named constants, helper variables, or portrait dimensions for that `setSize(...)` call.
 - Keep class name exactly {name}Editor.
 - Use juce:: prefixes everywhere.
 - Do not read files.
@@ -1646,6 +1662,8 @@ Rules:
 - Use FoundryLookAndFeel.
 - Use APVTS attachments for every visible control.
 - Use a landscape editor size with a clean, non-overlapping layout.
+- In `PluginEditor.cpp`, call `setSize(820, 520);` or another explicit numeric landscape size in the constructor.
+- Do not use named constants, helper variables, or portrait dimensions for that `setSize(...)` call.
 - Derive geometry from `getLocalBounds()` with consistent padding and gaps.
 - Keep the UI compact, legible, and compile-safe.
 "#,
@@ -1943,6 +1961,94 @@ fn validate_generated_source_tree(project_dir: &Path, plugin_name: &str) -> Vec<
     issues
 }
 
+fn editor_size_is_valid(width: i32, height: i32) -> bool {
+    (640..=1200).contains(&width) && (360..=900).contains(&height) && width > height
+}
+
+fn normalize_generated_editor_size(project_dir: &Path, plugin_name: &str) -> bool {
+    let path = project_dir.join("Source/PluginEditor.cpp");
+    let Ok(editor_source) = std::fs::read_to_string(&path) else {
+        return false;
+    };
+
+    if extract_editor_size(&editor_source)
+        .map(|(width, height)| editor_size_is_valid(width, height))
+        .unwrap_or(false)
+    {
+        return false;
+    }
+
+    let Some(normalized) = rewrite_editor_size(&editor_source, plugin_name) else {
+        return false;
+    };
+
+    if normalized == editor_source {
+        return false;
+    }
+
+    std::fs::write(path, normalized).is_ok()
+}
+
+fn rewrite_editor_size(editor_source: &str, plugin_name: &str) -> Option<String> {
+    const DEFAULT_EDITOR_SIZE_CALL: &str = "setSize(820, 520);";
+
+    if let Some(updated) = replace_first_set_size_call(editor_source, DEFAULT_EDITOR_SIZE_CALL) {
+        return Some(updated);
+    }
+
+    let constructor_needle = format!("{name}Editor::{name}Editor", name = plugin_name);
+    let constructor_index = editor_source.find(&constructor_needle)?;
+    let after_constructor = &editor_source[constructor_index + constructor_needle.len()..];
+    let open_brace = after_constructor.find('{')?;
+    let insert_at = constructor_index + constructor_needle.len() + open_brace + 1;
+    let trailing_break = if editor_source[insert_at..].starts_with('\n') {
+        ""
+    } else {
+        "\n"
+    };
+
+    Some(format!(
+        "{}\n    {}{}{}",
+        &editor_source[..insert_at],
+        DEFAULT_EDITOR_SIZE_CALL,
+        trailing_break,
+        &editor_source[insert_at..]
+    ))
+}
+
+fn replace_first_set_size_call(editor_source: &str, replacement: &str) -> Option<String> {
+    let call_start = editor_source.find("setSize")?;
+    let open_paren = editor_source[call_start..].find('(')? + call_start;
+    let mut depth = 0;
+    let mut close_paren = None;
+
+    for (offset, ch) in editor_source[open_paren..].char_indices() {
+        match ch {
+            '(' => depth += 1,
+            ')' => {
+                depth -= 1;
+                if depth == 0 {
+                    close_paren = Some(open_paren + offset);
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let mut call_end = close_paren? + 1;
+    if editor_source[call_end..].starts_with(';') {
+        call_end += 1;
+    }
+
+    Some(format!(
+        "{}{}{}",
+        &editor_source[..call_start],
+        replacement,
+        &editor_source[call_end..]
+    ))
+}
+
 fn extract_editor_size(editor_source: &str) -> Option<(i32, i32)> {
     let set_size_index = editor_source.find("setSize")?;
     let after_call = &editor_source[set_size_index + "setSize".len()..];
@@ -2020,6 +2126,8 @@ Rules:
 - Every exposed control must have a matching APVTS attachment.
 - Ensure FoundryLookAndFeel is implemented and used by the editor.
 - UI must use a sane landscape editor size with consistent padding, spacing, and non-overlapping controls.
+- In `PluginEditor.cpp`, the constructor must contain an explicit numeric call like `setSize(820, 520);`.
+- Do not use named constants, helper variables, or portrait dimensions for that `setSize(...)` call.
 - UI layout must come from `getLocalBounds()` flow, `juce::Grid`, or `juce::FlexBox`, not arbitrary scattered coordinates.
 - Remove any leftover `FoundryPlugin` placeholder text.
 - Do not touch CMakeLists.txt.
@@ -2242,6 +2350,56 @@ mod tests {
         assert!(issues.iter().any(|issue| issue.contains("getLocalBounds")));
 
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn normalize_editor_size_repairs_non_literal_or_portrait_sizes() {
+        let dir = make_temp_dir();
+
+        std::fs::write(
+            dir.join("Source/PluginEditor.cpp"),
+            "#include \"PluginEditor.h\"\nFluxEditor::FluxEditor() : audioProcessor(processor) { setSize(editorWidth, editorHeight); }\n",
+        )
+        .unwrap();
+
+        assert!(normalize_generated_editor_size(&dir, "Flux"));
+
+        let repaired = std::fs::read_to_string(dir.join("Source/PluginEditor.cpp")).unwrap();
+        assert!(repaired.contains("setSize(820, 520);"));
+        assert_eq!(extract_editor_size(&repaired), Some((820, 520)));
+
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn ui_prompts_require_explicit_numeric_landscape_size() {
+        let creative_profile = infer_creative_profile("Flux", "effect", "Wide chorus");
+        let parameter_manifest = vec!["mix".to_string()];
+
+        let fast_ui = build_fast_ui_prompt(
+            "Flux",
+            "audio effect",
+            "effect",
+            "Wide chorus",
+            "stereo",
+            &creative_profile,
+            &parameter_manifest,
+        );
+        let emergency_ui =
+            build_emergency_ui_prompt("Flux", &parameter_manifest, &creative_profile);
+        let repair = build_generation_repair_prompt(
+            "Flux",
+            "audio effect",
+            "Wide chorus",
+            "stereo",
+            &[],
+            &["Editor must call setSize(...) with an explicit landscape window size".into()],
+        );
+
+        for prompt in [fast_ui, emergency_ui, repair] {
+            assert!(prompt.contains("setSize(820, 520);"));
+            assert!(prompt.contains("named constants"));
+        }
     }
 
     #[test]
