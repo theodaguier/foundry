@@ -4,9 +4,25 @@ on:
   release:
     types:
       - published
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing Git tag to package and upload to its GitHub Release
+        required: true
+        type: string
+      release_notes:
+        description: Optional release notes override for latest.json
+        required: false
+        default: ""
+        type: string
+      release_published_at:
+        description: Optional ISO timestamp override for latest.json pub_date
+        required: false
+        default: ""
+        type: string
 
 concurrency:
-  group: desktop-release-${{ github.event.release.tag_name }}
+  group: desktop-release-${{ github.event_name == 'release' && github.event.release.tag_name || inputs.release_tag }}
   cancel-in-progress: false
 
 permissions:
@@ -38,7 +54,7 @@ jobs:
       - name: Checkout release tag
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.release_tag }}
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -152,7 +168,7 @@ jobs:
       - name: Checkout release tag
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.release_tag }}
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -239,7 +255,7 @@ jobs:
       - name: Checkout release tag
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.release_tag }}
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -257,13 +273,26 @@ jobs:
         shell: bash
         run: |
           cat <<'EOF' > "$RUNNER_TEMP/release-notes.md"
-          ${{ github.event.release.body }}
+          ${{ github.event_name == 'release' && github.event.release.body || inputs.release_notes }}
           EOF
+
+      - name: Resolve release metadata
+        shell: bash
+        run: |
+          RELEASE_TAG="${{ github.event_name == 'release' && github.event.release.tag_name || inputs.release_tag }}"
+          RELEASE_PUBLISHED_AT="${{ github.event_name == 'release' && github.event.release.published_at || inputs.release_published_at }}"
+
+          if [ -z "$RELEASE_PUBLISHED_AT" ]; then
+            RELEASE_PUBLISHED_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          fi
+
+          {
+            echo "RELEASE_TAG=$RELEASE_TAG"
+            echo "RELEASE_PUBLISHED_AT=$RELEASE_PUBLISHED_AT"
+          } >> "$GITHUB_ENV"
 
       - name: Generate updater manifest
         env:
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
-          RELEASE_PUBLISHED_AT: ${{ github.event.release.published_at }}
           RELEASE_NOTES_FILE: ${{ runner.temp }}/release-notes.md
           ASSETS_DIR: release-assets
           OUTPUT_PATH: release-assets/latest.json
@@ -271,4 +300,4 @@ jobs:
 
       - name: Upload assets to GitHub Release
         shell: bash
-        run: gh release upload "${{ github.event.release.tag_name }}" release-assets/* --clobber
+        run: gh release upload "$RELEASE_TAG" release-assets/* --clobber
