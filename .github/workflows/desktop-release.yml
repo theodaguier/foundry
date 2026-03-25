@@ -25,7 +25,7 @@ jobs:
             target: aarch64-apple-darwin
             asset_suffix: darwin_aarch64
           - name: Intel
-            runner: macos-13
+            runner: macos-15-intel
             target: x86_64-apple-darwin
             asset_suffix: darwin_x86_64
     env:
@@ -73,8 +73,10 @@ jobs:
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security set-keychain-settings -t 3600 -u "$KEYCHAIN_PATH"
           security import "$CERT_PATH" \
+            -f pkcs12 \
             -k "$KEYCHAIN_PATH" \
             -P "$APPLE_CERTIFICATE_PASSWORD" \
+            -A \
             -T /usr/bin/codesign
           security set-key-partition-list -S apple-tool:,apple:,codesign: \
             -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
@@ -173,9 +175,10 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path certificate | Out-Null
-          Set-Content -Path certificate/tempCert.txt -Value $env:WINDOWS_CERTIFICATE
-          certutil -decode certificate/tempCert.txt certificate/certificate.pfx | Out-Null
-          Remove-Item certificate/tempCert.txt
+          [System.IO.File]::WriteAllBytes(
+            (Join-Path $PWD "certificate/certificate.pfx"),
+            [System.Convert]::FromBase64String($env:WINDOWS_CERTIFICATE)
+          )
 
           $cert = Import-PfxCertificate `
             -FilePath certificate/certificate.pfx `
