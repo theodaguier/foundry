@@ -8,8 +8,6 @@ jobs:
     name: Package Windows Installers
     runs-on: windows-latest
     env:
-      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
       WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
       WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
 
@@ -50,10 +48,11 @@ jobs:
             throw "Failed to import Windows signing certificate."
           }
 
-          $config = Get-Content src-tauri/tauri.windows.conf.json -Raw
-          $config = $config.Replace("REPLACE_WITH_WINDOWS_CERTIFICATE_THUMBPRINT", $thumbprint)
+          $config = Get-Content src-tauri/tauri.windows.conf.json -Raw | ConvertFrom-Json
+          $config.bundle.createUpdaterArtifacts = $false
+          $config.bundle.windows.certificateThumbprint = $thumbprint
           $tempConfig = Join-Path $env:RUNNER_TEMP "tauri.windows.release.conf.json"
-          Set-Content -Path $tempConfig -Value $config
+          Set-Content -Path $tempConfig -Value ($config | ConvertTo-Json -Depth 100)
           "TAURI_WINDOWS_RELEASE_CONFIG=$tempConfig" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Build Windows installers

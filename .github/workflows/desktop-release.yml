@@ -45,7 +45,7 @@ jobs:
             target: x86_64-apple-darwin
             asset_suffix: darwin_x86_64
     env:
-      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      RAW_TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
       TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
       APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
       APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -66,6 +66,15 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
+
+      - name: Prepare updater signing key
+        shell: bash
+        env:
+          TAURI_SIGNING_KEY_OUTPUT_PATH: ${{ runner.temp }}/tauri-updater.key
+          TAURI_SIGNING_KEY_REQUIRED: "true"
+        run: |
+          node scripts/prepare-tauri-signing-key.mjs
+          echo "TAURI_SIGNING_PRIVATE_KEY_PATH=$TAURI_SIGNING_KEY_OUTPUT_PATH" >> "$GITHUB_ENV"
 
       - name: Install frontend dependencies
         run: npm ci
@@ -178,7 +187,7 @@ jobs:
     name: Build Windows
     runs-on: windows-latest
     env:
-      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      RAW_TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
       TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
       WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
       WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
@@ -198,6 +207,15 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-pc-windows-msvc
+
+      - name: Prepare updater signing key
+        shell: pwsh
+        env:
+          TAURI_SIGNING_KEY_OUTPUT_PATH: ${{ runner.temp }}\tauri-updater.key
+          TAURI_SIGNING_KEY_REQUIRED: "true"
+        run: |
+          node scripts/prepare-tauri-signing-key.mjs
+          "TAURI_SIGNING_PRIVATE_KEY_PATH=$env:TAURI_SIGNING_KEY_OUTPUT_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Install frontend dependencies
         run: npm ci
