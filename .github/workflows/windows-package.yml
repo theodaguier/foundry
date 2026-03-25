@@ -49,7 +49,11 @@ jobs:
           }
 
           $config = Get-Content src-tauri/tauri.windows.conf.json -Raw | ConvertFrom-Json
-          $config.bundle.createUpdaterArtifacts = $false
+          if ($null -eq $config.bundle.PSObject.Properties['createUpdaterArtifacts']) {
+            $config.bundle | Add-Member -NotePropertyName createUpdaterArtifacts -NotePropertyValue $false
+          } else {
+            $config.bundle.createUpdaterArtifacts = $false
+          }
           $config.bundle.windows.certificateThumbprint = $thumbprint
           $tempConfig = Join-Path $env:RUNNER_TEMP "tauri.windows.release.conf.json"
           Set-Content -Path $tempConfig -Value ($config | ConvertTo-Json -Depth 100)
