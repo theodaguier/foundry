@@ -83,7 +83,16 @@ jobs:
           CERT_PATH="$RUNNER_TEMP/foundry-signing.p12"
           KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
 
-          printf '%s' "$APPLE_CERTIFICATE" | base64 --decode > "$CERT_PATH"
+          CERT_PATH="$CERT_PATH" python - <<'PY'
+          import base64
+          import os
+          import pathlib
+          import re
+
+          raw = os.environ["APPLE_CERTIFICATE"]
+          normalized = re.sub(r"\s+", "", raw).strip("\"'")
+          pathlib.Path(os.environ["CERT_PATH"]).write_bytes(base64.b64decode(normalized))
+          PY
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security default-keychain -s "$KEYCHAIN_PATH"
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
@@ -191,9 +200,10 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path certificate | Out-Null
+          $normalizedCertificate = ($env:WINDOWS_CERTIFICATE -replace '\s', '').Trim('"', "'")
           [System.IO.File]::WriteAllBytes(
             (Join-Path $PWD "certificate/certificate.pfx"),
-            [System.Convert]::FromBase64String($env:WINDOWS_CERTIFICATE)
+            [System.Convert]::FromBase64String($normalizedCertificate)
           )
 
           $cert = Import-PfxCertificate `
