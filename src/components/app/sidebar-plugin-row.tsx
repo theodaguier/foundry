@@ -81,7 +81,7 @@ export function SidebarPluginRow({
       </ContextMenuTrigger>
       <ContextMenuContent>
         <ContextMenuItem onClick={onShowInFinder}>
-          Show in Finder
+          Show in Folder
         </ContextMenuItem>
         <ContextMenuItem onClick={onRename}>
           Rename

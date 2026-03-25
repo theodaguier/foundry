@@ -8,6 +8,7 @@ import type {
   AgentProvider,
   GenerationTelemetry,
   UserProfile,
+  RawUserProfile,
   OnboardingState,
   DependencyInstallResult,
 } from "@/lib/types"
@@ -20,7 +21,7 @@ export const signUp = (email: string, password: string) =>
 export const signOut = () => invoke<void>("sign_out");
 export const checkSession = () => invoke<string | null>("check_session");
 export const getProfile = (userId: string) =>
-  invoke<UserProfile | null>("get_profile", { userId });
+  invoke<RawUserProfile | null>("get_profile", { userId });
 export const updateCardVariant = (userId: string, variant: string) =>
   invoke<void>("update_card_variant", { userId, variant });
 export const assignCardVariantBatch = (emails: string[], variant: string) =>
@@ -56,8 +57,10 @@ export const getModelCatalog = () => invoke<AgentProvider[]>("get_model_catalog"
 export const refreshModelCatalog = () => invoke<AgentProvider[]>("refresh_model_catalog");
 
 export interface InstallPathsConfig {
-  auPath: string;
-  vst3Path: string;
+  platform: "macos" | "windows" | "linux";
+  supportedFormats: Array<"AU" | "VST3">;
+  auPath?: string;
+  vst3Path?: string;
   auIsDefault: boolean;
   vst3IsDefault: boolean;
 }

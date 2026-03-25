@@ -22,7 +22,7 @@ check_cmd "node"    "https://nodejs.org"
 check_cmd "npm"     "comes with Node.js"
 check_cmd "rustc"   "https://rustup.rs"
 check_cmd "cargo"   "https://rustup.rs"
-check_cmd "cmake"   "brew install cmake"
+check_cmd "cmake"   "Install CMake from https://cmake.org/download/ or your platform package manager"
 echo ""
 
 # ------------------------------------------------------------------
@@ -31,6 +31,21 @@ echo ""
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ENV_FILE="$SCRIPT_DIR/.env"
 ENV_EXAMPLE="$SCRIPT_DIR/.env.example"
+
+open_in_editor() {
+  local file="$1"
+  if [ -n "$EDITOR" ]; then
+    "$EDITOR" "$file"
+  elif command -v open >/dev/null 2>&1; then
+    open "$file"
+  elif command -v xdg-open >/dev/null 2>&1; then
+    xdg-open "$file"
+  elif command -v cmd.exe >/dev/null 2>&1; then
+    cmd.exe /C start "" "$(cygpath -w "$file" 2>/dev/null || echo "$file")"
+  else
+    echo "Open the file manually: $file"
+  fi
+}
 
 if [ -f "$ENV_FILE" ]; then
   echo "✅ .env file already exists"
@@ -45,7 +60,7 @@ else
     read -p "Open .env in your editor now? [Y/n] " -n 1 -r
     echo
     if [[ ! $REPLY =~ ^[Nn]$ ]]; then
-      ${EDITOR:-open} "$ENV_FILE"
+      open_in_editor "$ENV_FILE"
     fi
   else
     echo "❌ .env.example not found"

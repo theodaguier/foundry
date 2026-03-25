@@ -1,4 +1,5 @@
 use std::fs;
+use std::io;
 use std::path::{Path, PathBuf};
 
 use chrono::Utc;
@@ -266,6 +267,16 @@ fn collect_dependency_issues() -> Vec<BuildEnvironmentIssue> {
                     "CMake is required before Foundry can configure JUCE projects.",
                     Some("Install CMake"),
                 ),
+                "C++ Build Tools" => (
+                    "cpp_build_tools_missing",
+                    "Install Visual Studio 2022 Build Tools with the Desktop C++ workload.",
+                    Some("Install Build Tools"),
+                ),
+                "Ninja" => (
+                    "ninja_missing",
+                    "Ninja is required before Foundry can build JUCE projects.",
+                    Some("Install Ninja"),
+                ),
                 "Claude Code CLI" => (
                     "claude_cli_missing",
                     "Claude Code CLI is required before Foundry can generate code.",
@@ -294,82 +305,95 @@ fn collect_dependency_issues() -> Vec<BuildEnvironmentIssue> {
 }
 
 async fn download_and_install_managed_juce(app: Option<&AppHandle>) -> Result<PathBuf, String> {
-    #[cfg(not(target_os = "macos"))]
-    {
-        let _ = app;
-        return Err("Automatic JUCE installation is currently implemented only on macOS.".into());
+    let managed_root = foundry_paths::managed_juce_root_dir();
+    let final_path = foundry_paths::managed_juce_dir(&foundry_paths::DEFAULT_MANAGED_JUCE_VERSION);
+    let temp_root = foundry_paths::application_support_dir().join("tmp");
+    let extract_root = temp_root.join(format!("juce-extract-{}", uuid::Uuid::new_v4().simple()));
+    let archive_path = temp_root.join(format!(
+        "juce-{}-{}.zip",
+        foundry_paths::DEFAULT_MANAGED_JUCE_VERSION,
+        uuid::Uuid::new_v4().simple()
+    ));
+
+    fs::create_dir_all(&managed_root).map_err(|error| error.to_string())?;
+    fs::create_dir_all(&temp_root).map_err(|error| error.to_string())?;
+
+    let cleanup = |archive: &Path, extract: &Path| {
+        let _ = fs::remove_file(archive);
+        let _ = fs::remove_dir_all(extract);
+    };
+
+    let response = reqwest::get(JUCE_DOWNLOAD_URL)
+        .await
+        .map_err(|error| error.to_string())?
+        .error_for_status()
+        .map_err(|error| error.to_string())?;
+    let body = response.bytes().await.map_err(|error| error.to_string())?;
+    tokio::fs::write(&archive_path, body)
+        .await
+        .map_err(|error| error.to_string())?;
+
+    if let Some(app_handle) = app {
+        emit_log(app_handle, "Extracting JUCE archive...", None);
     }
 
-    #[cfg(target_os = "macos")]
-    {
-        let managed_root = foundry_paths::managed_juce_root_dir();
-        let final_path =
-            foundry_paths::managed_juce_dir(&foundry_paths::DEFAULT_MANAGED_JUCE_VERSION);
-        let temp_root = foundry_paths::application_support_dir().join("tmp");
-        let extract_root =
-            temp_root.join(format!("juce-extract-{}", uuid::Uuid::new_v4().simple()));
-        let archive_path = temp_root.join(format!(
-            "juce-{}-{}.zip",
-            foundry_paths::DEFAULT_MANAGED_JUCE_VERSION,
-            uuid::Uuid::new_v4().simple()
-        ));
-
-        fs::create_dir_all(&managed_root).map_err(|error| error.to_string())?;
-        fs::create_dir_all(&temp_root).map_err(|error| error.to_string())?;
-
-        let cleanup = |archive: &Path, extract: &Path| {
-            let _ = fs::remove_file(archive);
-            let _ = fs::remove_dir_all(extract);
-        };
-
-        let response = reqwest::get(JUCE_DOWNLOAD_URL)
-            .await
-            .map_err(|error| error.to_string())?
-            .error_for_status()
-            .map_err(|error| error.to_string())?;
-        let body = response.bytes().await.map_err(|error| error.to_string())?;
-        tokio::fs::write(&archive_path, body)
-            .await
-            .map_err(|error| error.to_string())?;
-
-        if let Some(app_handle) = app {
-            emit_log(app_handle, "Extracting JUCE archive...", None);
-        }
-
-        fs::create_dir_all(&extract_root).map_err(|error| error.to_string())?;
-        let extraction = platform::create_command("ditto")
-            .args(["-x", "-k"])
-            .arg(&archive_path)
-            .arg(&extract_root)
-            .output()
-            .map_err(|error| error.to_string())?;
-
-        if !extraction.status.success() {
-            cleanup(&archive_path, &extract_root);
-            let stderr = String::from_utf8_lossy(&extraction.stderr);
-            return Err(format!("Failed to extract JUCE archive: {}", stderr.trim()));
-        }
-
-        let extracted_path = find_extracted_juce_root(&extract_root)?.ok_or_else(|| {
-            "The JUCE archive was extracted, but the JUCE root directory could not be found."
-                .to_string()
-        })?;
-
-        if let Some(app_handle) = app {
-            emit_log(app_handle, "Validating JUCE installation...", None);
-        }
-
-        validate_juce_directory(&extracted_path)?;
-
-        if final_path.exists() {
-            fs::remove_dir_all(&final_path).map_err(|error| error.to_string())?;
-        }
-
-        fs::rename(&extracted_path, &final_path).map_err(|error| error.to_string())?;
+    fs::create_dir_all(&extract_root).map_err(|error| error.to_string())?;
+    extract_zip_archive(&archive_path, &extract_root).inspect_err(|_| {
         cleanup(&archive_path, &extract_root);
+    })?;
 
-        Ok(final_path)
+    let extracted_path = find_extracted_juce_root(&extract_root)?.ok_or_else(|| {
+        "The JUCE archive was extracted, but the JUCE root directory could not be found."
+            .to_string()
+    })?;
+
+    if let Some(app_handle) = app {
+        emit_log(app_handle, "Validating JUCE installation...", None);
     }
+
+    validate_juce_directory(&extracted_path)?;
+
+    if final_path.exists() {
+        fs::remove_dir_all(&final_path).map_err(|error| error.to_string())?;
+    }
+
+    fs::rename(&extracted_path, &final_path).map_err(|error| error.to_string())?;
+    cleanup(&archive_path, &extract_root);
+
+    Ok(final_path)
+}
+
+fn extract_zip_archive(archive_path: &Path, extract_root: &Path) -> Result<(), String> {
+    let file = fs::File::open(archive_path).map_err(|error| error.to_string())?;
+    let mut archive = zip::ZipArchive::new(file).map_err(|error| error.to_string())?;
+
+    for index in 0..archive.len() {
+        let mut entry = archive.by_index(index).map_err(|error| error.to_string())?;
+        let Some(relative_path) = entry.enclosed_name().map(|path| path.to_path_buf()) else {
+            continue;
+        };
+        let output_path = extract_root.join(relative_path);
+
+        if entry.is_dir() {
+            fs::create_dir_all(&output_path).map_err(|error| error.to_string())?;
+            continue;
+        }
+
+        if let Some(parent) = output_path.parent() {
+            fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+        }
+
+        let mut output = fs::File::create(&output_path).map_err(|error| error.to_string())?;
+        io::copy(&mut entry, &mut output).map_err(|error| error.to_string())?;
+
+        #[cfg(unix)]
+        if let Some(mode) = entry.unix_mode() {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = fs::set_permissions(&output_path, fs::Permissions::from_mode(mode));
+        }
+    }
+
+    Ok(())
 }
 
 fn find_extracted_juce_root(extract_root: &Path) -> Result<Option<PathBuf>, String> {

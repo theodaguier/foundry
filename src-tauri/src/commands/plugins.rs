@@ -64,61 +64,46 @@ pub async fn install_version(
         return Err(format!("Build directory does not exist: {}", build_dir));
     }
 
-    // Resolve install directories (respects user overrides)
-    let au_dir = platform::plugin_install_dir(&PluginFormat::Au);
-    let vst3_dir = platform::plugin_install_dir(&PluginFormat::Vst3);
-    let au_dest = &au_dir.path;
-    let vst3_dest = &vst3_dir.path;
-
     let mut new_install_paths = crate::models::plugin::InstallPaths::default();
+    let mut operations = Vec::new();
 
-    // Search for .component bundles in build directory
-    if let Ok(entries) = find_bundles(build_path, "component") {
-        for bundle_path in entries {
-            let bundle_name = bundle_path
-                .file_name()
-                .ok_or_else(|| "Invalid bundle name".to_string())?;
-            let dest = au_dest.join(bundle_name);
+    for mapping in platform::bundle_mappings() {
+        let plugin_format = match mapping.format_label {
+            "AU" => PluginFormat::Au,
+            "VST3" => PluginFormat::Vst3,
+            _ => continue,
+        };
 
-            // Remove existing bundle if present
-            if dest.exists() {
-                std::fs::remove_dir_all(&dest)
-                    .map_err(|e| format!("Failed to remove existing AU: {}", e))?;
+        let extension = mapping.extension.trim_start_matches('.');
+        if let Ok(entries) = find_bundles(build_path, extension) {
+            for bundle_path in entries {
+                let bundle_name = bundle_path
+                    .file_name()
+                    .ok_or_else(|| "Invalid bundle name".to_string())?;
+                let install_dir = platform::plugin_install_dir(&plugin_format);
+                let dest = install_dir.path.join(bundle_name);
+
+                operations.push(platform::types::InstallOperation {
+                    format: plugin_format.clone(),
+                    source: bundle_path,
+                    destination: dest.clone(),
+                });
+
+                let dest_string = dest.to_string_lossy().to_string();
+                match plugin_format {
+                    PluginFormat::Au => new_install_paths.au = Some(dest_string),
+                    PluginFormat::Vst3 => new_install_paths.vst3 = Some(dest_string),
+                }
             }
-
-            copy_dir_recursive(&bundle_path, &dest)
-                .map_err(|e| format!("Failed to copy AU bundle: {}", e))?;
-
-            new_install_paths.au = Some(dest.to_string_lossy().to_string());
-            log::info!("Installed AU bundle to: {}", dest.display());
-        }
-    }
-
-    // Search for .vst3 bundles in build directory
-    if let Ok(entries) = find_bundles(build_path, "vst3") {
-        for bundle_path in entries {
-            let bundle_name = bundle_path
-                .file_name()
-                .ok_or_else(|| "Invalid bundle name".to_string())?;
-            let dest = vst3_dest.join(bundle_name);
-
-            // Remove existing bundle if present
-            if dest.exists() {
-                std::fs::remove_dir_all(&dest)
-                    .map_err(|e| format!("Failed to remove existing VST3: {}", e))?;
-            }
-
-            copy_dir_recursive(&bundle_path, &dest)
-                .map_err(|e| format!("Failed to copy VST3 bundle: {}", e))?;
-
-            new_install_paths.vst3 = Some(dest.to_string_lossy().to_string());
-            log::info!("Installed VST3 bundle to: {}", dest.display());
         }
     }
 
     if new_install_paths.au.is_none() && new_install_paths.vst3.is_none() {
         return Err("No AU or VST3 bundles found in build directory".to_string());
     }
+
+    platform::install_plugin_bundles(&operations)?;
+    platform::post_install_refresh()?;
 
     // Update plugin state
     plugin.current_version = version_number;
@@ -206,22 +191,6 @@ fn find_bundles_recursive(
         }
         if path.is_dir() {
             find_bundles_recursive(&path, extension, results)?;
-        }
-    }
-    Ok(())
-}
-
-/// Recursively copy a directory
-fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), std::io::Error> {
-    std::fs::create_dir_all(dst)?;
-    for entry in std::fs::read_dir(src)? {
-        let entry = entry?;
-        let src_path = entry.path();
-        let dst_path = dst.join(entry.file_name());
-        if src_path.is_dir() {
-            copy_dir_recursive(&src_path, &dst_path)?;
-        } else {
-            std::fs::copy(&src_path, &dst_path)?;
         }
     }
     Ok(())

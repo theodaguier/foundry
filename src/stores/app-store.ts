@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { Plugin, AuthState, UserProfile, PluginFilter } from "@/lib/types"
+import type { Plugin, AuthState, UserProfile, PluginFilter, RawUserProfile } from "@/lib/types"
 import * as commands from "@/lib/commands"
 
 export type MainView =
@@ -100,15 +100,18 @@ export const useAppStore = create<AppStore>((set, get) => ({
       const userId = await commands.checkSession();
       if (userId) {
         set({ authState: "authenticated" });
-        const profile = await commands.getProfile(userId);
+        const profile = await commands.getProfile(userId) as RawUserProfile | null;
         if (profile) {
           // Map snake_case from Supabase to camelCase
           const mapped: UserProfile = {
             ...profile,
+            id: profile.id ?? userId,
+            email: profile.email ?? "",
+            plan: profile.plan ?? "free",
             displayName: profile.display_name ?? profile.displayName,
             avatarUrl: profile.avatar_url ?? profile.avatarUrl,
             pluginsGenerated: profile.plugins_generated ?? profile.pluginsGenerated ?? 0,
-            createdAt: profile.created_at ?? profile.createdAt,
+            createdAt: profile.created_at ?? profile.createdAt ?? new Date(0).toISOString(),
             onboardingCompletedAt: profile.onboarding_completed_at ?? profile.onboardingCompletedAt,
             cardVariant: profile.card_variant ?? profile.cardVariant ?? "default",
           };

@@ -11,22 +11,52 @@ type DepStatus = "checking" | "installed" | "missing" | "installing" | "failed"
 interface Dep {
   name: string
   key: string
+  required: boolean
   status: DepStatus
   message?: string
 }
 
-const INITIAL_DEPS: Dep[] = [
-  { name: "Xcode Command Line Tools", key: "xcode_clt", status: "checking" },
-  { name: "CMake", key: "cmake", status: "checking" },
-  { name: "Claude Code CLI", key: "claude_code", status: "checking" },
-  { name: "Codex CLI", key: "codex", status: "checking" },
+const OPTIONAL_DEPENDENCIES = new Set(["Codex CLI"])
+
+const DEP_KEY_BY_NAME: Record<string, string> = {
+  "Xcode Command Line Tools": "xcode_clt",
+  "C++ Build Tools": "cpp_build_tools",
+  "CMake": "cmake",
+  "Claude Code CLI": "claude_code",
+  "Codex CLI": "codex",
+  "JUCE SDK": "juce",
+}
+
+const DEP_ORDER = [
+  "Xcode Command Line Tools",
+  "C++ Build Tools",
+  "CMake",
+  "Claude Code CLI",
+  "Codex CLI",
+  "JUCE SDK",
 ]
 
 const DEP_DESCRIPTIONS: Record<string, string> = {
-  xcode_clt: "C++ compiler and build tools from Apple",
-  cmake: "Cross-platform build system for JUCE projects",
-  claude_code: "AI coding agent that generates plugin source code",
-  codex: "OpenAI coding agent for plugin generation",
+  "Xcode Command Line Tools": "C++ compiler and Apple build tools",
+  "C++ Build Tools": "Visual Studio toolchain required to compile JUCE plugins",
+  "CMake": "Cross-platform build system for JUCE projects",
+  "Claude Code CLI": "Primary AI coding agent used for plugin generation",
+  "Codex CLI": "Optional OpenAI coding agent",
+  "JUCE SDK": "Framework used to compile the generated plugin",
+}
+
+function depSortOrder(name: string) {
+  const index = DEP_ORDER.indexOf(name)
+  return index === -1 ? DEP_ORDER.length : index
+}
+
+function mapDependency(result: Awaited<ReturnType<typeof commands.checkDependencies>>[number]): Dep {
+  return {
+    name: result.name,
+    key: DEP_KEY_BY_NAME[result.name] ?? result.name.toLowerCase().replace(/\s+/g, "_"),
+    required: !OPTIONAL_DEPENDENCIES.has(result.name),
+    status: result.installed ? "installed" : "missing",
+  }
 }
 
 function StatusDot({ status }: { status: DepStatus }) {
@@ -75,7 +105,7 @@ function StepIndicator({ current }: { current: OnboardingStep }) {
 
 export default function Onboarding() {
   const [step, setStep] = useState<OnboardingStep>("welcome")
-  const [deps, setDeps] = useState<Dep[]>(INITIAL_DEPS)
+  const [deps, setDeps] = useState<Dep[]>([])
   const [isInstallingAll, setIsInstallingAll] = useState(false)
   const [appeared, setAppeared] = useState(false)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -99,25 +129,18 @@ export default function Onboarding() {
   const checkDeps = useCallback(async () => {
     try {
       const results = await commands.checkDependencies()
-      setDeps(prev =>
-        prev.map(dep => {
-          // Don't override if currently installing
-          if (dep.status === "installing") return dep
-          const match = results.find(r => {
-            if (dep.key === "xcode_clt") return r.name === "Xcode Command Line Tools"
-            if (dep.key === "cmake") return r.name === "CMake"
-            if (dep.key === "claude_code") return r.name === "Claude Code CLI"
-            if (dep.key === "codex") return r.name === "Codex CLI"
-            return false
-          })
-          if (!match) return { ...dep, status: dep.status === "installed" ? "installed" : "missing" as DepStatus }
-          return { ...dep, status: match.installed ? "installed" as DepStatus : "missing" as DepStatus }
-        })
-      )
+      const nextDeps = results
+        .map(mapDependency)
+        .sort((a, b) => depSortOrder(a.name) - depSortOrder(b.name))
+
+      setDeps(prev => nextDeps.map(dep => {
+        const current = prev.find(entry => entry.key === dep.key)
+        if (current?.status === "installing") return current
+        if (current?.status === "failed" && dep.status === "missing") return current
+        return dep
+      }))
     } catch {
-      setDeps(prev =>
-        prev.map(d => d.status === "checking" ? { ...d, status: "missing" as DepStatus } : d)
-      )
+      setDeps(prev => prev.map(d => d.status === "checking" ? { ...d, status: "missing" as DepStatus } : d))
     }
   }, [])
 
@@ -131,6 +154,19 @@ export default function Onboarding() {
     updateDep(key, { status: "installing", message: undefined })
 
     try {
+      if (key === "juce") {
+        const buildEnvironment = await commands.installJuce()
+        if (buildEnvironment.jucePath) {
+          await checkDeps()
+        } else {
+          updateDep(key, {
+            status: "failed",
+            message: buildEnvironment.issues[0]?.detail ?? "Failed to install JUCE.",
+          })
+        }
+        return
+      }
+
       const result = await commands.installDependency(key)
 
       if (key === "xcode_clt" && result.success) {
@@ -182,7 +218,8 @@ export default function Onboarding() {
     setIsInstallingAll(false)
   }, [deps, installSingle, checkDeps])
 
-  const allInstalled = deps.every(d => d.status === "installed")
+  const requiredDeps = deps.filter(d => d.required)
+  const allInstalled = requiredDeps.length > 0 && requiredDeps.every(d => d.status === "installed")
   const hasMissing = deps.some(d => d.status === "missing" || d.status === "failed")
   const isAnyInstalling = deps.some(d => d.status === "installing")
 
@@ -222,7 +259,7 @@ export default function Onboarding() {
               <h2 className="text-lg font-medium">Dependencies</h2>
               <p className="text-[12px] text-muted-foreground">
                 {allInstalled
-                  ? "All tools are installed. You're ready to go."
+                  ? "All required tools are installed. You're ready to go."
                   : "Install the required tools to get started."}
               </p>
             </div>
@@ -232,12 +269,15 @@ export default function Onboarding() {
                 <div key={dep.key} className="flex items-center gap-3 px-4 py-3 bg-muted/50">
                   <StatusDot status={dep.status} />
                   <div className="flex-1 min-w-0">
-                    <div className="text-[13px] text-foreground font-medium">{dep.name}</div>
+                    <div className="text-[13px] text-foreground font-medium">
+                      {dep.name}
+                      {!dep.required && <span className="ml-2 text-[10px] uppercase tracking-[1px] text-muted-foreground/60">Optional</span>}
+                    </div>
                     {dep.message ? (
                       <div className="text-[11px] text-amber-500 mt-0.5">{dep.message}</div>
                     ) : (
                       <div className="text-[11px] text-muted-foreground mt-0.5">
-                        {DEP_DESCRIPTIONS[dep.key]}
+                        {DEP_DESCRIPTIONS[dep.name] ?? "Required to generate and compile plugins."}
                       </div>
                     )}
                   </div>
