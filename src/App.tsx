@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from "react"
+import { useEffect, useCallback, useRef } from "react"
 import { useAppStore } from "@/stores/app-store"
 import { useSettingsStore } from "@/stores/settings-store"
 import { useBuildStore } from "@/stores/build-store"
@@ -172,6 +172,25 @@ function GlobalPipelineListener() {
   return null
 }
 
+function GlobalAppUpdateManager() {
+  const authState = useAppStore((s) => s.authState)
+  const loadAppVersion = useSettingsStore((s) => s.loadAppVersion)
+  const checkForAppUpdate = useSettingsStore((s) => s.checkForAppUpdate)
+  const didAutoCheck = useRef(false)
+
+  useEffect(() => {
+    void loadAppVersion()
+  }, [loadAppVersion])
+
+  useEffect(() => {
+    if (authState === "checking" || didAutoCheck.current) return
+    didAutoCheck.current = true
+    void checkForAppUpdate(false)
+  }, [authState, checkForAppUpdate])
+
+  return null
+}
+
 export default function App() {
   const authState = useAppStore((s) => s.authState)
   const checkSession = useAppStore((s) => s.checkSession)
@@ -231,6 +250,7 @@ export default function App() {
   return (
     <SidebarProvider open={true}>
       <GlobalPipelineListener />
+      <GlobalAppUpdateManager />
       <AppSidebar />
       <SidebarInset>
         {/* Drag region for main content area */}

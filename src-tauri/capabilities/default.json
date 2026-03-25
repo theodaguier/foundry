@@ -11,6 +11,8 @@
     "shell:allow-execute",
     "dialog:default",
     "fs:default",
+    "process:default",
+    "updater:default",
     "fs:allow-read-text-file",
     "fs:allow-write-text-file",
     "fs:allow-exists",
