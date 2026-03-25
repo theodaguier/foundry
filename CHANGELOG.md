@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.18.4](https://github.com/theodaguier/foundry/compare/v1.18.3...v1.18.4) (2026-03-25)
+
+
+### Bug Fixes
+
+* fall back to unsigned desktop artifacts ([e7196a6](https://github.com/theodaguier/foundry/commit/e7196a600a3de866b6f7b1eae6cd5d7b2416dc60))
+
 ## [1.18.3](https://github.com/theodaguier/foundry/compare/v1.18.2...v1.18.3) (2026-03-25)
 
 
