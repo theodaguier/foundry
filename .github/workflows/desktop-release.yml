@@ -107,7 +107,8 @@ jobs:
             && security set-key-partition-list -S apple-tool:,apple:,codesign: \
               -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"; then
             IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" \
-              | grep -E "Developer ID Application|Apple Distribution" \
+              | grep -E "Developer ID Application|Apple Distribution" || true)
+            IDENTITY=$(printf '%s\n' "$IDENTITY" \
               | head -n 1 \
               | sed -E 's/.*"(.+)".*/\1/')
 
@@ -149,7 +150,8 @@ jobs:
       - name: Collect macOS artifacts
         shell: bash
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          RELEASE_TAG="${{ github.event_name == 'release' && github.event.release.tag_name || inputs.release_tag }}"
+          VERSION="${RELEASE_TAG#v}"
           BUNDLE_DIR="src-tauri/target/${{ matrix.target }}/release/bundle"
           mkdir -p release-assets
 
@@ -247,7 +249,8 @@ jobs:
       - name: Collect Windows artifacts
         shell: pwsh
         run: |
-          $version = "${env:GITHUB_REF_NAME}".TrimStart("v")
+          $releaseTag = "${{ github.event_name == 'release' && github.event.release.tag_name || inputs.release_tag }}"
+          $version = $releaseTag.TrimStart("v")
           $bundleDir = "src-tauri/target/x86_64-pc-windows-msvc/release/bundle"
 
           $nsis = Get-ChildItem -Path (Join-Path $bundleDir "nsis") -Filter *.exe | Select-Object -First 1
