@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.18.3](https://github.com/theodaguier/foundry/compare/v1.18.2...v1.18.3) (2026-03-25)
+
+
+### Bug Fixes
+
+* normalize desktop certificate secrets ([9aa641b](https://github.com/theodaguier/foundry/commit/9aa641b8922e8ead42d282678771a2434f22b621))
+
 ## [1.18.2](https://github.com/theodaguier/foundry/compare/v1.18.1...v1.18.2) (2026-03-25)
 
 
