@@ -3,6 +3,11 @@
     "targets": [
       "nsis",
       "msi"
-    ]
+    ],
+    "windows": {
+      "certificateThumbprint": "REPLACE_WITH_WINDOWS_CERTIFICATE_THUMBPRINT",
+      "digestAlgorithm": "sha256",
+      "timestampUrl": "http://timestamp.digicert.com"
+    }
   }
 }

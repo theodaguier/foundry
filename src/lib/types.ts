@@ -57,6 +57,21 @@ export interface AgentProvider {
   models: AgentModel[];
 }
 
+export interface AppUpdateInfo {
+  version: string;
+  date?: string;
+  notes?: string;
+}
+
+export type AppUpdateStatus =
+  | "idle"
+  | "checking"
+  | "available"
+  | "not-available"
+  | "downloading"
+  | "installing"
+  | "error";
+
 export type FormatOption = "AU" | "VST3" | "Both";
 export type ChannelLayout = "Mono" | "Stereo";
 export type PresetCount = 0 | 3 | 5 | 10;

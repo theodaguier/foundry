@@ -28,11 +28,20 @@
   },
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "untrusted comment: minisign public key: E18DD436D8FF7E52\nRWRSfv/YNtSN4QiwbALydILwUrm+nDp/icMckT8FAszI94wbv3QlcJvO",
+      "endpoints": [
+        "https://github.com/theodaguier/foundry/releases/latest/download/latest.json"
+      ]
+    }
   }
 }

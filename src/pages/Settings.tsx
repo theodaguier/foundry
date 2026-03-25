@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react"
-import { getVersion } from "@tauri-apps/api/app"
 import { open } from "@tauri-apps/plugin-dialog"
 import { useAppStore } from "@/stores/app-store"
+import { useBuildStore } from "@/stores/build-store"
 import { useSettingsStore } from "@/stores/settings-store"
 import { checkDependencies } from "@/lib/commands"
 import { Button } from "@/components/ui/button"
@@ -13,7 +13,71 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/componen
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
 import type { DependencyStatus } from "@/lib/types"
-import { FolderOpen, RotateCcw } from "lucide-react"
+import { Download, FolderOpen, RefreshCw, RotateCcw } from "lucide-react"
+
+function formatDateTime(value?: string | null) {
+  if (!value) return "Never"
+
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(new Date(value))
+  } catch {
+    return value
+  }
+}
+
+function formatBytes(value: number) {
+  if (value < 1024) return `${value} B`
+
+  const units = ["KB", "MB", "GB"]
+  let size = value / 1024
+  let unitIndex = 0
+
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024
+    unitIndex += 1
+  }
+
+  return `${size.toFixed(size >= 10 ? 0 : 1)} ${units[unitIndex]}`
+}
+
+function getUpdateBadgeVariant(status: ReturnType<typeof useSettingsStore.getState>["updateStatus"]) {
+  switch (status) {
+    case "available":
+      return "default"
+    case "checking":
+    case "downloading":
+    case "installing":
+      return "secondary"
+    case "error":
+      return "destructive"
+    case "not-available":
+      return "outline"
+    default:
+      return "ghost"
+  }
+}
+
+function getUpdateStatusLabel(status: ReturnType<typeof useSettingsStore.getState>["updateStatus"]) {
+  switch (status) {
+    case "checking":
+      return "Checking"
+    case "available":
+      return "Update available"
+    case "not-available":
+      return "Up to date"
+    case "downloading":
+      return "Downloading"
+    case "installing":
+      return "Installing"
+    case "error":
+      return "Update error"
+    default:
+      return "Idle"
+  }
+}
 
 export default function Settings() {
   return (
@@ -44,18 +108,46 @@ export default function Settings() {
 }
 
 function GeneralTab() {
-  const { appearance, setAppearance, installPaths, loadInstallPaths, resetInstallPath } = useSettingsStore()
-  const [appVersion, setAppVersion] = useState<string>("")
+  const {
+    appearance,
+    setAppearance,
+    installPaths,
+    loadInstallPaths,
+    resetInstallPath,
+    appVersion,
+    loadAppVersion,
+    updateStatus,
+    availableUpdate,
+    lastUpdateCheck,
+    updateError,
+    downloadProgress,
+    checkForAppUpdate,
+    installAppUpdate,
+    clearUpdateError,
+  } = useSettingsStore()
+  const isBuildRunning = useBuildStore((s) => s.isRunning)
   const supportsAu = installPaths?.supportedFormats.includes("AU") ?? false
   const supportsVst3 = installPaths?.supportedFormats.includes("VST3") ?? false
+  const isCheckingForUpdates = updateStatus === "checking"
+  const isInstallingUpdate = updateStatus === "downloading" || updateStatus === "installing"
 
   useEffect(() => { loadInstallPaths() }, [loadInstallPaths])
-  useEffect(() => { getVersion().then(setAppVersion) }, [])
+  useEffect(() => { void loadAppVersion() }, [loadAppVersion])
 
   const chooseFolder = async (format: string) => {
     const selection = await open({ directory: true, multiple: false })
     if (typeof selection !== "string") return
     await useSettingsStore.getState().setInstallPath(format, selection)
+  }
+
+  const handleCheckForUpdates = async () => {
+    clearUpdateError()
+    await checkForAppUpdate(true)
+  }
+
+  const handleInstallUpdate = async () => {
+    clearUpdateError()
+    await installAppUpdate()
   }
 
   return (
@@ -138,6 +230,94 @@ function GeneralTab() {
               <span>{appVersion || "—"}</span>
             </div>
           </CardContent>
+        </Card>
+      </div>
+
+      <div className="flex flex-col gap-3">
+        <Label>App updates</Label>
+        <Card size="sm">
+          <CardContent className="flex flex-col gap-3 text-sm">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div>Desktop updater</div>
+                <div className="text-xs text-muted-foreground">
+                  Last checked {formatDateTime(lastUpdateCheck)}
+                </div>
+              </div>
+              <Badge variant={getUpdateBadgeVariant(updateStatus)}>
+                {getUpdateStatusLabel(updateStatus)}
+              </Badge>
+            </div>
+
+            {availableUpdate ? (
+              <div className="rounded-lg border border-border/60 bg-muted/30 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-sm">Version {availableUpdate.version}</div>
+                  <div className="text-[11px] text-muted-foreground">
+                    {formatDateTime(availableUpdate.date)}
+                  </div>
+                </div>
+                {availableUpdate.notes && (
+                  <p className="mt-2 text-xs text-muted-foreground whitespace-pre-wrap">
+                    {availableUpdate.notes}
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div className="text-xs text-muted-foreground">
+                {updateStatus === "not-available"
+                  ? "Foundry is already on the latest published version."
+                  : "Checks GitHub Releases for signed desktop updates."}
+              </div>
+            )}
+
+            {downloadProgress && (
+              <div className="rounded-lg border border-border/60 bg-muted/30 p-3 text-xs text-muted-foreground">
+                Downloaded {formatBytes(downloadProgress.downloaded)}
+                {downloadProgress.total
+                  ? ` of ${formatBytes(downloadProgress.total)}`
+                  : ""}
+              </div>
+            )}
+
+            {isBuildRunning && availableUpdate && (
+              <div className="rounded-lg border border-border/60 bg-muted/30 p-3 text-xs text-muted-foreground">
+                Finish the current build before installing the app update.
+              </div>
+            )}
+
+            {updateError && (
+              <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-xs text-destructive">
+                {updateError}
+              </div>
+            )}
+          </CardContent>
+          <CardFooter className="flex flex-wrap justify-end gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void handleCheckForUpdates()}
+              disabled={isCheckingForUpdates || isInstallingUpdate}
+            >
+              <RefreshCw className="size-3.5" />
+              {isCheckingForUpdates ? "Checking..." : "Check for updates"}
+            </Button>
+
+            {availableUpdate && (
+              <Button
+                size="sm"
+                onClick={() => void handleInstallUpdate()}
+                disabled={isBuildRunning || isInstallingUpdate}
+              >
+                <Download className="size-3.5" />
+                {updateStatus === "downloading"
+                  ? "Downloading..."
+                  : updateStatus === "installing"
+                    ? "Installing..."
+                    : "Install update"}
+              </Button>
+            )}
+          </CardFooter>
         </Card>
       </div>
     </div>

@@ -62,6 +62,14 @@ See [`CLAUDE.md`](./CLAUDE.md) for architecture details, data model, and develop
 
 Active development. Core pipeline is functional. Known issues and planned improvements are tracked in [GitHub Issues](https://github.com/theodaguier/foundry/issues).
 
+## Desktop Releases
+
+- macOS users install the first updater-enabled build from the published `.dmg`.
+- Windows users install the first updater-enabled build from the published `.exe`.
+- After that first manual install, Foundry checks GitHub Releases for signed in-app updates and installs them from `Settings > General > App updates`.
+
+See [`docs/desktop-releases.md`](./docs/desktop-releases.md) for the CI flow, required secrets, and release checklist.
+
 ---
 
 ## License
