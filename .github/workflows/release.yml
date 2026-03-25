@@ -17,8 +17,6 @@ jobs:
   release-please:
     name: Release Please
     runs-on: ubuntu-latest
-    env:
-      RELEASE_PLEASE_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -28,14 +26,20 @@ jobs:
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
-          token: ${{ env.RELEASE_PLEASE_TOKEN }}
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN != '' && secrets.RELEASE_PLEASE_TOKEN || github.token }}
       
       - name: Merge release PR
         if: ${{ steps.release.outputs.prs_created == 'true' }}
         env:
-          GH_TOKEN: ${{ env.RELEASE_PLEASE_TOKEN }}
-          PR_NUMBER: ${{ fromJSON(steps.release.outputs.pr).number }}
+          GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN != '' && secrets.RELEASE_PLEASE_TOKEN || github.token }}
+          RELEASE_PR_JSON: ${{ steps.release.outputs.pr }}
         run: |
+          PR_NUMBER="$(printf '%s' "$RELEASE_PR_JSON" | jq -r '.number')"
+          if [ -z "$PR_NUMBER" ] || [ "$PR_NUMBER" = "null" ]; then
+            echo "Could not determine release PR number from release-please output." >&2
+            exit 1
+          fi
+
           gh pr merge --merge --delete-branch "$PR_NUMBER"
           until [ "$(gh pr view "$PR_NUMBER" --json state --jq '.state')" = "MERGED" ]; do
             sleep 2
@@ -48,4 +52,4 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
           skip-github-pull-request: true
-          token: ${{ env.RELEASE_PLEASE_TOKEN }}
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN != '' && secrets.RELEASE_PLEASE_TOKEN || github.token }}
