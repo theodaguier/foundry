@@ -1,13 +1,13 @@
-import React from "react";
-import ReactDOM from "react-dom/client";
-import { MemoryRouter } from "react-router-dom";
-import App from "@/app"
+import React from "react"
+import ReactDOM from "react-dom/client"
+import { TooltipProvider } from "@/components/ui/tooltip"
+import App from "@/App"
 import "@/styles/globals.css"
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <MemoryRouter>
+    <TooltipProvider>
       <App />
-    </MemoryRouter>
+    </TooltipProvider>
   </React.StrictMode>
-);
+)

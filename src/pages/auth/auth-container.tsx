@@ -138,8 +138,8 @@ export default function AuthContainer() {
         {/* Login */}
         {screen === "login" && (
           <div className="flex flex-col gap-8">
-            <div className="border border-border rounded-lg overflow-hidden">
-              <div className="px-4 py-3 bg-muted">
+            <div className="rounded-lg overflow-hidden">
+              <div className="px-4 py-3 bg-muted/60">
                 <label className="block text-[9px] tracking-[2px] text-muted-foreground/60 mb-1.5">EMAIL</label>
                 <Input
                   type="email"
@@ -148,7 +148,7 @@ export default function AuthContainer() {
                   onKeyDown={(e) => e.key === "Enter" && sendCode()}
                   placeholder="you@example.com"
                   autoFocus
-                  className="border-0 bg-transparent px-0 font-mono text-[13px] h-auto focus-visible:ring-0"
+                  className="bg-transparent px-0 font-mono text-[13px] h-auto focus-visible:ring-0"
                 />
               </div>
             </div>
@@ -175,7 +175,7 @@ export default function AuthContainer() {
             </div>
             <div className="flex gap-2">
               {otpDigits.map((digit, i) => (
-                <div key={i} className="w-12 h-14 bg-muted border border-border flex items-center justify-center relative focus-within:border-foreground focus-within:border-2">
+                <div key={i} className="w-12 h-14 bg-muted/60 rounded-md flex items-center justify-center relative focus-within:ring-1 focus-within:ring-ring">
                   <span className="text-2xl font-medium text-foreground font-mono">{digit}</span>
                   <input
                     ref={(el) => { otpRefs.current[i] = el; }}
@@ -207,18 +207,18 @@ export default function AuthContainer() {
         {/* Signup */}
         {screen === "signup" && (
           <div className="flex flex-col gap-8">
-            <div className="border border-border rounded-lg overflow-hidden">
-              <div className="px-4 py-3 bg-muted border-b border-border">
+            <div className="rounded-lg overflow-hidden flex flex-col gap-px">
+              <div className="px-4 py-3 bg-muted/60">
                 <label className="block text-[9px] tracking-[2px] text-muted-foreground/60 mb-1.5">EMAIL</label>
-                <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoFocus className="border-0 bg-transparent px-0 font-mono text-[13px] h-auto focus-visible:ring-0" />
+                <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoFocus className="bg-transparent px-0 font-mono text-[13px] h-auto focus-visible:ring-0" />
               </div>
-              <div className="px-4 py-3 bg-muted border-b border-border">
+              <div className="px-4 py-3 bg-muted/60">
                 <label className="block text-[9px] tracking-[2px] text-muted-foreground/60 mb-1.5">PASSWORD</label>
-                <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="minimum 8 characters" className="border-0 bg-transparent px-0 font-mono text-[13px] h-auto focus-visible:ring-0" />
+                <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="minimum 8 characters" className="bg-transparent px-0 font-mono text-[13px] h-auto focus-visible:ring-0" />
               </div>
-              <div className="px-4 py-3 bg-muted">
+              <div className="px-4 py-3 bg-muted/60">
                 <label className="block text-[9px] tracking-[2px] text-muted-foreground/60 mb-1.5">CONFIRM PASSWORD</label>
-                <Input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} onKeyDown={(e) => e.key === "Enter" && createAccount()} placeholder="repeat password" className="border-0 bg-transparent px-0 font-mono text-[13px] h-auto focus-visible:ring-0" />
+                <Input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} onKeyDown={(e) => e.key === "Enter" && createAccount()} placeholder="repeat password" className="bg-transparent px-0 font-mono text-[13px] h-auto focus-visible:ring-0" />
               </div>
             </div>
             {confirmPassword && password !== confirmPassword && (

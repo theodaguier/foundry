@@ -49,6 +49,14 @@
   --color-ring: var(--ring);
   --color-success: var(--success);
   --color-warning: var(--warning);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -81,6 +89,14 @@
   --radius: 0.625rem;
   --success: oklch(0.723 0.191 142.5);
   --warning: oklch(0.75 0.183 55.9);
+  --sidebar: oklch(0.97 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
 }
 
 .dark {
@@ -105,6 +121,14 @@
   --ring: oklch(0.556 0 0);
   --success: oklch(0.76 0.2 142.5);
   --warning: oklch(0.88 0.18 90);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.922 0 0);
+  --sidebar-primary-foreground: oklch(0.205 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
 }
 
 @layer base {
@@ -195,4 +219,343 @@
 
 .animate-spin {
   animation: spin 1s linear infinite;
+}
+
+/* ── Premium card ── */
+.premium-card {
+  --glare-x: 50%;
+  --glare-y: 50%;
+  --glare-opacity: 0;
+  position: relative;
+  width: 360px;
+  aspect-ratio: 3 / 4;
+  border-radius: 16px;
+  overflow: hidden;
+  cursor: default;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.04), 0 8px 40px -12px rgba(0,0,0,0.12);
+}
+
+/* ── Gold variant — metallic gold surface ── */
+.premium-card--gold {
+  box-shadow:
+    0 0 0 1px rgba(160,130,50,0.3),
+    0 4px 20px -4px rgba(120,95,30,0.3),
+    0 20px 50px -12px rgba(80,60,15,0.25);
+}
+
+.premium-card--gold-bg {
+  background:
+    radial-gradient(ellipse 130% 60% at 30% 15%, rgba(255,245,210,0.25) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 50% at 75% 85%, rgba(180,145,50,0.15) 0%, transparent 50%),
+    linear-gradient(
+      165deg,
+      #d4b85c 0%,
+      #c8a94e 15%,
+      #b89840 30%,
+      #cdb055 50%,
+      #b8963e 70%,
+      #a88a38 85%,
+      #c4a84c 100%
+    );
+}
+
+/* Brushed metal texture — very fine diagonal grain */
+.premium-card--gold-bg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  opacity: 0.08;
+  background: repeating-linear-gradient(
+    155deg,
+    transparent,
+    transparent 1px,
+    rgba(255,255,255,0.15) 1px,
+    rgba(255,255,255,0.15) 2px
+  );
+  background-size: 3px 3px;
+  mix-blend-mode: overlay;
+}
+
+/* Gold glare — clean white specular, no blend mode */
+.premium-card-glare--gold {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 5;
+  opacity: var(--glare-opacity);
+  transition: opacity 0.35s cubic-bezier(0.23, 1, 0.32, 1);
+  background:
+    radial-gradient(
+      ellipse 30% 25% at var(--glare-x) var(--glare-y),
+      rgba(255, 255, 255, 0.3) 0%,
+      rgba(255, 255, 255, 0.05) 50%,
+      transparent 100%
+    );
+}
+
+/* Gold edge shimmer */
+.premium-card--gold::after {
+  background:
+    radial-gradient(
+      circle at var(--glare-x) var(--glare-y),
+      rgba(255, 255, 255, 0.12),
+      transparent 45%
+    );
+}
+
+/* ── Dark text on gold surface ── */
+.gold-surface-text {
+  color: #3d2e0a;
+}
+
+.gold-surface-text-dim {
+  color: #6b5520;
+}
+
+.gold-surface-text-faint {
+  color: rgba(61, 46, 10, 0.35);
+}
+
+/* ── Diamond variant — light blue iced surface ── */
+.premium-card--diamond {
+  box-shadow:
+    0 0 0 1px rgba(140,180,255,0.15),
+    0 4px 30px -4px rgba(80,120,200,0.2),
+    0 0 60px -15px rgba(100,160,255,0.1);
+}
+
+.premium-card--diamond-bg {
+  background:
+    radial-gradient(ellipse 130% 70% at 30% 15%, rgba(200,220,255,0.3) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 50% at 75% 85%, rgba(140,170,240,0.15) 0%, transparent 50%),
+    linear-gradient(
+      165deg,
+      #c8d8f5 0%,
+      #b8ccee 15%,
+      #a8bde6 30%,
+      #bccef0 50%,
+      #aec2e8 70%,
+      #9fb8e2 85%,
+      #b4c8ee 100%
+    );
+}
+
+/* Diamond texture — subtle diagonal facets */
+.premium-card--diamond-bg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  opacity: 0.06;
+  background:
+    repeating-linear-gradient(60deg, transparent, transparent 40px, rgba(255,255,255,0.2) 40px, rgba(255,255,255,0.2) 41px),
+    repeating-linear-gradient(-60deg, transparent, transparent 40px, rgba(255,255,255,0.2) 40px, rgba(255,255,255,0.2) 41px);
+  mix-blend-mode: overlay;
+}
+
+/* Diamond glare — clean white specular */
+.premium-card-glare--diamond {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 5;
+  opacity: var(--glare-opacity);
+  transition: opacity 0.35s cubic-bezier(0.23, 1, 0.32, 1);
+  background:
+    radial-gradient(
+      ellipse 30% 25% at var(--glare-x) var(--glare-y),
+      rgba(255, 255, 255, 0.35) 0%,
+      rgba(255, 255, 255, 0.06) 50%,
+      transparent 100%
+    );
+}
+
+/* Diamond edge shimmer */
+.premium-card--diamond::after {
+  background:
+    radial-gradient(
+      circle at var(--glare-x) var(--glare-y),
+      rgba(255, 255, 255, 0.15),
+      transparent 45%
+    );
+}
+
+/* ── Dark text on diamond surface ── */
+.diamond-text {
+  color: #1e2d50;
+}
+
+.diamond-text-dim {
+  color: #4a5e85;
+}
+
+.diamond-text-faint {
+  color: rgba(30, 45, 80, 0.25);
+}
+
+/* ── Ambassador variant — warm orange metallic surface ── */
+.premium-card--ambassador {
+  box-shadow:
+    0 0 0 1px rgba(247,89,0,0.2),
+    0 4px 20px -4px rgba(200,70,0,0.2),
+    0 20px 50px -12px rgba(160,50,0,0.15);
+}
+
+.premium-card--ambassador-bg {
+  background:
+    radial-gradient(ellipse 130% 60% at 30% 15%, rgba(255,180,120,0.15) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 50% at 75% 85%, rgba(200,60,0,0.1) 0%, transparent 50%),
+    linear-gradient(
+      165deg,
+      #f75900 0%,
+      #e45200 15%,
+      #d24b00 30%,
+      #f05500 50%,
+      #cc4800 70%,
+      #c04200 85%,
+      #e85000 100%
+    );
+}
+
+/* Fine grain texture — subtle, functional */
+.premium-card--ambassador-bg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  opacity: 0.05;
+  background: repeating-linear-gradient(
+    155deg,
+    transparent,
+    transparent 1px,
+    rgba(255,255,255,0.12) 1px,
+    rgba(255,255,255,0.12) 2px
+  );
+  background-size: 3px 3px;
+  mix-blend-mode: overlay;
+}
+
+/* Ambassador glare — restrained specular */
+.premium-card-glare--ambassador {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 5;
+  opacity: var(--glare-opacity);
+  transition: opacity 0.35s cubic-bezier(0.23, 1, 0.32, 1);
+  background:
+    radial-gradient(
+      ellipse 28% 22% at var(--glare-x) var(--glare-y),
+      rgba(255, 255, 255, 0.22) 0%,
+      rgba(255, 255, 255, 0.04) 50%,
+      transparent 100%
+    );
+}
+
+/* Ambassador edge shimmer */
+.premium-card--ambassador::after {
+  background:
+    radial-gradient(
+      circle at var(--glare-x) var(--glare-y),
+      rgba(255, 255, 255, 0.1),
+      transparent 45%
+    );
+}
+
+/* ── Dark text on ambassador surface ── */
+.ambassador-text {
+  color: #3a1500;
+}
+
+.ambassador-text-dim {
+  color: #5e2800;
+}
+
+.ambassador-text-faint {
+  color: rgba(58, 21, 0, 0.3);
+}
+
+/* Holographic glare — rainbow iridescence + specular highlight */
+.premium-card-glare {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 5;
+  opacity: var(--glare-opacity);
+  transition: opacity 0.5s cubic-bezier(0.23, 1, 0.32, 1);
+  background:
+    radial-gradient(
+      ellipse 60% 50% at var(--glare-x) var(--glare-y),
+      rgba(255, 255, 255, 0.22) 0%,
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 80% 70% at var(--glare-x) var(--glare-y),
+      rgba(120, 200, 255, 0.06) 0%,
+      rgba(200, 120, 255, 0.04) 30%,
+      rgba(255, 180, 120, 0.03) 60%,
+      transparent 80%
+    );
+  mix-blend-mode: overlay;
+}
+
+/* Edge shimmer — subtle border highlight that follows the cursor */
+.premium-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 6;
+  opacity: var(--glare-opacity);
+  transition: opacity 0.5s cubic-bezier(0.23, 1, 0.32, 1);
+  background:
+    radial-gradient(
+      circle at var(--glare-x) var(--glare-y),
+      rgba(255, 255, 255, 0.08),
+      transparent 50%
+    );
+  -webkit-mask-image: linear-gradient(black, black),
+    linear-gradient(black, black);
+  -webkit-mask-clip: content-box, border-box;
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  padding: 1px;
+}
+
+/* Stagger — elements cascade in on mount */
+@keyframes stagger-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.stagger-item {
+  opacity: 0;
+  animation: stagger-in 400ms cubic-bezier(0.23, 1, 0.32, 1) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stagger-item {
+    opacity: 1;
+    animation: none;
+  }
+  .premium-card {
+    box-shadow: 0 0 0 1px rgba(0,0,0,0.06);
+  }
+  .premium-card-glare,
+  .premium-card-glare--gold,
+  .premium-card::after {
+    display: none;
+  }
 }

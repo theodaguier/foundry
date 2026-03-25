@@ -21,6 +21,10 @@ export const signOut = () => invoke<void>("sign_out");
 export const checkSession = () => invoke<string | null>("check_session");
 export const getProfile = (userId: string) =>
   invoke<UserProfile | null>("get_profile", { userId });
+export const updateCardVariant = (userId: string, variant: string) =>
+  invoke<void>("update_card_variant", { userId, variant });
+export const assignCardVariantBatch = (emails: string[], variant: string) =>
+  invoke<number>("assign_card_variant_batch", { emails, variant });
 
 export const loadPlugins = () => invoke<Plugin[]>("load_plugins");
 export const deletePlugin = (id: string) => invoke<void>("delete_plugin", { id });

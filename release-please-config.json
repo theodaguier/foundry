@@ -7,9 +7,19 @@
       "bump-patch-for-minor-pre-major": true,
       "extra-files": [
         {
-          "type": "yaml",
-          "path": "project.yml",
-          "jsonpath": "$.targets.Foundry.settings.base.MARKETING_VERSION"
+          "type": "json",
+          "path": "package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "src-tauri/tauri.conf.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "toml",
+          "path": "src-tauri/Cargo.toml",
+          "jsonpath": "$.package.version"
         }
       ]
     }

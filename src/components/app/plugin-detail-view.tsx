@@ -1,47 +1,45 @@
-import { useState } from "react"
-import { useNavigate } from "react-router-dom"
+import { useAppStore } from "@/stores/app-store"
 import type { Plugin } from "@/lib/types"
 import { pluginTypeDisplayName } from "@/lib/utils"
 import { showInFinder } from "@/lib/commands"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
+import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
-import {
-  Dialog,
-  DialogContent,
-} from "@/components/ui/dialog"
 import {
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
 import { PluginArtworkView } from "@/components/app/plugin-artwork-view"
-import { InfoRow } from "@/components/app/info-row"
-import { VersionHistoryContent } from "@/components/app/version-history-view"
+import { VersionHistoryView } from "@/components/app/version-history-view"
+import { MoreHorizontal, FolderOpen } from "lucide-react"
 
 interface Props {
   plugin: Plugin
-  onDismiss: () => void
-  onDelete: () => void
-  onRename: () => void
-  onPluginUpdated?: (plugin: Plugin) => void
 }
 
-export function PluginDetailView({ plugin, onDismiss, onDelete, onRename, onPluginUpdated }: Props) {
-  const navigate = useNavigate()
-  const [showVersionHistory, setShowVersionHistory] = useState(false)
-
-  const typeFormats = `${pluginTypeDisplayName(plugin.type).toUpperCase()} · ${plugin.formats.join(" / ")}`
-
+export function PluginDetailView({ plugin }: Props) {
+  const setMainView = useAppStore((s) => s.setMainView)
+  const deletePlugin = useAppStore((s) => s.deletePlugin)
+  const loadPlugins = useAppStore((s) => s.loadPlugins)
   const openFinder = () => {
     const path = plugin.installPaths.vst3 || plugin.installPaths.au
     if (path) showInFinder(path)
   }
 
   const handleRefine = () => {
-    onDismiss()
-    navigate(`/refine/${plugin.id}`)
+    setMainView({ kind: "refine", pluginId: plugin.id })
+  }
+
+  const handleDelete = async () => {
+    await deletePlugin(plugin.id)
+    setMainView({ kind: "empty" })
+  }
+
+  const handlePluginUpdated = async () => {
+    await loadPlugins()
   }
 
   const createdDate = new Date(plugin.createdAt).toLocaleDateString("en-US", {
@@ -49,84 +47,159 @@ export function PluginDetailView({ plugin, onDismiss, onDelete, onRename, onPlug
   })
 
   return (
-    <Dialog open onOpenChange={(v) => { if (!v) onDismiss() }}>
-      <DialogContent className="max-w-[520px] p-0 gap-0 overflow-hidden" showCloseButton={false}>
-        {showVersionHistory ? (
-          <VersionHistoryContent
-            plugin={plugin}
-            onBack={() => setShowVersionHistory(false)}
-            onVersionRestored={onPluginUpdated}
-          />
-        ) : (
-          <>
-            <div className="h-[200px] relative overflow-hidden">
-              <PluginArtworkView plugin={plugin} />
-              <div className="absolute bottom-0 left-0 right-0 px-6 pb-5 pt-20 bg-gradient-to-t from-background via-background/50 to-transparent">
-                <span className="text-[9px] font-mono tracking-[1.2px] text-muted-foreground uppercase block">
-                  {typeFormats}
-                </span>
-                <h1 className="text-[32px] font-[ArchitypeStedelijk] tracking-[1px] text-foreground uppercase truncate leading-tight">
-                  {plugin.name}
-                </h1>
-              </div>
-              <Separator className="absolute bottom-0 left-0 right-0" />
-            </div>
+    <div className="h-full overflow-y-auto">
+      <div className="max-w-[600px] mx-auto px-6 pt-4 pb-6 flex flex-col gap-5">
 
-            <div className="bg-background">
-              <InfoRow label="PROMPT" value={plugin.prompt} />
-              <Separator />
-              <InfoRow label="CREATED" value={createdDate} />
-              {plugin.installPaths.au && (<><Separator /><InfoRow label="AU PATH" value={plugin.installPaths.au} /></>)}
-              {plugin.installPaths.vst3 && (<><Separator /><InfoRow label="VST3 PATH" value={plugin.installPaths.vst3} /></>)}
-              <Separator />
-            </div>
+        {/* Hero banner */}
+        <div className="relative h-[140px] rounded-xl overflow-hidden">
+          <PluginArtworkView plugin={plugin} />
+          <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/40 to-transparent" />
+          <div className="absolute top-3 right-3 flex items-center gap-1.5">
+            <Button
+              size="sm"
+              variant="secondary"
+              className="bg-background/80 backdrop-blur-sm text-xs h-7"
+              onClick={handleRefine}
+              disabled={!plugin.buildDirectory}
+            >
+              Refine
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button variant="ghost" size="icon" className="size-7 bg-background/80 backdrop-blur-sm">
+                    <MoreHorizontal className="size-3.5" />
+                  </Button>
+                }
+              />
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={openFinder}>
+                  Show in Finder
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleDelete} className="text-destructive">
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+          <div className="absolute bottom-3 left-4 right-4">
+            <span className="text-[10px] tracking-[1px] text-muted-foreground uppercase">
+              {pluginTypeDisplayName(plugin.type)} — {plugin.formats.join(" / ")}
+            </span>
+            <h1 className="text-2xl font-[ArchitypeStedelijk] tracking-[0.5px] text-foreground uppercase truncate leading-tight mt-0.5">
+              {plugin.name}
+            </h1>
+          </div>
+        </div>
 
-            {plugin.versions.length > 0 && (
-              <>
-                <button
-                  className="flex items-center w-full px-6 py-3 bg-background hover:bg-muted/50 transition-colors cursor-pointer text-left"
-                  onClick={() => setShowVersionHistory(true)}
-                >
-                  <span className="text-[9px] font-mono tracking-[1.2px] text-muted-foreground/60 uppercase">Version</span>
-                  <div className="flex-1" />
-                  <span className="text-[11px] font-mono text-muted-foreground">v{plugin.currentVersion}</span>
-                  <span className="text-muted-foreground/25 mx-1">·</span>
-                  <span className="text-[11px] font-mono text-muted-foreground/60">
-                    {plugin.versions.length} version{plugin.versions.length === 1 ? "" : "s"}
-                  </span>
-                  <svg className="w-3 h-3 ml-2 text-muted-foreground/40" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="4 3 8 6 4 9" />
-                  </svg>
-                </button>
-                <Separator />
-              </>
-            )}
-
-            <div className="flex items-center gap-3 px-6 py-4">
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  render={
-                    <button className="flex items-center gap-1.5 px-3 py-1.5 text-muted-foreground bg-muted border border-border rounded">
-                      <span className="text-[11px] font-medium">···</span>
-                      <span className="text-[9px] font-mono tracking-[1.2px] uppercase">Actions</span>
-                    </button>
-                  }
-                />
-                <DropdownMenuContent>
-                  <DropdownMenuItem onClick={openFinder}>Show in Finder</DropdownMenuItem>
-                  <DropdownMenuItem onClick={onRename}>Rename</DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleRefine} disabled={!plugin.buildDirectory}>Refine</DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={onDelete} className="text-destructive">Delete</DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-
-              <div className="flex-1" />
-              <Button size="lg" onClick={onDismiss}>Done</Button>
-            </div>
-          </>
+        {/* Prompt */}
+        {plugin.prompt && plugin.prompt !== "Restored — original prompt unavailable" && (
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            {plugin.prompt}
+          </p>
         )}
-      </DialogContent>
-    </Dialog>
+
+        {/* Details */}
+        <div className="flex flex-col gap-3">
+          <Label>Details</Label>
+          <Card size="sm">
+            <CardContent className="flex flex-col">
+              <div className="flex items-center justify-between py-2">
+                <span className="text-sm text-muted-foreground">Type</span>
+                <span className="text-sm">{pluginTypeDisplayName(plugin.type)}</span>
+              </div>
+              <Separator />
+              <div className="flex items-center justify-between py-2">
+                <span className="text-sm text-muted-foreground">Formats</span>
+                <span className="text-sm">{plugin.formats.join(", ")}</span>
+              </div>
+              <Separator />
+              <div className="flex items-center justify-between py-2">
+                <span className="text-sm text-muted-foreground">Created</span>
+                <span className="text-sm">{createdDate}</span>
+              </div>
+              {plugin.currentVersion > 0 && (
+                <>
+                  <Separator />
+                  <div className="flex items-center justify-between py-2">
+                    <span className="text-sm text-muted-foreground">Version</span>
+                    <span className="text-sm">v{plugin.currentVersion}</span>
+                  </div>
+                </>
+              )}
+              {plugin.agent && (
+                <>
+                  <Separator />
+                  <div className="flex items-center justify-between py-2">
+                    <span className="text-sm text-muted-foreground">Agent</span>
+                    <span className="text-sm">{plugin.agent}</span>
+                  </div>
+                </>
+              )}
+              {plugin.model && (
+                <>
+                  <Separator />
+                  <div className="flex items-center justify-between py-2">
+                    <span className="text-sm text-muted-foreground">Model</span>
+                    <span className="text-sm">{plugin.model.name}</span>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Version History */}
+        {plugin.versions.length > 0 && (
+          <VersionHistoryView plugin={plugin} onVersionRestored={handlePluginUpdated} />
+        )}
+
+        {/* Install Paths */}
+        {(plugin.installPaths.au || plugin.installPaths.vst3) && (
+          <div className="flex flex-col gap-3">
+            <Label>Install Paths</Label>
+            <Card size="sm">
+              <CardContent className="flex flex-col">
+                {plugin.installPaths.au && (
+                  <div className="flex items-center gap-3 py-2">
+                    <span className="text-sm text-muted-foreground shrink-0">AU</span>
+                    <span className="flex-1 text-xs font-mono text-muted-foreground/70 truncate">
+                      {plugin.installPaths.au}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-7 shrink-0"
+                      onClick={() => showInFinder(plugin.installPaths.au!)}
+                    >
+                      <FolderOpen className="size-3.5" />
+                    </Button>
+                  </div>
+                )}
+                {plugin.installPaths.au && plugin.installPaths.vst3 && <Separator />}
+                {plugin.installPaths.vst3 && (
+                  <div className="flex items-center gap-3 py-2">
+                    <span className="text-sm text-muted-foreground shrink-0">VST3</span>
+                    <span className="flex-1 text-xs font-mono text-muted-foreground/70 truncate">
+                      {plugin.installPaths.vst3}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-7 shrink-0"
+                      onClick={() => showInFinder(plugin.installPaths.vst3!)}
+                    >
+                      <FolderOpen className="size-3.5" />
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+      </div>
+
+    </div>
   )
 }

@@ -1,6 +1,12 @@
 import type { PluginFilter } from "@/lib/types"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 
-const tabs: PluginFilter[] = ["ALL", "INSTRUMENTS", "EFFECTS", "UTILITIES"]
+const tabs: { filter: PluginFilter; label: string }[] = [
+  { filter: "ALL", label: "All" },
+  { filter: "INSTRUMENTS", label: "Inst" },
+  { filter: "EFFECTS", label: "FX" },
+  { filter: "UTILITIES", label: "Util" },
+]
 
 interface Props {
   activeFilter: PluginFilter
@@ -9,28 +15,26 @@ interface Props {
 
 export function FilterTabBar({ activeFilter, onTap }: Props) {
   return (
-    <div className="flex items-center h-full">
-      {tabs.map((tab, i) => (
-        <button
-          key={tab}
-          onClick={() => onTap(tab)}
-          className="flex flex-col items-center justify-center h-full relative"
-          style={{ marginLeft: i === 0 ? 0 : 24 }}
+    <ToggleGroup
+      value={[activeFilter]}
+      onValueChange={(value) => {
+        // Keep single-select behavior: use the last pressed value
+        const next = value.filter((v) => v !== activeFilter)
+        if (next.length > 0) onTap(next[0] as PluginFilter)
+      }}
+      variant="default"
+      size="sm"
+      className="w-full"
+    >
+      {tabs.map((tab) => (
+        <ToggleGroupItem
+          key={tab.filter}
+          value={tab.filter}
+          className="flex-1 text-[10px] font-mono tracking-[0.5px]"
         >
-          <span
-            className={`px-3 text-[11px] tracking-[0.5px] font-mono transition-colors ${
-              activeFilter === tab
-                ? "text-foreground"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {tab}
-          </span>
-          <div
-            className={`absolute bottom-0 left-0 right-0 h-[2px] ${activeFilter === tab ? "bg-primary" : "bg-transparent"}`}
-          />
-        </button>
+          {tab.label}
+        </ToggleGroupItem>
       ))}
-    </div>
+    </ToggleGroup>
   )
 }
