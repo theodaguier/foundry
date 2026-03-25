@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.18.0](https://github.com/theodaguier/foundry/compare/v1.17.0...v1.18.0) (2026-03-25)
+
+
+### Features
+
+* trigger desktop release flow ([61372cc](https://github.com/theodaguier/foundry/commit/61372ccf97b4a1ed4f59cf0393964c1fe11fb1a7))
+
 ## [1.17.0](https://github.com/theodaguier/foundry/compare/v1.16.0...v1.17.0) (2026-03-25)
 
 
