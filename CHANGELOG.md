@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.17.0](https://github.com/theodaguier/foundry/compare/v1.16.0...v1.17.0) (2026-03-25)
+
+
+### Features
+
+* redesign navigation with sidebar layout, sync app version with release-please ([#66](https://github.com/theodaguier/foundry/issues/66)) ([3f0d878](https://github.com/theodaguier/foundry/commit/3f0d8783106688ec1d8917a5a98f0e279c9e85a1))
+
 ## [1.16.0](https://github.com/theodaguier/foundry/compare/v1.15.0...v1.16.0) (2026-03-24)
 
 
