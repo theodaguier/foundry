@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.23.0](https://github.com/theodaguier/foundry/compare/v1.22.0...v1.23.0) (2026-03-26)
+
+
+### Features
+
+* **foundry-kit:** art-director — add MANDATORY EDITOR REQUIREMENTS section with exact code examples for the 3 validation rules ([bef8f55](https://github.com/theodaguier/foundry/commit/bef8f55a455c85121e546b1fc9c76279dd094a2c))
+
 ## [1.22.0](https://github.com/theodaguier/foundry/compare/v1.21.0...v1.22.0) (2026-03-26)
 
 
