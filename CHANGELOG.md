@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.24.6](https://github.com/theodaguier/foundry/compare/v1.24.5...v1.24.6) (2026-03-26)
+
+
+### Bug Fixes
+
+* **pipeline:** restore missing r#\" raw string delimiters in format! macros ([6fa152c](https://github.com/theodaguier/foundry/commit/6fa152c3ea78604fea289b4f36ef26c64dc19e38))
+
 ## [1.24.5](https://github.com/theodaguier/foundry/compare/v1.24.4...v1.24.5) (2026-03-26)
 
 
