@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.24.4](https://github.com/theodaguier/foundry/compare/v1.24.3...v1.24.4) (2026-03-26)
+
+
+### Bug Fixes
+
+* **pipeline:** remove foundry-kit Read instructions — skills already inlined in CLAUDE.md ([7879f21](https://github.com/theodaguier/foundry/commit/7879f2141ec399974669991972f325677ee80ef4))
+
 ## [1.24.3](https://github.com/theodaguier/foundry/compare/v1.24.2...v1.24.3) (2026-03-26)
 
 
