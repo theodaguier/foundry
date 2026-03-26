@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.24.7](https://github.com/theodaguier/foundry/compare/v1.24.6...v1.24.7) (2026-03-26)
+
+
+### Bug Fixes
+
+* **updater:** rotate Tauri signing key ([d626f69](https://github.com/theodaguier/foundry/commit/d626f69965082b29ed75e6c525fee34043327c53))
+
 ## [1.24.6](https://github.com/theodaguier/foundry/compare/v1.24.5...v1.24.6) (2026-03-26)
 
 
