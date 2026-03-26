@@ -1726,7 +1726,6 @@ fn build_fast_processor_prompt(
     let debug_context_section = render_debug_context_section(debug_context);
 
     format!(
-        r#"Before writing any code, read `foundry-kit/SKILL.md`, `foundry-kit/skills/sound-engineer/SKILL.md`, and `foundry-kit/skills/juce-expert/SKILL.md`.
 
 Build the DSP foundation for a JUCE {role} plugin called "{name}".
 
@@ -1746,7 +1745,6 @@ Creative targets:
 - Contrast detail: {contrast_detail}
 
 Rules:
-- Start with one short sentence, then load the required Foundry Kit skills, then write both files immediately.
 - Implement APVTS parameters and a real processBlock path.
 - No dead controls.
 - Make the default state obviously useful and audible.
@@ -1819,7 +1817,6 @@ fn build_fast_ui_prompt(
     let debug_context_section = render_debug_context_section(debug_context);
 
     format!(
-        r#"Before writing any code, read `foundry-kit/SKILL.md`, `foundry-kit/skills/art-director/SKILL.md`, and `foundry-kit/skills/juce-expert/SKILL.md`.
 
 Complete the UI for the existing JUCE {role} plugin "{name}".
 
@@ -1848,7 +1845,6 @@ Creative targets:
 - Anti-template warning: {anti_template_warning}
 
 Rules:
-- Start with one short sentence, then load the required Foundry Kit skills, then write the three files immediately.
 - Every visible control must map to a real parameter with an APVTS attachment.
 - Use FoundryLookAndFeel in the editor.
 - Avoid a flat row of generic knobs; create one hero interaction zone.
@@ -1910,7 +1906,6 @@ fn build_emergency_ui_prompt(
     let debug_context_section = render_debug_context_section(debug_context);
 
     format!(
-        r#"Before writing any code, read `foundry-kit/SKILL.md`, `foundry-kit/skills/art-director/SKILL.md`, and `foundry-kit/skills/juce-expert/SKILL.md`.
 
 Emergency UI pass for JUCE plugin "{name}".
 {debug_context_section}
@@ -1934,7 +1929,6 @@ UI direction:
 
 Rules:
 - One short sentence, then write files immediately.
-- First load the required Foundry Kit skills. After that, do not read any project source files.
 - No analysis.
 - No explanation after writing.
 - Use FoundryLookAndFeel.
@@ -1973,7 +1967,6 @@ fn build_debug_retry_plan_prompt(
     let debug_context_section = render_debug_context_section(Some(debug_context));
 
     format!(
-        r#"Before writing any code, read `foundry-kit/SKILL.md`.
 
 Debug retry for JUCE {role} plugin "{name}".
 
@@ -3085,7 +3078,6 @@ fn build_ui_recovery_prompt(
     let debug_context_section = render_debug_context_section(debug_context);
 
     format!(
-        r#"Before writing any code, read `foundry-kit/SKILL.md`, `foundry-kit/skills/art-director/SKILL.md`, and `foundry-kit/skills/juce-expert/SKILL.md`.
 
 Rebuild the UI for an existing JUCE {role} plugin called "{name}".
 
@@ -3190,7 +3182,6 @@ fn build_generation_repair_prompt(
     let debug_context_section = render_debug_context_section(debug_context);
 
     format!(
-        r#"Before writing any code, read `foundry-kit/SKILL.md` and `foundry-kit/skills/juce-expert/SKILL.md`.
 
 Repair an incomplete or inconsistent JUCE {role} plugin called "{name}".
 
@@ -3544,12 +3535,9 @@ mod tests {
             None,
         );
 
-        assert!(processor.contains("foundry-kit/SKILL.md"));
-        assert!(processor.contains("sound-engineer/SKILL.md"));
-        assert!(processor.contains("juce-expert/SKILL.md"));
-        assert!(ui.contains("foundry-kit/SKILL.md"));
-        assert!(ui.contains("art-director/SKILL.md"));
-        assert!(ui.contains("juce-expert/SKILL.md"));
+        // Skills are inlined into CLAUDE.md via include_str!() — no Read instructions needed
+        assert!(!processor.contains("Before writing any code, read `foundry-kit"));
+        assert!(!ui.contains("Before writing any code, read `foundry-kit"));
     }
 
     #[test]
