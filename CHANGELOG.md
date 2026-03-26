@@ -3,6 +3,14 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.24.0](https://github.com/theodaguier/foundry/compare/v1.23.0...v1.24.0) (2026-03-26)
+
+
+### Features
+
+* switch generation pipeline to foundry-kit skills ([b054f04](https://github.com/theodaguier/foundry/commit/b054f047038a424ccb750878403af7401aedb2d9))
+* switch generation pipeline to foundry-kit skills ([25937a4](https://github.com/theodaguier/foundry/commit/25937a4e4047d3dcf4174778c8d4287b588af909))
+
 ## [1.23.0](https://github.com/theodaguier/foundry/compare/v1.22.0...v1.23.0) (2026-03-26)
 
 
