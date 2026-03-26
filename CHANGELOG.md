@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.22.0](https://github.com/theodaguier/foundry/compare/v1.21.0...v1.22.0) (2026-03-26)
+
+
+### Features
+
+* **foundry-kit:** juce-expert — add Phase Discipline section to prevent DSP pass timeout errors ([1879174](https://github.com/theodaguier/foundry/commit/18791747c2dc3ee49944039fa6d330e3a041375c))
+
 ## [1.21.0](https://github.com/theodaguier/foundry/compare/v1.20.0...v1.21.0) (2026-03-26)
 
 
