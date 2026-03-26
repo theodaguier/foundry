@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.24.8](https://github.com/theodaguier/foundry/compare/v1.24.7...v1.24.8) (2026-03-26)
+
+
+### Bug Fixes
+
+* **ci:** export TAURI_SIGNING_PRIVATE_KEY correctly and prevent macOS codesign retry on cert failure ([4c36f67](https://github.com/theodaguier/foundry/commit/4c36f6735a3495bef42442f50184e700a4c6b08d))
+
 ## [1.24.7](https://github.com/theodaguier/foundry/compare/v1.24.6...v1.24.7) (2026-03-26)
 
 
