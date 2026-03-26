@@ -511,7 +511,7 @@ Build a JUCE {role} plugin: {prompt}
 ## Phase Rules
 - The orchestration prompt is phase-aware and authoritative.
 - Processor phase: create only PluginProcessor.h and PluginProcessor.cpp. Write immediately.
-- UI phase: create only FoundryLookAndFeel.h, PluginEditor.h, PluginEditor.cpp. Write immediately.
+- UI phase: Source/PluginEditor.h and Source/PluginEditor.cpp skeletons already exist with correct setSize/getLocalBounds structure. Overwrite them with full implementations. Also write FoundryLookAndFeel.h.
 - Do not plan or explain before writing. First tool call must be Write.
 - Stop when the requested phase is complete.
 
@@ -598,7 +598,7 @@ Build a JUCE {role} plugin: {prompt}
 ## Phase Rules
 - The orchestration prompt is phase-aware and authoritative.
 - Processor phase: create only PluginProcessor.h and PluginProcessor.cpp. Write immediately.
-- UI phase: create only FoundryLookAndFeel.h, PluginEditor.h, PluginEditor.cpp. Write immediately.
+- UI phase: Source/PluginEditor.h and Source/PluginEditor.cpp skeletons already exist with correct setSize/getLocalBounds structure. Overwrite them with full implementations. Also write FoundryLookAndFeel.h.
 - Do not plan or explain before writing. First tool call must be Write.
 - Stop when the requested phase is complete.
 
