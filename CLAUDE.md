@@ -344,6 +344,47 @@ Codex CLI is optional — its absence does not block the build environment.
 | `profiles`             | `id` (user_id), `email`, `onboarding_completed_at`, `card_variant` |
 | `generation_telemetry` | All `TelemetryRow` fields — one row per generate/refine run        |
 
+## CI/CD — Desktop Release Workflow
+
+The release pipeline is in `.github/workflows/desktop-release.yml`. It builds macOS (Apple Silicon + Intel) and Windows artifacts, signs them, and uploads to the GitHub Release.
+
+### Triggering a release
+
+Releases are managed by **release-please**. On every push to `main`, release-please maintains an auto-updating PR (`chore(main): release X.Y.Z`). Merging that PR:
+1. Bumps versions in `tauri.conf.json`, `Cargo.toml`, etc.
+2. Creates a GitHub Release + tag (`vX.Y.Z`)
+3. Triggers the `Desktop Release` workflow automatically
+
+You can also trigger it manually via `gh workflow run desktop-release.yml --field release_tag=vX.Y.Z`.
+
+### GitHub Actions Secrets required
+
+| Secret | Description |
+|--------|-------------|
+| `TAURI_SIGNING_PRIVATE_KEY` | Base64-encoded private key output from `tauri signer generate` (the full blob, not the decoded content) |
+| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | Password chosen during `tauri signer generate` (leave empty if no password was set) |
+| `APPLE_CERTIFICATE` | Base64-encoded `.p12` Apple Developer certificate |
+| `APPLE_CERTIFICATE_PASSWORD` | Password for the `.p12` file |
+| `KEYCHAIN_PASSWORD` | Any string — used as the temporary macOS keychain password on the runner |
+| `WINDOWS_CERTIFICATE` | Base64-encoded `.pfx` Windows code signing certificate |
+| `WINDOWS_CERTIFICATE_PASSWORD` | Password for the `.pfx` file |
+
+macOS and Windows code signing are **optional** — if the certificate import fails, the workflow emits a warning and continues with unsigned artifacts.
+
+### Rotating the updater signing key
+
+1. Run `tauri signer generate` and set a password
+2. Update `TAURI_SIGNING_PRIVATE_KEY` in GitHub Secrets with the **Private** base64 blob
+3. Update `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` with the password
+4. Update `plugins.updater.pubkey` in `src-tauri/tauri.conf.json` with the **Public** base64 blob (the raw base64 output, NOT the decoded `untrusted comment: ...` text)
+
+> ⚠️ Changing the pubkey breaks auto-update for users on the previous key — they will need to manually download the new version.
+
+### Workflow internals
+
+- `scripts/prepare-tauri-signing-key.mjs` — validates and normalizes `RAW_TAURI_SIGNING_PRIVATE_KEY`, writes the base64 key to a temp file, then exports it as `TAURI_SIGNING_PRIVATE_KEY` (the env var Tauri reads during bundling)
+- The workflow checks out the **release tag**, not `main` — fixes to CI only take effect starting with the next tag after the fix lands on `main`
+
 ## Known Issues / Open Items
 
 - Smoke test only checks bundle existence (`.component`/`.vst3`), not audio validity
