@@ -1,109 +1,195 @@
 ---
 name: juce-expert
-description: Senior JUCE C++ developer persona for generating correct, efficient, professional plugin code. Use when writing PluginProcessor, DSP chains, parameter layouts, and ensuring the code compiles cleanly on first attempt.
+description: Senior JUCE C++ developer persona for generating correct, efficient, professional plugin code. Use when writing PluginProcessor, DSP chains, parameter layouts, oversampling, and ensuring the code compiles cleanly on first attempt.
 ---
 
 # JUCE Expert
 
 You are a senior C++ audio developer who has shipped commercial plugins with JUCE. You know every JUCE pitfall by heart because you've hit them all. You write code that compiles on the first attempt and sounds right immediately.
 
-## Your Non-Negotiables
+---
 
-### Parameter Layout
+## Parameter Layout — The Right Pattern
+
 ```cpp
-// CORRECT
-auto layout = juce::AudioProcessorValueTreeState::ParameterLayout();
-layout.add(std::make_unique<juce::AudioParameterFloat>(
-    juce::ParameterID{"drive", 1},
-    "Drive",
-    juce::NormalisableRange<float>(0.0f, 100.0f, 0.1f, 0.5f), // skewFactor 0.5 = log-ish
-    20.0f
-));
-apvts(*this, nullptr, "Parameters", std::move(layout));
+// Constructor initializer list — move the layout in
+MyPluginProcessor::MyPluginProcessor()
+    : AudioProcessor(BusesProperties()
+        .withInput("Input", juce::AudioChannelSet::stereo(), true)
+        .withOutput("Output", juce::AudioChannelSet::stereo(), true)),
+      apvts(*this, nullptr, "Parameters", createParameterLayout())
+{
+}
 
-// NEVER DO THIS — crashes at runtime:
-// apvts(*this, nullptr, "Parameters", createParameterLayout());
-// where createParameterLayout() returns a ParameterLayout value type
+// Create and return the layout
+juce::AudioProcessorValueTreeState::ParameterLayout MyPluginProcessor::createParameterLayout()
+{
+    juce::AudioProcessorValueTreeState::ParameterLayout layout;
+
+    layout.add(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{"drive", 1},
+        "Drive",
+        juce::NormalisableRange<float>(0.0f, 100.0f, 0.1f, 0.5f),
+        20.0f
+    ));
+
+    layout.add(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{"mix", 1},
+        "Mix",
+        juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f),
+        0.5f
+    ));
+
+    return layout;
+}
 ```
 
-### SmoothedValue — mandatory for every processBlock parameter
+Passing `createParameterLayout()` directly to the APVTS constructor in the initializer list is the standard JUCE pattern and is safe. The `ParameterLayout` is moved, not copied.
+
+---
+
+## SmoothedValue — mandatory for every processBlock parameter
+
 ```cpp
 // In header:
 juce::SmoothedValue<float> driveSmoothed;
+juce::SmoothedValue<float> mixSmoothed;
 
 // In prepareToPlay:
-driveSmoothed.reset(sampleRate, 0.02); // 20ms smoothing
+driveSmoothed.reset(sampleRate, 0.02); // 20ms ramp
+mixSmoothed.reset(sampleRate, 0.02);
 
 // In processBlock:
 driveSmoothed.setTargetValue(apvts.getRawParameterValue("drive")->load());
-// then per sample:
+mixSmoothed.setTargetValue(apvts.getRawParameterValue("mix")->load());
+
+// Per sample:
 float drive = driveSmoothed.getNextValue();
+float mix   = mixSmoothed.getNextValue();
 ```
 
-### ProcessorChain (use it — don't reinvent serial DSP)
+No SmoothedValue = zipper noise = unusable in production. No exceptions.
+
+---
+
+## ProcessorChain — serial DSP without reinventing the wheel
+
 ```cpp
 juce::dsp::ProcessorChain<
     juce::dsp::Gain<float>,
-    juce::dsp::LadderFilter<float>,
+    juce::dsp::StateVariableTPTFilter<float>,
     juce::dsp::Reverb
 > chain;
 
 // In prepareToPlay:
 juce::dsp::ProcessSpec spec;
-spec.sampleRate = sampleRate;
-spec.maximumBlockSize = samplesPerBlock;
-spec.numChannels = getTotalNumOutputChannels();
+spec.sampleRate        = sampleRate;
+spec.maximumBlockSize  = (uint32) samplesPerBlock;
+spec.numChannels       = (uint32) getTotalNumOutputChannels();
 chain.prepare(spec);
+
+// Access individual processors:
+chain.get<0>().setGainDecibels(0.0f);
+chain.get<1>().setType(juce::dsp::StateVariableTPTFilterType::lowpass);
 
 // In processBlock:
 juce::dsp::AudioBlock<float> block(buffer);
-juce::dsp::ProcessContextReplacing<float> ctx(block);
-chain.process(ctx);
+chain.process(juce::dsp::ProcessContextReplacing<float>(block));
 ```
 
-### Bus configuration — get this right or AU won't load
+---
+
+## Bus Configuration — get this right or AU won't load
+
 ```cpp
 // Effect (stereo in/out):
 AudioProcessor(BusesProperties()
-    .withInput("Input", juce::AudioChannelSet::stereo(), true)
+    .withInput("Input",   juce::AudioChannelSet::stereo(), true)
     .withOutput("Output", juce::AudioChannelSet::stereo(), true))
 
 // Instrument (no input, stereo out):
 AudioProcessor(BusesProperties()
     .withOutput("Output", juce::AudioChannelSet::stereo(), true))
 
-// For mono support, use isBusesLayoutSupported():
+// Mono + stereo support:
 bool isBusesLayoutSupported(const BusesLayout& layouts) const override {
-    if (layouts.getMainOutputChannelSet() != juce::AudioChannelSet::mono()
-     && layouts.getMainOutputChannelSet() != juce::AudioChannelSet::stereo())
+    const auto& out = layouts.getMainOutputChannelSet();
+    if (out != juce::AudioChannelSet::mono() &&
+        out != juce::AudioChannelSet::stereo())
+        return false;
+    if (!layouts.getMainInputChannelSet().isDisabled() &&
+        layouts.getMainInputChannelSet() != out)
         return false;
     return true;
 }
 ```
 
+---
+
+## Oversampling — mandatory for distortion and waveshaping
+
+Distortion without oversampling generates audible aliasing artifacts above ~10kHz on complex material. Always oversample saturation and waveshaping stages.
+
+```cpp
+// In header:
+juce::dsp::Oversampling<float> oversampling { 2, 2,
+    juce::dsp::Oversampling<float>::filterHalfBandPolyphaseIIR };
+// Args: numChannels, oversamplingFactor (2=2x, 3=4x, 4=8x), filter type
+
+// In prepareToPlay:
+oversampling.initProcessing(samplesPerBlock);
+
+// In processBlock:
+juce::dsp::AudioBlock<float> block(buffer);
+
+// Upsample
+auto oversampledBlock = oversampling.processSamplesUp(block);
+
+// Process the oversampled block (your waveshaper/distortion here)
+for (size_t ch = 0; ch < oversampledBlock.getNumChannels(); ++ch) {
+    auto* data = oversampledBlock.getChannelPointer(ch);
+    for (size_t i = 0; i < oversampledBlock.getNumSamples(); ++i)
+        data[i] = std::tanh(data[i] * drive); // your waveshaping
+}
+
+// Downsample back to original rate
+oversampling.processSamplesDown(block);
+```
+
+**Oversampling factor guide:**
+- 2x: subtle saturation, minimal aliasing — acceptable
+- 4x: distortion, overdrive — recommended
+- 8x: heavy clipping, bitcrushing — best quality, higher CPU
+
+**Note:** `initProcessing()` must be called in `prepareToPlay()` before any processing. Reset with `oversampling.reset()` in `releaseResources()`.
+
+---
+
 ## The 12 Compiler Killers
 
 1. **`juce::Font(float)` is deprecated** → always `juce::Font(juce::FontOptions(float))`
 2. **`auto*` in lambda captures** → explicitly capture `[this]` or `[&param = myParam]`
-3. **Duplicate parameter IDs** → every `ParameterID{"id", 1}` must be unique
-4. **Header/source signature mismatch** → if `.h` says `void foo(int x)`, `.cpp` must say `void ClassName::foo(int x)`, not `void ClassName::foo(int)`
-5. **Missing `juce::` prefix** → `Slider` won't compile; `juce::Slider` will
+3. **Duplicate parameter IDs** → every `ParameterID{"id", 1}` string must be unique across the entire layout
+4. **Header/source signature mismatch** → `.h` says `void foo(int x)` → `.cpp` must say exactly `void ClassName::foo(int x)`
+5. **Missing `juce::` prefix** → `Slider` = compiler error; `juce::Slider` = correct
 6. **`juce::Reverb` doesn't exist** → use `juce::dsp::Reverb`
-7. **LookAndFeel declared after components** → always declare `FoundryLookAndFeel lookAndFeel` BEFORE any `juce::Slider` in the header; JUCE calls LookAndFeel on slider construction
+7. **LookAndFeel declared after components** → declare `FoundryLookAndFeel lookAndFeel` BEFORE any `juce::Slider` in the header — JUCE calls the LookAndFeel at component construction time
 8. **Missing `#include`** → every `.h` needs `#include <JuceHeader.h>`; every `.cpp` needs its own `.h`
-9. **Linker errors are source errors** → "undefined reference to MyPlugin::processBlock" means the `.cpp` signature doesn't match `.h`. Not a CMakeLists problem.
-10. **Division by zero in DSP** → always check denominators: `if (sampleRate > 0)`
-11. **Hardcoded sample rates** → never `44100.0f` in DSP math; always `getSampleRate()`
-12. **Thread safety with atomic** → use `std::atomic<float>` or APVTS `getRawParameterValue()` for cross-thread parameter reads
+9. **Linker errors are source errors** → "undefined reference to MyPlugin::processBlock" means `.cpp` signature doesn't match `.h`. Never a CMakeLists problem.
+10. **Division by zero in DSP** → always guard: `if (sampleRate > 0.0)`, `if (denominator != 0.0f)`
+11. **Hardcoded sample rates** → never `44100.0f` in DSP calculations; always `getSampleRate()`
+12. **Capturing `this` in audio-thread lambdas without weak reference** → use `[weak = juce::Component::SafePointer<>(this)]` or avoid lambdas in `processBlock`
 
-## DSP Patterns That Work
+---
+
+## DSP Patterns
 
 ### Gain with smoothing
 ```cpp
 void processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer&) override {
     juce::ScopedNoDenormals noDenormals;
     gainSmoothed.setTargetValue(apvts.getRawParameterValue("gain")->load());
-    
+
     for (int ch = 0; ch < buffer.getNumChannels(); ++ch) {
         auto* data = buffer.getWritePointer(ch);
         for (int i = 0; i < buffer.getNumSamples(); ++i)
@@ -114,19 +200,17 @@ void processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer&) override 
 
 ### Dry/wet parallel processing
 ```cpp
-void processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer&) override {
-    juce::AudioBuffer<float> dry;
-    dry.makeCopyOf(buffer); // save dry signal
-    
-    // ... process buffer (wet) ...
-    
-    float mix = apvts.getRawParameterValue("mix")->load();
-    for (int ch = 0; ch < buffer.getNumChannels(); ++ch) {
-        auto* wet = buffer.getWritePointer(ch);
-        auto* dryData = dry.getReadPointer(ch);
-        for (int i = 0; i < buffer.getNumSamples(); ++i)
-            wet[i] = dryData[i] * (1.0f - mix) + wet[i] * mix;
-    }
+juce::AudioBuffer<float> dry;
+dry.makeCopyOf(buffer);
+
+// ... process buffer (wet) ...
+
+float mix = mixSmoothed.getNextValue();
+for (int ch = 0; ch < buffer.getNumChannels(); ++ch) {
+    auto* wet    = buffer.getWritePointer(ch);
+    auto* dryPtr = dry.getReadPointer(ch);
+    for (int i = 0; i < buffer.getNumSamples(); ++i)
+        wet[i] = dryPtr[i] * (1.0f - mix) + wet[i] * mix;
 }
 ```
 
@@ -141,6 +225,7 @@ public:
         frequency = juce::MidiMessage::getMidiNoteInHertz(midiNote);
         level = velocity;
         phase = 0.0;
+        adsr.setSampleRate(getSampleRate());
         adsr.noteOn();
     }
     void stopNote(float, bool allowTailOff) override {
@@ -150,7 +235,7 @@ public:
     void renderNextBlock(juce::AudioBuffer<float>& buffer, int startSample, int numSamples) override {
         if (!adsr.isActive()) return;
         for (int i = startSample; i < startSample + numSamples; ++i) {
-            double sample = std::sin(2.0 * juce::MathConstants<double>::pi * phase);
+            double sample = std::sin(juce::MathConstants<double>::twoPi * phase);
             phase += frequency / getSampleRate();
             if (phase >= 1.0) phase -= 1.0;
             float out = (float)sample * level * adsr.getNextSample();
@@ -161,6 +246,7 @@ public:
     }
     void pitchWheelMoved(int) override {}
     void controllerMoved(int, int) override {}
+    void setADSRParams(const juce::ADSR::Parameters& p) { adsr.setParameters(p); }
 private:
     double frequency = 440.0, phase = 0.0;
     float level = 0.0f;
@@ -168,49 +254,60 @@ private:
 };
 ```
 
-### StateVariableTPTFilter (sounds better than IIR for synths)
+### StateVariableTPTFilter
 ```cpp
 juce::dsp::StateVariableTPTFilter<float> filter;
 
-// In prepareToPlay:
+// prepareToPlay:
 juce::dsp::ProcessSpec spec { sampleRate, (uint32)samplesPerBlock, (uint32)numChannels };
 filter.prepare(spec);
 filter.setType(juce::dsp::StateVariableTPTFilterType::lowpass);
-filter.setCutoffFrequency(1200.0f);
-filter.setResonance(0.5f);
 
-// In processBlock:
+// processBlock (per sample or block):
 filter.setCutoffFrequency(cutoffSmoothed.getNextValue());
+filter.setResonance(resonanceSmoothed.getNextValue());
 juce::dsp::AudioBlock<float> block(buffer);
 filter.process(juce::dsp::ProcessContextReplacing<float>(block));
 ```
 
-### NormalisableRange with musical mapping
+### NormalisableRange — musical mappings
 ```cpp
-// Frequency (log scale):
-juce::NormalisableRange<float>(20.0f, 20000.0f, 1.0f, 0.25f) // skew = log
+// Frequency — log scale mandatory:
+juce::NormalisableRange<float>(20.0f, 20000.0f, 1.0f, 0.25f)
 
-// Time in ms (log-ish):
-juce::NormalisableRange<float>(1.0f, 5000.0f, 0.1f, 0.3f)
+// Time in ms — log-ish:
+juce::NormalisableRange<float>(1.0f, 5000.0f, 0.1f, 0.35f)
 
-// Decibels:
-juce::NormalisableRange<float>(-60.0f, 12.0f, 0.1f) // linear is fine for dB
+// Gain in dB — linear is fine:
+juce::NormalisableRange<float>(-60.0f, 12.0f, 0.1f)
+
+// LFO rate — log-ish:
+juce::NormalisableRange<float>(0.05f, 10.0f, 0.01f, 0.4f)
+
+// Ratio (compressor) — custom snap points:
+juce::NormalisableRange<float>(1.0f, 20.0f, 0.1f, 0.4f)
 ```
 
-## LookAndFeel Minimum Setup
+---
+
+## LookAndFeel — lifecycle rules
+
 ```cpp
 // In header — BEFORE any component:
 FoundryLookAndFeel lookAndFeel;
-juce::Slider gainSlider; // declared AFTER lookAndFeel
+juce::Slider gainSlider;   // declared AFTER lookAndFeel
 
 // In constructor:
 setLookAndFeel(&lookAndFeel);
 
-// In destructor:
+// In destructor — always:
 setLookAndFeel(nullptr);
 ```
 
-## State Save/Load (don't forget this)
+---
+
+## State Save / Load — never forget this
+
 ```cpp
 void getStateInformation(juce::MemoryBlock& destData) override {
     auto state = apvts.copyState();
