@@ -403,6 +403,14 @@ fn write_claude_md(
         _ => "audio effect",
     };
 
+    // Foundry Kit skills are inlined directly so Claude receives them in context
+    // without any Read calls. Read is disallowed in generate phases to prevent
+    // wasted turns, so file references would be silently ignored anyway.
+    let sound_engineer = include_str!("../../../foundry-kit/skills/sound-engineer/SKILL.md");
+    let juce_expert    = include_str!("../../../foundry-kit/skills/juce-expert/SKILL.md");
+    let art_director   = include_str!("../../../foundry-kit/skills/art-director/SKILL.md");
+    let beatmaker      = include_str!("../../../foundry-kit/skills/beatmaker/SKILL.md");
+
     let content = format!(
         r#"# {name} — JUCE Plugin
 
@@ -425,43 +433,34 @@ Build a JUCE {role} plugin: {prompt}
 - Source/PluginEditor.cpp
 - Source/FoundryLookAndFeel.h
 
-## Foundry Kit
-You have access to the Foundry Kit — four expert agent skills that define the quality standard for this plugin:
-- `foundry-kit/SKILL.md` — Master skill, quality standard, phase guidance
-- `foundry-kit/skills/sound-engineer/SKILL.md` — Musical DSP, defaults, effect knowledge
-- `foundry-kit/skills/beatmaker/SKILL.md` — Presets, producer vocabulary, workflow
-- `foundry-kit/skills/juce-expert/SKILL.md` — Correct patterns, compiler killers
-- `foundry-kit/skills/art-director/SKILL.md` — UI layout, hero controls, visual design
-**Load the relevant skills for your current phase before writing any code.**
-Phase: DSP -> sound-engineer + juce-expert
-Phase: UI -> art-director + juce-expert
-Phase: Presets -> beatmaker + sound-engineer
-
 ## Phase Rules
 - The orchestration prompt is phase-aware and authoritative.
-- If the prompt asks only for processor files, create only `Source/PluginProcessor.h` and `Source/PluginProcessor.cpp`.
-- If the prompt asks only for UI files, create only `Source/FoundryLookAndFeel.h`, `Source/PluginEditor.h`, and `Source/PluginEditor.cpp`.
-- Do not create files outside the current phase unless the prompt explicitly asks for them.
-- If the prompt says it is self-contained or says not to read files, skip the Foundry Kit.
-- Use the Foundry Kit only when the prompt explicitly needs extra context.
+- Processor phase: create only PluginProcessor.h and PluginProcessor.cpp. Write immediately.
+- UI phase: create only FoundryLookAndFeel.h, PluginEditor.h, PluginEditor.cpp. Write immediately.
+- Do not plan or explain before writing. First tool call must be Write.
+- Stop when the requested phase is complete.
 
-## Workflow
-1. Follow the current prompt exactly.
-2. Write the requested files immediately instead of waiting for a full-plan dump.
-3. Stop when the requested phase is complete.
+---
 
-## Design Principles
-- Every parameter uses AudioProcessorValueTreeState (APVTS)
-- Every UI control has a matching Attachment (SliderAttachment, ComboBoxAttachment, ButtonAttachment)
-- All JUCE types use juce:: prefix
-- FoundryLookAndFeel customizes the visual appearance
-- C++17, no auto* parameters, .h/.cpp signatures must match
-- Everything important fits in one landscape editor window without Viewport/scroll bars
-- Avoid tall single-column layouts; use multi-zone composition across the width
-- Prefer mixed control vocabularies and meaningful graphs/meters over cloned knob rows
+# Foundry Kit — Expert Knowledge
 
-## Creative Direction
-Make it sound and look specific to the brief, not interchangeable. The plugin should feel like a premium commercial product with its own identity.
+The following expert personas define the quality standard for every plugin. Apply them. A plugin that compiles but sounds generic or looks like a scrollable list of sliders has failed.
+
+---
+
+{sound_engineer}
+
+---
+
+{juce_expert}
+
+---
+
+{art_director}
+
+---
+
+{beatmaker}
 "#,
         name = name,
         role = plugin_role,
@@ -469,13 +468,17 @@ Make it sound and look specific to the brief, not interchangeable. The plugin sh
         plugin_type = plugin_type,
         channels = channel_layout,
         style = interface_style,
+        sound_engineer = sound_engineer,
+        juce_expert = juce_expert,
+        art_director = art_director,
+        beatmaker = beatmaker,
     );
 
     fs::write(dir.join("CLAUDE.md"), content).map_err(|e| e.to_string())
 }
 
 /// Write AGENTS.md — the Codex equivalent of CLAUDE.md.
-/// Same content, different filename so the Codex CLI picks it up automatically.
+/// Same inlined content so Codex receives the Foundry Kit without any Read calls.
 fn write_agents_md(
     dir: &Path,
     name: &str,
@@ -490,6 +493,11 @@ fn write_agents_md(
         _ => "audio effect",
     };
 
+    let sound_engineer = include_str!("../../../foundry-kit/skills/sound-engineer/SKILL.md");
+    let juce_expert    = include_str!("../../../foundry-kit/skills/juce-expert/SKILL.md");
+    let art_director   = include_str!("../../../foundry-kit/skills/art-director/SKILL.md");
+    let beatmaker      = include_str!("../../../foundry-kit/skills/beatmaker/SKILL.md");
+
     let content = format!(
         r#"# {name} — JUCE Plugin
 
@@ -512,43 +520,34 @@ Build a JUCE {role} plugin: {prompt}
 - Source/PluginEditor.cpp
 - Source/FoundryLookAndFeel.h
 
-## Foundry Kit
-You have access to the Foundry Kit — four expert agent skills that define the quality standard for this plugin:
-- `foundry-kit/SKILL.md` — Master skill, quality standard, phase guidance
-- `foundry-kit/skills/sound-engineer/SKILL.md` — Musical DSP, defaults, effect knowledge
-- `foundry-kit/skills/beatmaker/SKILL.md` — Presets, producer vocabulary, workflow
-- `foundry-kit/skills/juce-expert/SKILL.md` — Correct patterns, compiler killers
-- `foundry-kit/skills/art-director/SKILL.md` — UI layout, hero controls, visual design
-**Load the relevant skills for your current phase before writing any code.**
-Phase: DSP -> sound-engineer + juce-expert
-Phase: UI -> art-director + juce-expert
-Phase: Presets -> beatmaker + sound-engineer
-
 ## Phase Rules
 - The orchestration prompt is phase-aware and authoritative.
-- If the prompt asks only for processor files, create only `Source/PluginProcessor.h` and `Source/PluginProcessor.cpp`.
-- If the prompt asks only for UI files, create only `Source/FoundryLookAndFeel.h`, `Source/PluginEditor.h`, and `Source/PluginEditor.cpp`.
-- Do not create files outside the current phase unless the prompt explicitly asks for them.
-- If the prompt says it is self-contained or says not to read files, skip the Foundry Kit.
-- Use the Foundry Kit only when the prompt explicitly needs extra context.
+- Processor phase: create only PluginProcessor.h and PluginProcessor.cpp. Write immediately.
+- UI phase: create only FoundryLookAndFeel.h, PluginEditor.h, PluginEditor.cpp. Write immediately.
+- Do not plan or explain before writing. First tool call must be Write.
+- Stop when the requested phase is complete.
 
-## Workflow
-1. Follow the current prompt exactly.
-2. Write the requested files immediately instead of waiting for a full-plan dump.
-3. Stop when the requested phase is complete.
+---
 
-## Design Principles
-- Every parameter uses AudioProcessorValueTreeState (APVTS)
-- Every UI control has a matching Attachment (SliderAttachment, ComboBoxAttachment, ButtonAttachment)
-- All JUCE types use juce:: prefix
-- FoundryLookAndFeel customizes the visual appearance
-- C++17, no auto* parameters, .h/.cpp signatures must match
-- Everything important fits in one landscape editor window without Viewport/scroll bars
-- Avoid tall single-column layouts; use multi-zone composition across the width
-- Prefer mixed control vocabularies and meaningful graphs/meters over cloned knob rows
+# Foundry Kit — Expert Knowledge
 
-## Creative Direction
-Make it sound and look specific to the brief, not interchangeable. The plugin should feel like a premium commercial product with its own identity.
+The following expert personas define the quality standard for every plugin. Apply them. A plugin that compiles but sounds generic or looks like a scrollable list of sliders has failed.
+
+---
+
+{sound_engineer}
+
+---
+
+{juce_expert}
+
+---
+
+{art_director}
+
+---
+
+{beatmaker}
 "#,
         name = name,
         role = plugin_role,
@@ -556,6 +555,10 @@ Make it sound and look specific to the brief, not interchangeable. The plugin sh
         plugin_type = plugin_type,
         channels = channel_layout,
         style = interface_style,
+        sound_engineer = sound_engineer,
+        juce_expert = juce_expert,
+        art_director = art_director,
+        beatmaker = beatmaker,
     );
 
     fs::write(dir.join("AGENTS.md"), content).map_err(|e| e.to_string())
