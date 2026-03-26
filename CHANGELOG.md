@@ -3,6 +3,17 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.19.0](https://github.com/theodaguier/foundry/compare/v1.18.5...v1.19.0) (2026-03-26)
+
+
+### Features
+
+* **foundry-kit:** add art-director skill ([3fb5366](https://github.com/theodaguier/foundry/commit/3fb53663a2b9ca79650e18abce017bf5d47f40b0))
+* **foundry-kit:** add beatmaker skill ([f5400eb](https://github.com/theodaguier/foundry/commit/f5400eb887d908e5c8899782a43fb0128c42c594))
+* **foundry-kit:** add juce-expert skill ([f9d17e2](https://github.com/theodaguier/foundry/commit/f9d17e20a6bdf8411f5c69b060f9eb2a4a1cf228))
+* **foundry-kit:** add master skill ([8ad833c](https://github.com/theodaguier/foundry/commit/8ad833c42fe1feba21de99876b8e99ab53c24b7b))
+* **foundry-kit:** add sound-engineer skill ([ab1a66d](https://github.com/theodaguier/foundry/commit/ab1a66df4afe1c1e0108cbb055a6cedd9f32fd6c))
+
 ## [1.18.5](https://github.com/theodaguier/foundry/compare/v1.18.4...v1.18.5) (2026-03-25)
 
 
