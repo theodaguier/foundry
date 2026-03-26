@@ -45,10 +45,20 @@ Every desktop release is expected to contain:
 Generate the keypair once:
 
 ```bash
-npm run tauri signer generate -- --ci -w ~/.tauri/foundry.key
+tauri signer generate -w ~/.tauri/foundry.key
 ```
 
-Commit the public key into `src-tauri/tauri.conf.json`. Store the private key content in `TAURI_SIGNING_PRIVATE_KEY`.
+This outputs two base64 blobs — **Private** and **Public**.
+
+- Store the **Private** blob in `TAURI_SIGNING_PRIVATE_KEY`
+- Set `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` to the password you chose (or leave empty if none)
+- Set `plugins.updater.pubkey` in `src-tauri/tauri.conf.json` to the **Public** blob as-is
+
+> ⚠️ The `pubkey` value must be the raw base64 blob from `tauri signer generate`, **not** the decoded `untrusted comment: ...` text. Tauri v2 decodes it internally.
+
+> ⚠️ The workflow checks out the release **tag**, not `main`. A CI fix only applies starting with the first tag created after the fix lands on `main`.
+
+> ⚠️ Changing the `pubkey` breaks auto-update for users running the previous build — they will need to reinstall manually.
 
 ### macOS signing and notarization
 
