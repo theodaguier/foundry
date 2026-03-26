@@ -2,71 +2,92 @@
 
 **Generate audio plugins from a sentence.**
 
-Foundry is a desktop app for macOS and Windows that turns a natural language description into a real, installable plugin — compiled locally, no code required.
+Foundry is a macOS desktop app that turns a natural language description into a real, installable AU/VST3 plugin — compiled locally, no code required.
 
-> "A warm tape saturation with drive and tone controls"  
-> "A polyphonic pad synth with lush reverb and 5 presets"  
+> "A warm tape saturation with drive and tone controls"
+> "A polyphonic pad synth with lush reverb and 5 presets"
 > "A stereo utility with input gain, width, and a VU meter"
 
-Foundry writes the C++, builds it with JUCE, and installs it directly into your DAW.
+Foundry dispatches an AI coding agent (Claude Code CLI or Codex CLI) to write the JUCE C++, builds it with CMake, and installs it directly into your DAW.
+
+> Currently in **private beta** on macOS. [Request access →](https://foundry.so)
 
 ---
 
 ## How it works
 
 1. **Describe** your plugin in plain language
-2. **Generate** the platform-supported plugin format automatically (AU/VST3 on macOS, VST3 on Windows)
-3. **Wait** ~2–5 minutes while Foundry generates and compiles
-4. **Open** the plugin in any compatible DAW
-
-Under the hood: Claude Code CLI writes the JUCE C++ code, CMake builds it, and Foundry installs it to the correct platform plugin directory.
+2. **Generate** — Foundry runs two agent passes (DSP, then UI) and compiles
+3. **Wait** a few minutes while the build loop runs
+4. **Open** the plugin in any AU or VST3-compatible DAW
 
 ---
 
 ## Requirements
 
-| Dependency | How to install |
+| Dependency | Notes |
 |---|---|
-| macOS 13+ | Xcode Command Line Tools, CMake, Claude Code CLI, managed JUCE install |
-| Windows 11+ | Visual Studio 2022 Build Tools (Desktop C++), CMake, Claude Code CLI, managed JUCE install |
-| Optional | Codex CLI (`npm install -g @openai/codex`) |
+| macOS 13+ | Apple Silicon or Intel |
+| Xcode Command Line Tools | `xcode-select --install` |
+| CMake | `brew install cmake` |
+| Claude Code CLI | Required — `npm install -g @anthropic-ai/claude-code` |
+| Codex CLI | Optional — `npm install -g @openai/codex` |
+
+JUCE 8 is downloaded and managed automatically on first run.
 
 ---
 
 ## Features
 
-- **Three plugin archetypes** — instrument, effect, utility — Claude writes each from scratch using expert JUCE knowledge
-- **Refine** — modify an existing generated plugin with a follow-up instruction without starting from scratch
-- **Plugin logo generation** — generate a custom logo image for any plugin using local Stable Diffusion
-- **Plugin Library** — browse, manage, and re-open all generated plugins
-- **FoundryLookAndFeel** — consistent dark minimal design system across every generated plugin UI
+- **Three plugin archetypes** — instrument, effect, utility
+- **Refine** — iterate on a generated plugin with a follow-up instruction
+- **Plugin versioning** — every generate/refine creates a new archived version you can roll back to
+- **Plugin Library** — browse, manage, rename, and reinstall generated plugins
+- **Multi-agent support** — Claude Code CLI (default) or Codex CLI
+- **FoundryLookAndFeel** — consistent dark minimal design applied to every generated plugin UI
+
+---
+
+## Tech stack
+
+| Layer | Technology |
+|---|---|
+| Desktop shell | Tauri 2 (Rust) |
+| Frontend | React 19 + TypeScript + Vite |
+| Styling | Tailwind CSS v4 + shadcn/ui |
+| Auth & telemetry | Supabase |
+| AI agents | Claude Code CLI / Codex CLI |
+| Build system | CMake + JUCE 8 |
 
 ---
 
 ## Project structure
 
 ```
-Foundry/
-├── App/                  # App entry point, ContentView
-├── Components/           # Reusable UI components (PluginCard, StepListView…)
-├── Models/               # Plugin, AppState
-├── Services/             # Pipeline, ClaudeCodeService, BuildRunner, ProjectAssembler…
-└── Views/                # All screens (PromptView, GenerationProgressView, PluginDetailView…)
+foundry/
+├── src/                    # React/TypeScript frontend
+│   ├── components/
+│   │   ├── app/            # Domain components
+│   │   └── ui/             # shadcn/ui primitives
+│   ├── pages/              # Route-level views
+│   ├── stores/             # Zustand stores
+│   └── hooks/ lib/ styles/
+├── src-tauri/              # Rust backend
+│   └── src/
+│       ├── commands/       # Tauri IPC handlers
+│       ├── models/         # Shared data types
+│       ├── services/       # Core business logic
+│       └── platform/       # Platform abstraction
+└── landing/                # Astro landing page (foundry.so)
 ```
 
-See [`CLAUDE.md`](./CLAUDE.md) for architecture details, data model, and development notes.
+See [`CLAUDE.md`](./CLAUDE.md) for full architecture, data model, and pipeline details.
 
 ---
 
-## Status
+## Releases
 
-Active development. Core pipeline is functional. Known issues and planned improvements are tracked in [GitHub Issues](https://github.com/theodaguier/foundry/issues).
-
-## Desktop Releases
-
-- macOS users install the first updater-enabled build from the published `.dmg`.
-- Windows users install the first updater-enabled build from the published `.exe`.
-- After that first manual install, Foundry checks GitHub Releases for signed in-app updates and installs them from `Settings > General > App updates`.
+macOS builds are published as signed `.dmg` files on the [Releases](https://github.com/theodaguier/foundry/releases) page. After the first manual install, Foundry checks for updates in-app via the Tauri updater.
 
 See [`docs/desktop-releases.md`](./docs/desktop-releases.md) for the CI flow, required secrets, and release checklist.
 
