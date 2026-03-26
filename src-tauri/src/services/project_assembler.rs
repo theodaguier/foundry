@@ -7,122 +7,215 @@ pub struct AssembledProject {
     pub plugin_type: String, // "instrument", "effect", "utility"
 }
 
-pub fn infer_plugin_type(prompt: &str) -> String {
-    let lower = prompt.to_lowercase();
-    let utility_keywords = [
-        "utility",
-        "analyzer",
-        "meter",
-        "scope",
-        "monitor",
-        "phase",
-        "mono",
-        "gain staging",
-        "trim",
-        "width",
-        "balance",
-        "imager",
-        "tool",
-    ];
-    if utility_keywords.iter().any(|kw| lower.contains(kw)) {
-        return "utility".to_string();
+fn normalize_prompt_text(prompt: &str) -> String {
+    let collapsed = prompt
+        .to_lowercase()
+        .chars()
+        .map(|ch| if ch.is_ascii_alphanumeric() { ch } else { ' ' })
+        .collect::<String>();
+    format!(
+        " {} ",
+        collapsed.split_whitespace().collect::<Vec<_>>().join(" ")
+    )
+}
+
+fn contains_phrase(normalized_prompt: &str, phrase: &str) -> bool {
+    let normalized_phrase = phrase.split_whitespace().collect::<Vec<_>>().join(" ");
+    normalized_prompt.contains(&format!(" {} ", normalized_phrase))
+}
+
+fn score_keyword_matches(normalized_prompt: &str, keywords: &[(&str, i32)]) -> i32 {
+    keywords
+        .iter()
+        .filter(|(phrase, _)| contains_phrase(normalized_prompt, phrase))
+        .map(|(_, weight)| *weight)
+        .sum()
+}
+
+fn normalize_plugin_type_override(plugin_type_override: Option<&str>) -> Option<&'static str> {
+    match plugin_type_override
+        .map(|value| value.trim().to_lowercase())
+        .as_deref()
+    {
+        Some("instrument") => Some("instrument"),
+        Some("effect") => Some("effect"),
+        Some("utility") => Some("utility"),
+        _ => None,
     }
-    let instrument_keywords = [
-        "instrument",
-        "synth",
-        "synthesizer",
-        "oscillator",
-        "polyphon",
-        "monophon",
-        "keys",
-        "pad",
-        "lead",
-        "bass synth",
-        "arpeggiator",
-        "sampler",
-        "rompler",
-        "drum machine",
-        "keyboard",
-        "organ",
-        "piano",
-    ];
-    if instrument_keywords.iter().any(|kw| lower.contains(kw)) {
+}
+
+pub fn infer_plugin_type(prompt: &str) -> String {
+    let normalized = normalize_prompt_text(prompt);
+
+    for (phrase, resolved) in [
+        ("instrument plugin", "instrument"),
+        ("virtual instrument", "instrument"),
+        ("software instrument", "instrument"),
+        ("synth plugin", "instrument"),
+        ("effect plugin", "effect"),
+        ("audio effect", "effect"),
+        ("utility plugin", "utility"),
+        ("audio utility", "utility"),
+        ("analysis tool", "utility"),
+    ] {
+        if contains_phrase(&normalized, phrase) {
+            return resolved.to_string();
+        }
+    }
+
+    let instrument_score = score_keyword_matches(
+        &normalized,
+        &[
+            ("instrument", 6),
+            ("synth", 7),
+            ("synthesizer", 7),
+            ("polysynth", 7),
+            ("poly synth", 7),
+            ("monosynth", 7),
+            ("mono synth", 7),
+            ("polyphonic", 5),
+            ("monophonic", 5),
+            ("oscillator", 4),
+            ("oscillators", 4),
+            ("sampler", 6),
+            ("rompler", 6),
+            ("drum machine", 6),
+            ("arpeggiator", 5),
+            ("voice", 4),
+            ("voices", 4),
+            ("midi", 3),
+            ("playable", 4),
+            ("keyboard", 4),
+            ("keys", 3),
+            ("pad", 3),
+            ("lead", 3),
+            ("bass synth", 6),
+            ("wavetable", 5),
+            ("granular", 4),
+            ("organ", 5),
+            ("piano", 5),
+        ],
+    );
+
+    let effect_score = score_keyword_matches(
+        &normalized,
+        &[
+            ("effect", 5),
+            ("reverb", 6),
+            ("delay", 6),
+            ("chorus", 5),
+            ("phaser", 5),
+            ("flanger", 5),
+            ("compressor", 5),
+            ("distortion", 5),
+            ("saturation", 5),
+            ("eq", 4),
+            ("equalizer", 5),
+            ("tremolo", 5),
+            ("ring mod", 5),
+            ("ring modulator", 5),
+            ("pitch shifter", 5),
+            ("autowah", 4),
+            ("auto wah", 4),
+            ("wah", 3),
+            ("glitch", 4),
+            ("bitcrusher", 5),
+            ("shimmer", 4),
+            ("feedback", 3),
+            ("wet dry", 3),
+            ("dry wet", 3),
+            ("sidechain", 3),
+        ],
+    );
+
+    let utility_score = score_keyword_matches(
+        &normalized,
+        &[
+            ("utility", 7),
+            ("analyzer", 7),
+            ("analysis", 6),
+            ("spectrum", 5),
+            ("meter", 6),
+            ("metering", 6),
+            ("scope", 6),
+            ("monitor", 4),
+            ("correlation", 6),
+            ("tuner", 7),
+            ("gain staging", 7),
+            ("test tone", 7),
+            ("lufs", 7),
+            ("true peak", 7),
+            ("phase invert", 6),
+            ("mono summing", 6),
+            ("mid side", 5),
+            ("stereo width", 4),
+            ("imager", 4),
+            ("alignment", 5),
+            ("trim", 3),
+            ("balance", 2),
+            ("phase", 1),
+            ("mono", 1),
+            ("width", 1),
+        ],
+    );
+
+    if instrument_score >= 6
+        && instrument_score >= effect_score
+        && instrument_score >= utility_score
+    {
         return "instrument".to_string();
     }
+
+    if utility_score >= 6 && utility_score > instrument_score + 1 && utility_score >= effect_score {
+        return "utility".to_string();
+    }
+
+    if effect_score >= 5 && effect_score > instrument_score && effect_score >= utility_score {
+        return "effect".to_string();
+    }
+
+    if instrument_score > 0 && instrument_score >= utility_score {
+        return "instrument".to_string();
+    }
+
+    if utility_score > effect_score {
+        return "utility".to_string();
+    }
+
     "effect".to_string()
 }
 
-fn infer_interface_style(prompt: &str, plugin_type: &str) -> &'static str {
-    let lower = prompt.to_lowercase();
-    let focused = [
-        "simple",
-        "minimal",
-        "clean",
-        "focused",
-        "few controls",
-        "macro",
-        "one knob",
-        "two knobs",
-        "three knobs",
-        "fast",
-    ];
-    if focused.iter().any(|kw| lower.contains(kw)) {
-        return "Focused";
-    }
-    let exploratory = [
-        "advanced",
-        "deep",
-        "modular",
-        "matrix",
-        "granular",
-        "sequencer",
-        "multi-stage",
-        "complex",
-        "dense",
-        "experimental",
-        "modulation",
-        "synth",
-        "synthesizer",
-        "analog",
-        "subtractive",
-        "fm",
-        "wavetable",
-        "polysynth",
-        "poly synth",
-    ];
-    if exploratory.iter().any(|kw| lower.contains(kw)) {
-        return "Exploratory";
-    }
-    match plugin_type {
-        "utility" => "Focused",
-        "instrument" => "Exploratory",
-        _ => "Balanced",
+fn resolve_plugin_type(prompt: &str, plugin_type_override: Option<&str>) -> String {
+    if let Some(explicit_plugin_type) = normalize_plugin_type_override(plugin_type_override) {
+        explicit_plugin_type.to_string()
+    } else {
+        infer_plugin_type(prompt)
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn assemble(
     prompt: &str,
     plugin_name: &str,
+    plugin_type_override: Option<&str>,
     format: &str,         // "au", "vst3", "both"
     channel_layout: &str, // "mono", "stereo"
     _preset_count: i32,
     _model: &str,
     juce_path: &Path,
 ) -> Result<AssembledProject, String> {
-    let plugin_type = infer_plugin_type(prompt);
+    let plugin_type = resolve_plugin_type(prompt, plugin_type_override);
     let interface_style = infer_interface_style(prompt, &plugin_type);
 
     let uuid = uuid::Uuid::new_v4().to_string();
     let short = &uuid[..8];
     let project_dir = crate::platform::temp_build_dir(short);
     let source_dir = project_dir.join("Source");
-    let kit_dir = project_dir.join("juce-kit");
 
     fs::create_dir_all(&source_dir).map_err(|e| e.to_string())?;
-    fs::create_dir_all(&kit_dir).map_err(|e| e.to_string())?;
 
     write_cmake_lists(&project_dir, plugin_name, &plugin_type, format, juce_path)?;
-    write_juce_kit(&kit_dir, plugin_name, &plugin_type)?;
+    write_foundry_kit(&project_dir)?;
     write_claude_md(
         &project_dir,
         plugin_name,
@@ -146,6 +239,87 @@ pub fn assemble(
         plugin_name: plugin_name.to_string(),
         plugin_type,
     })
+}
+
+fn infer_interface_style(prompt: &str, plugin_type: &str) -> &'static str {
+    let lower = prompt.to_lowercase();
+    let precision = [
+        "eq",
+        "compressor",
+        "meter",
+        "analyzer",
+        "tuner",
+        "lufs",
+        "phase",
+        "stereo",
+        "utility",
+    ];
+    if precision.iter().any(|kw| lower.contains(kw)) {
+        return "Graph-Led Precision";
+    }
+    let digital = [
+        "fm",
+        "wavetable",
+        "digital",
+        "granular",
+        "glitch",
+        "spectral",
+        "modulation",
+        "sequencer",
+    ];
+    if digital.iter().any(|kw| lower.contains(kw)) {
+        return "Kinetic Digital";
+    }
+    let tactile = [
+        "analog", "warm", "vintage", "tape", "spring", "tube", "organ",
+    ];
+    if tactile.iter().any(|kw| lower.contains(kw)) {
+        return "Tactile Rack";
+    }
+    let focused = [
+        "simple",
+        "minimal",
+        "clean",
+        "focused",
+        "few controls",
+        "macro",
+        "one knob",
+        "two knobs",
+        "three knobs",
+        "fast",
+    ];
+    if focused.iter().any(|kw| lower.contains(kw)) {
+        return "Focused Macro";
+    }
+    let exploratory = [
+        "advanced",
+        "deep",
+        "modular",
+        "matrix",
+        "granular",
+        "sequencer",
+        "multi-stage",
+        "complex",
+        "dense",
+        "experimental",
+        "modulation",
+        "synth",
+        "synthesizer",
+        "analog",
+        "subtractive",
+        "fm",
+        "wavetable",
+        "polysynth",
+        "poly synth",
+    ];
+    if exploratory.iter().any(|kw| lower.contains(kw)) {
+        return "Exploratory Performance";
+    }
+    match plugin_type {
+        "utility" => "Graph-Led Precision",
+        "instrument" => "Exploratory Performance",
+        _ => "Balanced Character",
+    }
 }
 
 fn write_cmake_lists(
@@ -251,22 +425,25 @@ Build a JUCE {role} plugin: {prompt}
 - Source/PluginEditor.cpp
 - Source/FoundryLookAndFeel.h
 
-## Reference Kit
-Optional reference files for API patterns and build rules:
-- juce-kit/juce-api.md
-- juce-kit/dsp-patterns.md
-- juce-kit/ui-patterns.md
-- juce-kit/look-and-feel.md
-- juce-kit/build-rules.md
-- juce-kit/presets.md
+## Foundry Kit
+You have access to the Foundry Kit — four expert agent skills that define the quality standard for this plugin:
+- `foundry-kit/SKILL.md` — Master skill, quality standard, phase guidance
+- `foundry-kit/skills/sound-engineer/SKILL.md` — Musical DSP, defaults, effect knowledge
+- `foundry-kit/skills/beatmaker/SKILL.md` — Presets, producer vocabulary, workflow
+- `foundry-kit/skills/juce-expert/SKILL.md` — Correct patterns, compiler killers
+- `foundry-kit/skills/art-director/SKILL.md` — UI layout, hero controls, visual design
+**Load the relevant skills for your current phase before writing any code.**
+Phase: DSP -> sound-engineer + juce-expert
+Phase: UI -> art-director + juce-expert
+Phase: Presets -> beatmaker + sound-engineer
 
 ## Phase Rules
 - The orchestration prompt is phase-aware and authoritative.
 - If the prompt asks only for processor files, create only `Source/PluginProcessor.h` and `Source/PluginProcessor.cpp`.
 - If the prompt asks only for UI files, create only `Source/FoundryLookAndFeel.h`, `Source/PluginEditor.h`, and `Source/PluginEditor.cpp`.
 - Do not create files outside the current phase unless the prompt explicitly asks for them.
-- If the prompt says it is self-contained or says not to read files, skip the reference kit.
-- Use the reference kit only when the prompt explicitly needs extra context.
+- If the prompt says it is self-contained or says not to read files, skip the Foundry Kit.
+- Use the Foundry Kit only when the prompt explicitly needs extra context.
 
 ## Workflow
 1. Follow the current prompt exactly.
@@ -279,9 +456,12 @@ Optional reference files for API patterns and build rules:
 - All JUCE types use juce:: prefix
 - FoundryLookAndFeel customizes the visual appearance
 - C++17, no auto* parameters, .h/.cpp signatures must match
+- Everything important fits in one landscape editor window without Viewport/scroll bars
+- Avoid tall single-column layouts; use multi-zone composition across the width
+- Prefer mixed control vocabularies and meaningful graphs/meters over cloned knob rows
 
 ## Creative Direction
-Make it sound and look professional. The plugin should feel like a premium commercial product.
+Make it sound and look specific to the brief, not interchangeable. The plugin should feel like a premium commercial product with its own identity.
 "#,
         name = name,
         role = plugin_role,
@@ -332,22 +512,25 @@ Build a JUCE {role} plugin: {prompt}
 - Source/PluginEditor.cpp
 - Source/FoundryLookAndFeel.h
 
-## Reference Kit
-Optional reference files for API patterns and build rules:
-- juce-kit/juce-api.md
-- juce-kit/dsp-patterns.md
-- juce-kit/ui-patterns.md
-- juce-kit/look-and-feel.md
-- juce-kit/build-rules.md
-- juce-kit/presets.md
+## Foundry Kit
+You have access to the Foundry Kit — four expert agent skills that define the quality standard for this plugin:
+- `foundry-kit/SKILL.md` — Master skill, quality standard, phase guidance
+- `foundry-kit/skills/sound-engineer/SKILL.md` — Musical DSP, defaults, effect knowledge
+- `foundry-kit/skills/beatmaker/SKILL.md` — Presets, producer vocabulary, workflow
+- `foundry-kit/skills/juce-expert/SKILL.md` — Correct patterns, compiler killers
+- `foundry-kit/skills/art-director/SKILL.md` — UI layout, hero controls, visual design
+**Load the relevant skills for your current phase before writing any code.**
+Phase: DSP -> sound-engineer + juce-expert
+Phase: UI -> art-director + juce-expert
+Phase: Presets -> beatmaker + sound-engineer
 
 ## Phase Rules
 - The orchestration prompt is phase-aware and authoritative.
 - If the prompt asks only for processor files, create only `Source/PluginProcessor.h` and `Source/PluginProcessor.cpp`.
 - If the prompt asks only for UI files, create only `Source/FoundryLookAndFeel.h`, `Source/PluginEditor.h`, and `Source/PluginEditor.cpp`.
 - Do not create files outside the current phase unless the prompt explicitly asks for them.
-- If the prompt says it is self-contained or says not to read files, skip the reference kit.
-- Use the reference kit only when the prompt explicitly needs extra context.
+- If the prompt says it is self-contained or says not to read files, skip the Foundry Kit.
+- Use the Foundry Kit only when the prompt explicitly needs extra context.
 
 ## Workflow
 1. Follow the current prompt exactly.
@@ -360,9 +543,12 @@ Optional reference files for API patterns and build rules:
 - All JUCE types use juce:: prefix
 - FoundryLookAndFeel customizes the visual appearance
 - C++17, no auto* parameters, .h/.cpp signatures must match
+- Everything important fits in one landscape editor window without Viewport/scroll bars
+- Avoid tall single-column layouts; use multi-zone composition across the width
+- Prefer mixed control vocabularies and meaningful graphs/meters over cloned knob rows
 
 ## Creative Direction
-Make it sound and look professional. The plugin should feel like a premium commercial product.
+Make it sound and look specific to the brief, not interchangeable. The plugin should feel like a premium commercial product with its own identity.
 "#,
         name = name,
         role = plugin_role,
@@ -375,275 +561,108 @@ Make it sound and look professional. The plugin should feel like a premium comme
     fs::write(dir.join("AGENTS.md"), content).map_err(|e| e.to_string())
 }
 
-fn write_juce_kit(dir: &Path, plugin_name: &str, plugin_type: &str) -> Result<(), String> {
-    write_juce_api(dir, plugin_name, plugin_type)?;
-    write_dsp_patterns(dir, plugin_type)?;
-    write_ui_patterns(dir, plugin_name)?;
-    write_look_and_feel(dir)?;
-    write_build_rules(dir, plugin_name)?;
-    write_presets(dir, plugin_name)?;
+fn write_foundry_kit(project_dir: &Path) -> Result<(), String> {
+    let kit_dir = project_dir.join("foundry-kit");
+    let skills_dir = kit_dir.join("skills");
+
+    fs::create_dir_all(skills_dir.join("sound-engineer")).map_err(|e| e.to_string())?;
+    fs::create_dir_all(skills_dir.join("beatmaker")).map_err(|e| e.to_string())?;
+    fs::create_dir_all(skills_dir.join("juce-expert")).map_err(|e| e.to_string())?;
+    fs::create_dir_all(skills_dir.join("art-director")).map_err(|e| e.to_string())?;
+
+    fs::write(
+        kit_dir.join("SKILL.md"),
+        include_str!("../../../foundry-kit/SKILL.md"),
+    )
+    .map_err(|e| e.to_string())?;
+    fs::write(
+        skills_dir.join("sound-engineer/SKILL.md"),
+        include_str!("../../../foundry-kit/skills/sound-engineer/SKILL.md"),
+    )
+    .map_err(|e| e.to_string())?;
+    fs::write(
+        skills_dir.join("beatmaker/SKILL.md"),
+        include_str!("../../../foundry-kit/skills/beatmaker/SKILL.md"),
+    )
+    .map_err(|e| e.to_string())?;
+    fs::write(
+        skills_dir.join("juce-expert/SKILL.md"),
+        include_str!("../../../foundry-kit/skills/juce-expert/SKILL.md"),
+    )
+    .map_err(|e| e.to_string())?;
+    fs::write(
+        skills_dir.join("art-director/SKILL.md"),
+        include_str!("../../../foundry-kit/skills/art-director/SKILL.md"),
+    )
+    .map_err(|e| e.to_string())?;
+
     Ok(())
-}
-
-fn write_juce_api(dir: &Path, _name: &str, plugin_type: &str) -> Result<(), String> {
-    let instrument_api = if plugin_type == "instrument" {
-        r#"
-### Synthesiser + Voice (instruments only)
-
-```cpp
-synth.addSound(new MySynthSound());
-synth.addVoice(new MySynthVoice());
-synth.setCurrentPlaybackSampleRate(sr);
-synth.renderNextBlock(buffer, midi, 0, numSamples);
-```
-
-Voice must override: `canPlaySound()`, `startNote()`, `stopNote()`, `renderNextBlock()`, `pitchWheelMoved()`, `controllerMoved()`.
-"#
-    } else {
-        ""
-    };
-
-    let content = format!(
-        r#"# JUCE API Reference
-
-## AudioProcessorValueTreeState (APVTS)
-```cpp
-auto layout = juce::AudioProcessorValueTreeState::ParameterLayout();
-layout.add(std::make_unique<juce::AudioParameterFloat>(
-    juce::ParameterID("gain", 1), "Gain",
-    juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.5f));
-apvts(processor, nullptr, "Parameters", std::move(layout));
-auto* param = apvts.getRawParameterValue("gain");
-```
-
-## AudioBuffer
-```cpp
-buffer.getNumChannels();
-buffer.getNumSamples();
-auto* channelData = buffer.getWritePointer(channel);
-buffer.clear();
-```
-
-## DSP Module Classes
-```cpp
-juce::dsp::ProcessorChain<...>
-juce::dsp::Gain<float>
-juce::dsp::Reverb
-juce::dsp::Chorus<float>
-juce::dsp::Phaser<float>
-juce::dsp::Compressor<float>
-juce::dsp::LadderFilter<float>
-juce::dsp::StateVariableTPTFilter<float>
-juce::dsp::DelayLine<float>
-juce::dsp::Oscillator<float>
-juce::dsp::IIR::Filter<float>
-juce::dsp::FIR::Filter<float>
-juce::dsp::Convolution
-juce::dsp::WaveShaper<float>
-juce::dsp::Oversampling<float>
-```
-{instrument_api}
-"#,
-        instrument_api = instrument_api,
-    );
-    fs::write(dir.join("juce-api.md"), content).map_err(|e| e.to_string())
-}
-
-fn write_dsp_patterns(dir: &Path, plugin_type: &str) -> Result<(), String> {
-    let type_patterns = match plugin_type {
-        "instrument" => {
-            r#"
-## Instrument Patterns
-- Synthesiser manages voices; each voice has its own oscillator + envelope
-- ADSR envelope controls amplitude; optionally filter envelope
-- Voice::renderNextBlock fills a buffer for one voice; Synthesiser sums them
-- Use juce::dsp::Oscillator or manual wavetable for sound generation
-- Map MIDI note to frequency: juce::MidiMessage::getMidiNoteInHertz(noteNumber)
-"#
-        }
-        "utility" => {
-            r#"
-## Utility Patterns
-- Gain: multiply samples by linear gain (dB → linear: juce::Decibels::decibelsToGain)
-- Width: mid/side processing (mid = (L+R)/2, side = (L-R)/2)
-- Phase: invert one or both channels
-- Metering: track RMS/peak per channel, update UI via atomic floats
-"#
-        }
-        _ => {
-            r#"
-## Effect Patterns
-- Serial chain: input → effect1 → effect2 → output
-- Parallel: split → process each path → sum
-- Feedback: output → delay → mix back to input
-- Modulation: LFO modulates a parameter (rate, depth, shape)
-- Envelope follower: track amplitude → control another parameter
-"#
-        }
-    };
-
-    let content = format!("# DSP Patterns\n{}\n", type_patterns);
-    fs::write(dir.join("dsp-patterns.md"), content).map_err(|e| e.to_string())
-}
-
-fn write_ui_patterns(dir: &Path, _name: &str) -> Result<(), String> {
-    let content = r#"# UI Patterns
-
-## Editor Structure
-```cpp
-class PluginEditor : public juce::AudioProcessorEditor {
-    PluginEditor(PluginProcessor&);
-    void paint(juce::Graphics&) override;
-    void resized() override;
-private:
-    PluginProcessor& processor;
-    FoundryLookAndFeel lookAndFeel;
-    juce::Slider gainSlider;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> gainAttachment;
-};
-```
-
-## Wiring Controls
-```cpp
-// In constructor:
-gainSlider.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
-gainSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 60, 20);
-addAndMakeVisible(gainSlider);
-gainAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
-    processor.apvts, "gain", gainSlider);
-```
-
-## Layout in resized()
-```cpp
-auto bounds = getLocalBounds().reduced(20);
-auto topArea = bounds.removeFromTop(bounds.getHeight() / 2);
-gainSlider.setBounds(topArea.removeFromLeft(topArea.getWidth() / 2).reduced(10));
-```
-
-## Layout Quality Rules
-- Prefer a landscape editor around 760x460 to 920x560 unless the brief explicitly needs something else
-- Start from `getLocalBounds().reduced(20-28)` and keep consistent 12-20 px gaps
-- Split the UI into clear zones: header, hero control area, secondary controls/footer
-- Keep rotary controls square and readable; avoid stretched knobs, clipped labels, or controls touching the edges
-- Use `removeFromTop/Left/Right/Bottom`, `juce::Grid`, or `juce::FlexBox` instead of scattered absolute coordinates
-"#;
-    fs::write(dir.join("ui-patterns.md"), content).map_err(|e| e.to_string())
-}
-
-fn write_look_and_feel(dir: &Path) -> Result<(), String> {
-    let content = r#"# Look and Feel
-
-## FoundryLookAndFeel : public juce::LookAndFeel_V4
-Create a custom LookAndFeel that gives the plugin a polished, professional appearance.
-
-### Required Colour IDs to set:
-- juce::Slider::rotarySliderFillColourId
-- juce::Slider::rotarySliderOutlineColourId
-- juce::Slider::thumbColourId
-- juce::Slider::textBoxTextColourId
-- juce::Slider::textBoxOutlineColourId
-- juce::Label::textColourId
-- juce::ComboBox::backgroundColourId
-- juce::ComboBox::textColourId
-- juce::TextButton::buttonColourId
-- juce::TextButton::textColourOnId
-- juce::ResizableWindow::backgroundColourId
-
-### Lifecycle Rules
-- Set LookAndFeel in Editor constructor: `setLookAndFeel(&lookAndFeel);`
-- Clear in destructor: `setLookAndFeel(nullptr);`
-- LookAndFeel must outlive all components — declare it BEFORE any sliders/buttons in the header.
-
-### Knob Styles
-Override `drawRotarySlider()` for custom knobs. Common styles:
-- Arc style: draw background arc + value arc
-- Filled dot: circle at value position on arc
-- Minimal: just a line indicator
-
-### Visual Restraint
-- Keep the palette tight: one background family, one accent family, and high-contrast text
-- Use clear section hierarchy before decoration
-- Avoid overdesigned gradients, noisy shadows, and cramped typography
-
-### Font Constructor
-ALWAYS use: `juce::Font(juce::FontOptions(fontSize))`
-NEVER use: `juce::Font(fontSize)` — this constructor is deprecated and causes build errors.
-"#;
-    fs::write(dir.join("look-and-feel.md"), content).map_err(|e| e.to_string())
-}
-
-fn write_build_rules(dir: &Path, plugin_name: &str) -> Result<(), String> {
-    let content = format!(
-        r#"# Build Rules
-
-## Naming
-- Processor class: `{name}Processor`
-- Editor class: `{name}Editor`
-- These names MUST match CMakeLists.txt PRODUCT_NAME
-
-## C++17
-- Use `std::make_unique`, `auto`, range-based for
-- No raw `new` for owned objects
-
-## juce:: Namespace
-- EVERY JUCE type must use `juce::` prefix
-- `juce::Slider`, `juce::AudioProcessorValueTreeState`, `juce::Graphics`, etc.
-
-## 12 Fatal Mistakes
-1. `auto*` in lambda captures — use explicit types
-2. Duplicate parameter IDs in APVTS layout
-3. .h/.cpp signature mismatch — they must be identical
-4. `juce::Font(float)` — use `juce::Font(juce::FontOptions(float))`
-5. Parameter ID string mismatch between Processor and Editor
-6. Missing `#include` — include JuceHeader.h in every file
-7. Linker errors are SOURCE errors, not CMakeLists.txt errors
-8. `juce::Reverb` — use `juce::dsp::Reverb`
-9. LookAndFeel must outlive components — declare BEFORE sliders in header
-10. PopupMenu colours need explicit `setColour()` calls
-11. Hardcoded sample rates — always use `getSampleRate()`
-12. Division by zero — check denominators
-"#,
-        name = plugin_name,
-    );
-    fs::write(dir.join("build-rules.md"), content).map_err(|e| e.to_string())
-}
-
-fn write_presets(dir: &Path, plugin_name: &str) -> Result<(), String> {
-    let content = format!(
-        r#"# Presets
-
-## JUCE Program System
-```cpp
-// In {name}Processor:
-int getNumPrograms() override {{ return presets.size(); }}
-int getCurrentProgram() override {{ return currentPreset; }}
-void setCurrentProgram(int index) override {{
-    currentPreset = index;
-    // Apply preset values to APVTS parameters
-}}
-juce::String getProgramName(int index) override {{ return presets[index].name; }}
-```
-
-## Preset Structure
-```cpp
-struct PresetData {{
-    juce::String name;
-    std::map<juce::String, float> values;
-}};
-```
-
-## ComboBox Wiring
-```cpp
-presetSelector.onChange = [this]() {{
-    processor.setCurrentProgram(presetSelector.getSelectedItemIndex());
-}};
-```
-"#,
-        name = plugin_name,
-    );
-    fs::write(dir.join("presets.md"), content).map_err(|e| e.to_string())
 }
 
 fn rand_byte() -> u8 {
     uuid::Uuid::new_v4().as_bytes()[0]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn instrument_keywords_beat_weak_utility_hints() {
+        assert_eq!(
+            infer_plugin_type(
+                "Warm polysynth with phase modulation, stereo width, resonant filter, and drifting oscillators"
+            ),
+            "instrument"
+        );
+    }
+
+    #[test]
+    fn utility_keywords_win_for_analysis_tools() {
+        assert_eq!(
+            infer_plugin_type(
+                "Real-time spectrum analyzer with phase correlation meter, LUFS readout, and true peak tracking"
+            ),
+            "utility"
+        );
+    }
+
+    #[test]
+    fn effect_keywords_stay_effects_even_with_width_controls() {
+        assert_eq!(
+            infer_plugin_type("Tape delay with wow, flutter, stereo width, and wet dry mix"),
+            "effect"
+        );
+    }
+
+    #[test]
+    fn explicit_plugin_type_override_wins_over_prompt_inference() {
+        assert_eq!(
+            resolve_plugin_type(
+                "Warm analog polysynth with detuned oscillators",
+                Some("utility")
+            ),
+            "utility"
+        );
+    }
+
+    #[test]
+    fn writes_foundry_kit_skill_files() {
+        let dir = std::env::temp_dir().join(format!("foundry-kit-test-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&dir).unwrap();
+
+        write_foundry_kit(&dir).unwrap();
+
+        assert!(dir.join("foundry-kit/SKILL.md").exists());
+        assert!(dir
+            .join("foundry-kit/skills/sound-engineer/SKILL.md")
+            .exists());
+        assert!(dir.join("foundry-kit/skills/beatmaker/SKILL.md").exists());
+        assert!(dir.join("foundry-kit/skills/juce-expert/SKILL.md").exists());
+        assert!(dir
+            .join("foundry-kit/skills/art-director/SKILL.md")
+            .exists());
+
+        let _ = fs::remove_dir_all(dir);
+    }
 }
