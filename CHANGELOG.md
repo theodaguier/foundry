@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.24.9](https://github.com/theodaguier/foundry/compare/v1.24.8...v1.24.9) (2026-03-26)
+
+
+### Bug Fixes
+
+* **updater:** use base64-encoded pubkey as expected by Tauri v2 ([78bbd43](https://github.com/theodaguier/foundry/commit/78bbd4374133b4fef903d109f75c5d215c228d53))
+
 ## [1.24.8](https://github.com/theodaguier/foundry/compare/v1.24.7...v1.24.8) (2026-03-26)
 
 
