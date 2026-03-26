@@ -74,7 +74,7 @@ jobs:
           TAURI_SIGNING_KEY_REQUIRED: "true"
         run: |
           node scripts/prepare-tauri-signing-key.mjs
-          echo "TAURI_SIGNING_PRIVATE_KEY_PATH=$TAURI_SIGNING_KEY_OUTPUT_PATH" >> "$GITHUB_ENV"
+          echo "TAURI_SIGNING_PRIVATE_KEY=$(cat "$TAURI_SIGNING_KEY_OUTPUT_PATH")" >> "$GITHUB_ENV"
 
       - name: Install frontend dependencies
         run: npm ci
@@ -149,7 +149,7 @@ jobs:
         shell: bash
         run: |
           if [ "${APPLE_SIGNING_READY:-false}" != "true" ]; then
-            unset APPLE_SIGNING_IDENTITY APPLE_API_ISSUER APPLE_API_KEY APPLE_API_KEY_PATH
+            unset APPLE_SIGNING_IDENTITY APPLE_API_ISSUER APPLE_API_KEY APPLE_API_KEY_PATH APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD
           elif [ -z "${APPLE_API_ISSUER:-}" ] || [ -z "${APPLE_API_KEY:-}" ] || [ -z "${APPLE_API_KEY_PATH:-}" ]; then
             unset APPLE_API_ISSUER APPLE_API_KEY APPLE_API_KEY_PATH
           fi
@@ -215,7 +215,8 @@ jobs:
           TAURI_SIGNING_KEY_REQUIRED: "true"
         run: |
           node scripts/prepare-tauri-signing-key.mjs
-          "TAURI_SIGNING_PRIVATE_KEY_PATH=$env:TAURI_SIGNING_KEY_OUTPUT_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          $keyContent = (Get-Content $env:TAURI_SIGNING_KEY_OUTPUT_PATH -Raw).Trim()
+          "TAURI_SIGNING_PRIVATE_KEY=$keyContent" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Install frontend dependencies
         run: npm ci
