@@ -3,6 +3,14 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.20.0](https://github.com/theodaguier/foundry/compare/v1.19.0...v1.20.0) (2026-03-26)
+
+
+### Features
+
+* **foundry-kit:** expand sound-engineer skill — full synthesis coverage (FM, wavetable, granular), utilities, instruments, complete DSP patterns ([ba4336c](https://github.com/theodaguier/foundry/commit/ba4336cc924847fa2bdfad029d96a3d85d4b9662))
+* **foundry-kit:** rework art-director skill — visual identity over prescriptive palette, FoundryLookAndFeel as foundation not cage ([daa48c2](https://github.com/theodaguier/foundry/commit/daa48c225a7bb5899c3c72fb0be057b775269e42))
+
 ## [1.19.0](https://github.com/theodaguier/foundry/compare/v1.18.5...v1.19.0) (2026-03-26)
 
 
