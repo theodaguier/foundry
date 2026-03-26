@@ -1825,10 +1825,13 @@ Plugin type: {plugin_type}
 Channel layout: {channels}
 {debug_context_section}
 
-Then create only:
-- Source/FoundryLookAndFeel.h
-- Source/PluginEditor.h
-- Source/PluginEditor.cpp
+Skeleton files already exist in Source/. Do NOT create them from scratch — overwrite them with complete implementations:
+- Source/FoundryLookAndFeel.h  (new file — write fresh)
+- Source/PluginEditor.h        (skeleton exists — replace with full implementation)
+- Source/PluginEditor.cpp      (skeleton exists — replace with full implementation)
+
+The skeleton already has the correct structure. Your job: replace it with the full design.
+The skeleton's `setSize(820, 520)` and `getLocalBounds()`-based `resized()` are correct — keep that pattern.
 
 Processor contract:
 - Processor class: {name}Processor
@@ -1910,10 +1913,12 @@ fn build_emergency_ui_prompt(
 Emergency UI pass for JUCE plugin "{name}".
 {debug_context_section}
 
-Write these files now:
-- Source/FoundryLookAndFeel.h
-- Source/PluginEditor.h
-- Source/PluginEditor.cpp
+Skeleton files already exist in Source/. Overwrite them with complete implementations:
+- Source/FoundryLookAndFeel.h  (write fresh)
+- Source/PluginEditor.h        (skeleton exists — complete it)
+- Source/PluginEditor.cpp      (skeleton exists — complete it)
+
+The skeleton already has correct `setSize(820, 520)` and `getLocalBounds()` layout. Keep that structure.
 
 Known contract:
 - Processor class: {name}Processor
