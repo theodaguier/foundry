@@ -3,6 +3,14 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.24.1](https://github.com/theodaguier/foundry/compare/v1.24.0...v1.24.1) (2026-03-26)
+
+
+### Bug Fixes
+
+* **pipeline:** inline Foundry Kit skills into CLAUDE.md — skills now always active ([f2db110](https://github.com/theodaguier/foundry/commit/f2db1103fb98fdbbfc162bd2760f3ac76e9e786f))
+* **pipeline:** inline foundry-kit skills into CLAUDE.md and AGENTS.md — no Read calls needed ([1d27710](https://github.com/theodaguier/foundry/commit/1d277105f8b6b2331ca66a9656ca0161df102bfe))
+
 ## [1.24.0](https://github.com/theodaguier/foundry/compare/v1.23.0...v1.24.0) (2026-03-26)
 
 
