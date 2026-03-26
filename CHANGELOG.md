@@ -3,6 +3,14 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.21.0](https://github.com/theodaguier/foundry/compare/v1.20.0...v1.21.0) (2026-03-26)
+
+
+### Features
+
+* **foundry-kit:** beatmaker — add macro controls, concrete synth sound recipes per archetype ([66497e1](https://github.com/theodaguier/foundry/commit/66497e1465797886f8651f47b043884a14c514ce))
+* **foundry-kit:** juce-expert — add oversampling pattern, clarify APVTS layout, fix lambda capture note ([93a7a78](https://github.com/theodaguier/foundry/commit/93a7a78aba5ede043eff6ca4a79f45dcffe54c11))
+
 ## [1.20.0](https://github.com/theodaguier/foundry/compare/v1.19.0...v1.20.0) (2026-03-26)
 
 
