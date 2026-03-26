@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.25.0](https://github.com/theodaguier/foundry/compare/v1.24.9...v1.25.0) (2026-03-26)
+
+
+### Features
+
+* **landing:** add Astro landing page and update README ([7a3f92d](https://github.com/theodaguier/foundry/commit/7a3f92d8bd41d730439ce4f7453c803168f03e2c))
+
 ## [1.24.9](https://github.com/theodaguier/foundry/compare/v1.24.8...v1.24.9) (2026-03-26)
 
 
