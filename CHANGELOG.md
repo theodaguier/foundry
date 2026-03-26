@@ -3,6 +3,47 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.23.0](https://github.com/theodaguier/foundry/compare/v1.22.0...v1.23.0) (2026-03-26)
+
+
+### Features
+
+* **foundry-kit:** art-director — add MANDATORY EDITOR REQUIREMENTS section with exact code examples for the 3 validation rules ([bef8f55](https://github.com/theodaguier/foundry/commit/bef8f55a455c85121e546b1fc9c76279dd094a2c))
+
+## [1.22.0](https://github.com/theodaguier/foundry/compare/v1.21.0...v1.22.0) (2026-03-26)
+
+
+### Features
+
+* **foundry-kit:** juce-expert — add Phase Discipline section to prevent DSP pass timeout errors ([1879174](https://github.com/theodaguier/foundry/commit/18791747c2dc3ee49944039fa6d330e3a041375c))
+
+## [1.21.0](https://github.com/theodaguier/foundry/compare/v1.20.0...v1.21.0) (2026-03-26)
+
+
+### Features
+
+* **foundry-kit:** beatmaker — add macro controls, concrete synth sound recipes per archetype ([66497e1](https://github.com/theodaguier/foundry/commit/66497e1465797886f8651f47b043884a14c514ce))
+* **foundry-kit:** juce-expert — add oversampling pattern, clarify APVTS layout, fix lambda capture note ([93a7a78](https://github.com/theodaguier/foundry/commit/93a7a78aba5ede043eff6ca4a79f45dcffe54c11))
+
+## [1.20.0](https://github.com/theodaguier/foundry/compare/v1.19.0...v1.20.0) (2026-03-26)
+
+
+### Features
+
+* **foundry-kit:** expand sound-engineer skill — full synthesis coverage (FM, wavetable, granular), utilities, instruments, complete DSP patterns ([ba4336c](https://github.com/theodaguier/foundry/commit/ba4336cc924847fa2bdfad029d96a3d85d4b9662))
+* **foundry-kit:** rework art-director skill — visual identity over prescriptive palette, FoundryLookAndFeel as foundation not cage ([daa48c2](https://github.com/theodaguier/foundry/commit/daa48c225a7bb5899c3c72fb0be057b775269e42))
+
+## [1.19.0](https://github.com/theodaguier/foundry/compare/v1.18.5...v1.19.0) (2026-03-26)
+
+
+### Features
+
+* **foundry-kit:** add art-director skill ([3fb5366](https://github.com/theodaguier/foundry/commit/3fb53663a2b9ca79650e18abce017bf5d47f40b0))
+* **foundry-kit:** add beatmaker skill ([f5400eb](https://github.com/theodaguier/foundry/commit/f5400eb887d908e5c8899782a43fb0128c42c594))
+* **foundry-kit:** add juce-expert skill ([f9d17e2](https://github.com/theodaguier/foundry/commit/f9d17e20a6bdf8411f5c69b060f9eb2a4a1cf228))
+* **foundry-kit:** add master skill ([8ad833c](https://github.com/theodaguier/foundry/commit/8ad833c42fe1feba21de99876b8e99ab53c24b7b))
+* **foundry-kit:** add sound-engineer skill ([ab1a66d](https://github.com/theodaguier/foundry/commit/ab1a66df4afe1c1e0108cbb055a6cedd9f32fd6c))
+
 ## [1.18.5](https://github.com/theodaguier/foundry/compare/v1.18.4...v1.18.5) (2026-03-25)
 
 
