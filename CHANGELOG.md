@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.24.3](https://github.com/theodaguier/foundry/compare/v1.24.2...v1.24.3) (2026-03-26)
+
+
+### Bug Fixes
+
+* **pipeline:** block RemoteTrigger and MCP remote tools in disallowedTools — prevents Claude from calling external services during generation ([f6a5449](https://github.com/theodaguier/foundry/commit/f6a54491f845c5c4c2a236bd13191b0f0b42a006))
+
 ## [1.24.2](https://github.com/theodaguier/foundry/compare/v1.24.1...v1.24.2) (2026-03-26)
 
 
