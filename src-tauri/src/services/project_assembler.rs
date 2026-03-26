@@ -216,6 +216,7 @@ pub fn assemble(
 
     write_cmake_lists(&project_dir, plugin_name, &plugin_type, format, juce_path)?;
     write_foundry_kit(&project_dir)?;
+    write_editor_skeleton(&source_dir, plugin_name)?;
     write_claude_md(
         &project_dir,
         plugin_name,
@@ -320,6 +321,80 @@ fn infer_interface_style(prompt: &str, plugin_type: &str) -> &'static str {
         "instrument" => "Exploratory Performance",
         _ => "Balanced Character",
     }
+}
+
+
+fn write_editor_skeleton(
+    source_dir: &Path,
+    plugin_name: &str,
+) -> Result<(), String> {
+    // PluginEditor.h skeleton — correct structure guaranteed
+    let h = format!(
+        r#"#pragma once
+#include <JuceHeader.h>
+#include "PluginProcessor.h"
+
+class {name}Editor : public juce::AudioProcessorEditor
+{{
+public:
+    explicit {name}Editor({name}Processor&);
+    ~{name}Editor() override;
+
+    void paint(juce::Graphics&) override;
+    void resized() override;
+
+private:
+    {name}Processor& processorRef;
+
+    // TODO: declare your controls here
+    // juce::Slider myKnob;
+    // juce::SliderParameterAttachment myKnobAttachment;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR({name}Editor)
+}};
+"#,
+        name = plugin_name
+    );
+
+    // PluginEditor.cpp skeleton — setSize and getLocalBounds guaranteed
+    let cpp = format!(
+        r#"#include <JuceHeader.h>
+#include "PluginEditor.h"
+
+{name}Editor::{name}Editor({name}Processor& p)
+    : AudioProcessorEditor(&p), processorRef(p)
+{{
+    setSize(820, 520);
+    // TODO: add controls — setLookAndFeel, addAndMakeVisible, attachments, etc.
+}}
+
+{name}Editor::~{name}Editor()
+{{
+    setLookAndFeel(nullptr);
+}}
+
+void {name}Editor::paint(juce::Graphics& g)
+{{
+    g.fillAll(juce::Colour(0xff1a1a22));
+    g.setColour(juce::Colour(0xffe0e8ff));
+    g.setFont(juce::Font(juce::FontOptions(14.0f)));
+    g.drawText("{name}", getLocalBounds(), juce::Justification::centred, true);
+}}
+
+void {name}Editor::resized()
+{{
+    auto bounds = getLocalBounds().reduced(24);
+    auto header = bounds.removeFromTop(44);
+    (void)header;
+    // TODO: lay out controls using bounds.removeFromTop / removeFromLeft etc.
+}}
+"#,
+        name = plugin_name
+    );
+
+    fs::write(source_dir.join("PluginEditor.h"), h).map_err(|e| e.to_string())?;
+    fs::write(source_dir.join("PluginEditor.cpp"), cpp).map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 fn write_cmake_lists(
