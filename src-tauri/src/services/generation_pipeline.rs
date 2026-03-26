@@ -1726,7 +1726,7 @@ fn build_fast_processor_prompt(
     let debug_context_section = render_debug_context_section(debug_context);
 
     format!(
-
+        r#"
 Build the DSP foundation for a JUCE {role} plugin called "{name}".
 
 User brief: {prompt}
@@ -1817,7 +1817,7 @@ fn build_fast_ui_prompt(
     let debug_context_section = render_debug_context_section(debug_context);
 
     format!(
-
+        r#"
 Complete the UI for the existing JUCE {role} plugin "{name}".
 
 User brief: {prompt}
@@ -1909,7 +1909,7 @@ fn build_emergency_ui_prompt(
     let debug_context_section = render_debug_context_section(debug_context);
 
     format!(
-
+        r#"
 Emergency UI pass for JUCE plugin "{name}".
 {debug_context_section}
 
@@ -1972,7 +1972,7 @@ fn build_debug_retry_plan_prompt(
     let debug_context_section = render_debug_context_section(Some(debug_context));
 
     format!(
-
+        r#"
 Debug retry for JUCE {role} plugin "{name}".
 
 User brief: {prompt}
@@ -3083,7 +3083,7 @@ fn build_ui_recovery_prompt(
     let debug_context_section = render_debug_context_section(debug_context);
 
     format!(
-
+        r#"
 Rebuild the UI for an existing JUCE {role} plugin called "{name}".
 
 User brief: {prompt}
@@ -3187,7 +3187,7 @@ fn build_generation_repair_prompt(
     let debug_context_section = render_debug_context_section(debug_context);
 
     format!(
-
+        r#"
 Repair an incomplete or inconsistent JUCE {role} plugin called "{name}".
 
 User brief: {prompt}
