@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.24.2](https://github.com/theodaguier/foundry/compare/v1.24.1...v1.24.2) (2026-03-26)
+
+
+### Bug Fixes
+
+* persist and resume failed builds ([f5e2b6c](https://github.com/theodaguier/foundry/commit/f5e2b6cdd8495ec65d633d84825b15c668f47ed9))
+
 ## [1.24.1](https://github.com/theodaguier/foundry/compare/v1.24.0...v1.24.1) (2026-03-26)
 
 
