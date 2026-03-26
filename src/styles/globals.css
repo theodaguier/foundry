@@ -7,7 +7,7 @@
 
 @font-face {
   font-family: "ArchitypeStedelijk";
-  src: url("../assets/fonts/ArchitypeStedelijkW00.ttf") format("truetype");
+  src: url("../assets/fonts/architype-stedelijk-w00.ttf") format("truetype");
   font-weight: normal;
   font-style: normal;
   font-display: swap;
@@ -15,7 +15,7 @@
 
 @font-face {
   font-family: "Azeret Mono";
-  src: url("../assets/fonts/AzeretMono.ttf") format("truetype");
+  src: url("../assets/fonts/azeret-mono.ttf") format("truetype");
   font-weight: 100 900;
   font-style: normal;
   font-display: swap;
