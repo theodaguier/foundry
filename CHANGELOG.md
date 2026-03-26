@@ -3,6 +3,16 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.24.5](https://github.com/theodaguier/foundry/compare/v1.24.4...v1.24.5) (2026-03-26)
+
+
+### Bug Fixes
+
+* **assembler:** pre-write PluginEditor skeleton — eliminates UI validation failures ([556e544](https://github.com/theodaguier/foundry/commit/556e54438bcad15f46c27d680f119fcb578c5abd))
+* **assembler:** pre-write PluginEditor skeleton before UI generation — setSize/getLocalBounds/JuceHeader guaranteed ([ec298f3](https://github.com/theodaguier/foundry/commit/ec298f3d2a04c8eb77791993bb1999ff52cc1213))
+* **assembler:** update CLAUDE.md/AGENTS.md to mention editor skeletons ([1eb05ae](https://github.com/theodaguier/foundry/commit/1eb05ae2094293f5ca9f20599903d9a17db68c77))
+* **pipeline:** update UI prompts to complete skeleton instead of writing from scratch ([e821e86](https://github.com/theodaguier/foundry/commit/e821e86ac0ce1a68658be604e5c3232f62e3e9b3))
+
 ## [1.24.4](https://github.com/theodaguier/foundry/compare/v1.24.3...v1.24.4) (2026-03-26)
 
 
