@@ -2,6 +2,16 @@ export type PluginType = "instrument" | "effect" | "utility";
 export type PluginFormat = "AU" | "VST3";
 export type PluginStatus = "installed" | "failed" | "building";
 
+export interface SavedGenerationConfig {
+  prompt: string;
+  pluginType?: PluginType;
+  format: FormatOption;
+  channelLayout: ChannelLayout;
+  presetCount: PresetCount;
+  agent: string;
+  model: string;
+}
+
 export interface InstallPaths {
   au?: string;
   vst3?: string;
@@ -37,6 +47,8 @@ export interface Plugin {
   generationLogPath?: string;
   agent?: string;
   model?: AgentModel;
+  generationConfig?: SavedGenerationConfig;
+  lastErrorMessage?: string;
   currentVersion: number;
   versions: PluginVersion[];
 }
@@ -76,13 +88,24 @@ export type FormatOption = "AU" | "VST3" | "Both";
 export type ChannelLayout = "Mono" | "Stereo";
 export type PresetCount = 0 | 3 | 5 | 10;
 
+export interface GenerationDebugContext {
+  trigger: "retry-after-failure";
+  previousError: string;
+  recentLogs: string[];
+}
+
 export interface GenerationConfig {
   prompt: string;
+  pluginType?: PluginType;
   format: FormatOption;
   channelLayout: ChannelLayout;
   presetCount: PresetCount;
   agent: string;
   model: string;
+  debugPipeline?: boolean;
+  debugContext?: GenerationDebugContext;
+  resumePluginId?: string;
+  resumePluginName?: string;
 }
 
 export interface RefineConfig {

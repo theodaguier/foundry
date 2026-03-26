@@ -34,6 +34,19 @@ pub struct InstallPaths {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct SavedGenerationConfig {
+    pub prompt: String,
+    #[serde(default)]
+    pub plugin_type: Option<String>,
+    pub format: String,
+    pub channel_layout: String,
+    pub preset_count: i32,
+    pub agent: String,
+    pub model: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Plugin {
     pub id: String,
     pub name: String,
@@ -55,6 +68,10 @@ pub struct Plugin {
     pub agent: Option<GenerationAgent>,
     #[serde(default)]
     pub model: Option<AgentModel>,
+    #[serde(default)]
+    pub generation_config: Option<SavedGenerationConfig>,
+    #[serde(default)]
+    pub last_error_message: Option<String>,
     #[serde(default = "default_version")]
     pub current_version: i32,
     #[serde(default)]

@@ -1,4 +1,4 @@
-use crate::models::plugin::Plugin;
+use crate::models::plugin::{Plugin, PluginStatus};
 use crate::services::foundry_paths;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -55,4 +55,22 @@ pub fn save_plugins(plugins: &[Plugin]) -> Result<(), Box<dyn std::error::Error>
     let data = serde_json::to_string_pretty(&file)?;
     fs::write(&path, data)?;
     Ok(())
+}
+
+pub fn reconcile_stale_builds(plugins: &mut [Plugin]) -> bool {
+    let mut changed = false;
+
+    for plugin in plugins
+        .iter_mut()
+        .filter(|plugin| plugin.status == PluginStatus::Building)
+    {
+        plugin.status = PluginStatus::Failed;
+        if plugin.last_error_message.is_none() {
+            plugin.last_error_message =
+                Some("Generation was interrupted when Foundry closed.".to_string());
+        }
+        changed = true;
+    }
+
+    changed
 }

@@ -1,7 +1,9 @@
 import { useAppStore } from "@/stores/app-store"
+import { useBuildStore } from "@/stores/build-store"
 import type { Plugin } from "@/lib/types"
 import { pluginTypeDisplayName } from "@/lib/utils"
 import { showInFinder } from "@/lib/commands"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
@@ -14,7 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { PluginArtworkView } from "@/components/app/plugin-artwork-view"
 import { VersionHistoryView } from "@/components/app/version-history-view"
-import { MoreHorizontal, FolderOpen } from "lucide-react"
+import { MoreHorizontal, FolderOpen, RotateCcw } from "lucide-react"
 
 interface Props {
   plugin: Plugin
@@ -24,6 +26,8 @@ export function PluginDetailView({ plugin }: Props) {
   const setMainView = useAppStore((s) => s.setMainView)
   const deletePlugin = useAppStore((s) => s.deletePlugin)
   const loadPlugins = useAppStore((s) => s.loadPlugins)
+  const isRunning = useBuildStore((s) => s.isRunning)
+  const retryPlugin = useBuildStore((s) => s.retryPlugin)
   const openFolder = () => {
     const path = plugin.installPaths.vst3 || plugin.installPaths.au
     if (path) showInFinder(path)
@@ -31,6 +35,11 @@ export function PluginDetailView({ plugin }: Props) {
 
   const handleRefine = () => {
     setMainView({ kind: "refine", pluginId: plugin.id })
+  }
+
+  const handleRetry = () => {
+    setMainView({ kind: "generation" })
+    void retryPlugin(plugin)
   }
 
   const handleDelete = async () => {
@@ -59,10 +68,21 @@ export function PluginDetailView({ plugin }: Props) {
               size="sm"
               variant="secondary"
               className="bg-background/80 backdrop-blur-sm text-xs h-7"
-              onClick={handleRefine}
-              disabled={!plugin.buildDirectory}
+              onClick={plugin.status === "failed" ? handleRetry : handleRefine}
+              disabled={
+                plugin.status === "failed"
+                  ? isRunning || (!plugin.generationConfig && !plugin.prompt)
+                  : !plugin.buildDirectory
+              }
             >
-              Refine
+              {plugin.status === "failed" ? (
+                <>
+                  <RotateCcw className="size-3.5" />
+                  Retry
+                </>
+              ) : (
+                "Refine"
+              )}
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger
@@ -99,6 +119,15 @@ export function PluginDetailView({ plugin }: Props) {
           </p>
         )}
 
+        {plugin.status === "failed" && plugin.lastErrorMessage && (
+          <Card size="sm" className="border-destructive/20 bg-destructive/5">
+            <CardContent className="flex flex-col gap-1.5">
+              <div className="text-[10px] tracking-[1px] text-destructive/80 uppercase">Last Failure</div>
+              <div className="text-xs text-muted-foreground break-words">{plugin.lastErrorMessage}</div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Details */}
         <div className="flex flex-col gap-3">
           <Label>Details</Label>
@@ -117,6 +146,13 @@ export function PluginDetailView({ plugin }: Props) {
               <div className="flex items-center justify-between py-2">
                 <span className="text-sm text-muted-foreground">Created</span>
                 <span className="text-sm">{createdDate}</span>
+              </div>
+              <Separator />
+              <div className="flex items-center justify-between py-2">
+                <span className="text-sm text-muted-foreground">Status</span>
+                <Badge variant={plugin.status === "failed" ? "destructive" : plugin.status === "building" ? "outline" : "secondary"}>
+                  {plugin.status}
+                </Badge>
               </div>
               {plugin.currentVersion > 0 && (
                 <>

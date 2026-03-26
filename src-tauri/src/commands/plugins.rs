@@ -7,7 +7,17 @@ use tauri::{command, State};
 
 #[command]
 pub async fn load_plugins(state: State<'_, AppState>) -> Result<Vec<Plugin>, String> {
-    let plugins = plugin_manager::load_plugins().map_err(|e| e.to_string())?;
+    let mut plugins = plugin_manager::load_plugins().map_err(|e| e.to_string())?;
+    let has_active_build = state
+        .build_cancel_token
+        .lock()
+        .map_err(|e| e.to_string())?
+        .is_some();
+
+    if !has_active_build && plugin_manager::reconcile_stale_builds(&mut plugins) {
+        plugin_manager::save_plugins(&plugins).map_err(|e| e.to_string())?;
+    }
+
     let mut locked = state.plugins.lock().map_err(|e| e.to_string())?;
     *locked = plugins.clone();
     Ok(plugins)

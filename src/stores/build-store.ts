@@ -4,11 +4,30 @@ import type {
   PipelineLogLine,
   Plugin,
   GenerationConfig,
+  GenerationDebugContext,
   RefineConfig,
 } from "@/lib/types";
 import * as commands from "@/lib/commands";
+import { useAppStore } from "@/stores/app-store";
+
+function stripDebugConfig(config: GenerationConfig): GenerationConfig {
+  const { debugPipeline, debugContext, ...baseConfig } = config;
+  return baseConfig;
+}
+
+function buildDebugContext(
+  message: string | null,
+  logLines: PipelineLogLine[],
+): GenerationDebugContext {
+  return {
+    trigger: "retry-after-failure",
+    previousError: message ?? "",
+    recentLogs: logLines.slice(-12).map((line) => `${line.timestamp} ${line.message}`),
+  };
+}
 
 interface BuildStore {
+  activePluginId: string | null;
   isRunning: boolean;
   currentStep: GenerationStep;
   logLines: PipelineLogLine[];
@@ -22,8 +41,11 @@ interface BuildStore {
   progress: number;
   config: GenerationConfig | null;
   refineConfig: RefineConfig | null;
+  lastErrorMessage: string | null;
 
   startGeneration: (config: GenerationConfig) => Promise<void>;
+  retryPlugin: (plugin: Plugin) => Promise<void>;
+  retryGenerationWithDebug: () => Promise<void>;
   startRefine: (config: RefineConfig) => Promise<void>;
   cancel: () => Promise<void>;
   setShowConsole: (show: boolean) => void;
@@ -33,6 +55,7 @@ interface BuildStore {
   handleLog: (line: PipelineLogLine) => void;
   handleStreaming: (text: string) => void;
   handleName: (name: string) => void;
+  handleRegistered: (plugin: Plugin) => void;
   handleProgress: (progress: number) => void;
   handleBuildAttempt: (attempt: number) => void;
   handleComplete: (plugin: Plugin) => void;
@@ -66,7 +89,42 @@ const refineVisibleIndex: Record<GenerationStep, number> = {
   installing: 3,
 };
 
+function inferFormat(plugin: Plugin): GenerationConfig["format"] {
+  const hasAu = plugin.formats.includes("AU");
+  const hasVst3 = plugin.formats.includes("VST3");
+  if (hasAu && hasVst3) return "Both";
+  if (hasAu) return "AU";
+  if (hasVst3) return "VST3";
+  return "Both";
+}
+
+function inferAgent(plugin: Plugin): string {
+  if (plugin.generationConfig?.agent) return plugin.generationConfig.agent;
+  if (plugin.agent === "Codex") return "Codex";
+  return "Claude Code";
+}
+
+function inferModel(plugin: Plugin): string {
+  return plugin.generationConfig?.model || plugin.model?.flag || plugin.model?.id || "sonnet";
+}
+
+function buildRetryConfig(plugin: Plugin): GenerationConfig {
+  const config = plugin.generationConfig;
+  return {
+    prompt: config?.prompt ?? plugin.prompt,
+    pluginType: config?.pluginType ?? plugin.type,
+    format: config?.format ?? inferFormat(plugin),
+    channelLayout: config?.channelLayout ?? "Stereo",
+    presetCount: config?.presetCount ?? 5,
+    agent: inferAgent(plugin),
+    model: inferModel(plugin),
+    resumePluginId: plugin.id,
+    resumePluginName: plugin.name,
+  };
+}
+
 export const useBuildStore = create<BuildStore>((set, get) => ({
+  activePluginId: null,
   isRunning: false,
   currentStep: "preparingEnvironment",
   logLines: [],
@@ -80,9 +138,11 @@ export const useBuildStore = create<BuildStore>((set, get) => ({
   progress: 0,
   config: null,
   refineConfig: null,
+  lastErrorMessage: null,
 
   startGeneration: async (config) => {
     set({
+      activePluginId: config.resumePluginId ?? null,
       isRunning: true,
       currentStep: "preparingEnvironment",
       logLines: [],
@@ -93,8 +153,9 @@ export const useBuildStore = create<BuildStore>((set, get) => ({
       completedSteps: new Set(),
       highWaterStep: 0,
       progress: 0,
-      config,
+      config: stripDebugConfig(config),
       refineConfig: null,
+      lastErrorMessage: null,
     });
     try {
       const environment = await commands.prepareBuildEnvironment(true);
@@ -109,8 +170,24 @@ export const useBuildStore = create<BuildStore>((set, get) => ({
     }
   },
 
+  retryPlugin: async (plugin) => {
+    await get().startGeneration(buildRetryConfig(plugin));
+  },
+
+  retryGenerationWithDebug: async () => {
+    const { config, lastErrorMessage, logLines, startGeneration } = get();
+    if (!config) return;
+
+    await startGeneration({
+      ...config,
+      debugPipeline: true,
+      debugContext: buildDebugContext(lastErrorMessage, logLines),
+    });
+  },
+
   startRefine: async (config) => {
     set({
+      activePluginId: null,
       isRunning: true,
       currentStep: "preparingEnvironment",
       logLines: [],
@@ -123,6 +200,7 @@ export const useBuildStore = create<BuildStore>((set, get) => ({
       progress: 0,
       config: null,
       refineConfig: config,
+      lastErrorMessage: null,
     });
     try {
       const environment = await commands.prepareBuildEnvironment(true);
@@ -140,11 +218,13 @@ export const useBuildStore = create<BuildStore>((set, get) => ({
   cancel: async () => {
     await commands.cancelBuild();
     set({ isRunning: false });
+    await useAppStore.getState().loadPlugins();
   },
   setShowConsole: (show) => set({ showConsole: show }),
   tick: () => set((s) => ({ elapsedSeconds: s.elapsedSeconds + 1 })),
   reset: () =>
     set({
+      activePluginId: null,
       isRunning: false,
       currentStep: "preparingEnvironment",
       logLines: [],
@@ -158,6 +238,7 @@ export const useBuildStore = create<BuildStore>((set, get) => ({
       progress: 0,
       config: null,
       refineConfig: null,
+      lastErrorMessage: null,
     }),
 
   handleStep: (step) => {
@@ -195,8 +276,26 @@ export const useBuildStore = create<BuildStore>((set, get) => ({
       streamingText: text === "" ? "" : `${s.streamingText}${text}`,
     })),
   handleName: (name) => set({ generatedPluginName: name }),
+  handleRegistered: (plugin) =>
+    set((s) => ({
+      activePluginId: plugin.id,
+      generatedPluginName: plugin.name,
+      config: s.config
+        ? {
+            ...s.config,
+            resumePluginId: plugin.id,
+            resumePluginName: plugin.name,
+          }
+        : s.config,
+    })),
   handleProgress: (progress) => set({ progress }),
   handleBuildAttempt: (attempt) => set({ buildAttempt: attempt }),
-  handleComplete: () => set({ isRunning: false, progress: 1 }),
-  handleError: () => set({ isRunning: false }),
+  handleComplete: () =>
+    set({
+      activePluginId: null,
+      isRunning: false,
+      progress: 1,
+      lastErrorMessage: null,
+    }),
+  handleError: (message) => set({ isRunning: false, lastErrorMessage: message }),
 }));

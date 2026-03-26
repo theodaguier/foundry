@@ -17,7 +17,7 @@ import Refine from "@/pages/Refine"
 import Settings from "@/pages/Settings"
 import BuildQueue from "@/pages/build-queue"
 import Profile from "@/pages/profile"
-import type { GenerationStep, PipelineLogLine } from "@/lib/types"
+import type { GenerationStep, PipelineLogLine, Plugin } from "@/lib/types"
 
 function LaunchScreen() {
   return (
@@ -113,6 +113,7 @@ function GlobalPipelineListener() {
   const handleStepAction = useBuildStore((s) => s.handleStep)
   const handleLogAction = useBuildStore((s) => s.handleLog)
   const handleNameAction = useBuildStore((s) => s.handleName)
+  const handleRegisteredAction = useBuildStore((s) => s.handleRegistered)
   const handleErrorAction = useBuildStore((s) => s.handleError)
   const handleCompleteAction = useBuildStore((s) => s.handleComplete)
   const handleBuildAttemptAction = useBuildStore((s) => s.handleBuildAttempt)
@@ -138,12 +139,20 @@ function GlobalPipelineListener() {
     (payload: { name: string }) => handleNameAction(payload.name),
     [handleNameAction],
   )
+  const handleRegistered = useCallback(
+    (payload: { plugin: Plugin }) => {
+      handleRegisteredAction(payload.plugin)
+      void useAppStore.getState().loadPlugins()
+    },
+    [handleRegisteredAction],
+  )
   const handleStreaming = useCallback((payload: { text: string }) => {
     useBuildStore.getState().handleStreaming(payload.text)
   }, [])
   const handleError = useCallback(
     (payload: { message: string }) => {
       handleErrorAction(payload.message)
+      void useAppStore.getState().loadPlugins()
       useAppStore.getState().setMainView({ kind: "error", message: payload.message })
     },
     [handleErrorAction],
@@ -164,6 +173,7 @@ function GlobalPipelineListener() {
   useTauriEvent("pipeline:step", handleStep)
   useTauriEvent("pipeline:log", handleLog)
   useTauriEvent("pipeline:name", handleName)
+  useTauriEvent("pipeline:registered", handleRegistered)
   useTauriEvent("pipeline:streaming", handleStreaming)
   useTauriEvent("pipeline:error", handleError)
   useTauriEvent("pipeline:complete", handleComplete)
