@@ -171,7 +171,7 @@ pub async fn run(
 
     // For "generate" mode, also disallow Read — the prompt is self-contained.
     // For "refine" and "fix" modes, Claude must read existing Source/ files.
-    let disallowed_base = "Bash,Grep,Glob,WebSearch,WebFetch,NotebookEdit,Skill,EnterPlanMode,ExitPlanMode,EnterWorktree,ExitWorktree,CronCreate,CronDelete,CronList,Task,TaskCreate,TaskGet,TaskUpdate,TaskList,TaskOutput,TaskStop,AskUserQuestion,ToolSearch,Agent,TodoRead,TodoWrite";
+    let disallowed_base = "Bash,Grep,Glob,WebSearch,WebFetch,NotebookEdit,Skill,EnterPlanMode,ExitPlanMode,EnterWorktree,ExitWorktree,CronCreate,CronDelete,CronList,Task,TaskCreate,TaskGet,TaskUpdate,TaskList,TaskOutput,TaskStop,AskUserQuestion,ToolSearch,Agent,TodoRead,TodoWrite,RemoteTrigger,mcp__remote,computer";
     let disallowed = match mode {
         "plan" => format!("{},Read,Write,Edit,MultiEdit,StrReplace", disallowed_base),
         "generate" | "generate_processor" | "generate_ui" => format!("{},Read", disallowed_base),
