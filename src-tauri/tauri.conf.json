@@ -38,7 +38,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "untrusted comment: minisign public key: E18DD436D8FF7E52\nRWRSfv/YNtSN4QiwbALydILwUrm+nDp/icMckT8FAszI94wbv3QlcJvO",
+      "pubkey": "untrusted comment: minisign public key: 55BF39690DCB28D2\nRWTSKMsNaTm/VbwOzcg0XEDOSOpGy8L4Ai5Jjb8gTkq+DXUNrwfaxR6u",
       "endpoints": [
         "https://github.com/theodaguier/foundry/releases/latest/download/latest.json"
       ]
