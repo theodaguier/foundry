@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.39.0](https://github.com/theodaguier/foundry/compare/v1.38.11...v1.39.0) (2026-03-27)
+
+
+### Features
+
+* **onboarding:** show estimated progress percentage during install ([278f51c](https://github.com/theodaguier/foundry/commit/278f51cfd57967a4ad3fcb9e8fc6d20b76624ad4))
+
 ## [1.38.11](https://github.com/theodaguier/foundry/compare/v1.38.10...v1.38.11) (2026-03-27)
 
 
