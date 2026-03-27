@@ -3,6 +3,14 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.27.0](https://github.com/theodaguier/foundry/compare/v1.26.0...v1.27.0) (2026-03-27)
+
+
+### Features
+
+* **commands:** add rate_generation Tauri command ([c4ae979](https://github.com/theodaguier/foundry/commit/c4ae979b86bbc06d619a3e015f27ba6704857291))
+* **telemetry:** add rate() function — save user rating locally and sync to Supabase ([13da74a](https://github.com/theodaguier/foundry/commit/13da74a7590fff03f76bb4db4cd548224b262263))
+
 ## [1.26.0](https://github.com/theodaguier/foundry/compare/v1.25.1...v1.26.0) (2026-03-27)
 
 
