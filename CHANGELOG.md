@@ -3,6 +3,14 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.37.2](https://github.com/theodaguier/foundry/compare/v1.37.1...v1.37.2) (2026-03-27)
+
+
+### Bug Fixes
+
+* **dashboard:** remove audit_duration references, fix stage durations query ([7216909](https://github.com/theodaguier/foundry/commit/721690985f7790c7bbf74134344db74467c53e2a))
+* **dashboard:** remove deleted columns from TelemetryRow type, add user_rating ([98e879d](https://github.com/theodaguier/foundry/commit/98e879db6ef9adbf96ff88020d646159ebb3f1fa))
+
 ## [1.37.1](https://github.com/theodaguier/foundry/compare/v1.37.0...v1.37.1) (2026-03-27)
 
 
