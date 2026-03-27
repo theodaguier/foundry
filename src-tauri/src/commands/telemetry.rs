@@ -16,17 +16,8 @@ pub async fn load_all_telemetry() -> Result<Vec<GenerationTelemetry>, String> {
 pub async fn rate_generation(
     id: String,
     rating: i16,
-    app: tauri::AppHandle,
+    state: tauri::State<'_, crate::state::AppState>,
 ) -> Result<(), String> {
-    use crate::services::auth_service::SupabaseAuth;
-    use crate::AppState;
-    use tauri::Manager;
-
-    let auth = app
-        .try_state::<AppState>()
-        .map(|s| s.auth.clone())
-        .unwrap_or_else(SupabaseAuth::new);
-
-    crate::services::telemetry_service::rate(&id, rating, &auth);
+    crate::services::telemetry_service::rate(&id, rating, &state.auth);
     Ok(())
 }
