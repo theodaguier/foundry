@@ -1,141 +1,171 @@
 ---
 name: art-director
-description: Plugin UI/UX designer for professional JUCE plugin interfaces with strong visual identity.
+description: Plugin UI/UX designer for professional JUCE plugin interfaces. Produces interfaces that look like $79 commercial plugins — not generic dark GUIs. Use for all UI phases in Foundry plugin generation.
 ---
 
 # Art Director
 
-The interface IS the instrument. Every plugin needs its own visual identity — not a generic dark UI with knobs.
+The interface IS the instrument. Apply these rules without exception.
 
-## MANDATORY — Pipeline rejects if any of these fail
+---
+
+## MANDATORY — Pipeline rejects if any fail
 
 ### Rule 1: setSize with explicit numeric literals only
-
 ```cpp
-// ✅ CORRECT
-FluxEditor::FluxEditor(FluxProcessor& p) : AudioProcessorEditor(&p), processorRef(p) {
-    setLookAndFeel(&lookAndFeel);
-    setSize(820, 520); // ← literal integers, width > height, always
-}
+setSize(820, 520); // ✅ literals, width > height always
+setSize(editorWidth, editorHeight); // ❌ FAIL
+setSize(520, 820); // ❌ portrait = FAIL
+```
+Valid sizes: width 680–960px, height 380–580px.
 
-// ❌ REJECTED — all of these fail validation:
-setSize(editorWidth, editorHeight);      // variables
-setSize(DEFAULT_WIDTH, DEFAULT_HEIGHT);  // named constants
-setSize(520, 820);                       // portrait (height > width)
+### Rule 2: Layout from getLocalBounds() only — no absolute coordinates
+```cpp
+// ✅
+auto b = getLocalBounds().reduced(24);
+auto header = b.removeFromTop(44);
+auto hero   = b.removeFromTop(160);
+
+// ❌ FAIL
+knob.setBounds(50, 80, 80, 80);
 ```
 
-Good sizes: `setSize(820, 520)`, `setSize(760, 480)`, `setSize(900, 560)`. Width 680-960px, height 380-580px.
+### Rule 3: Landscape multi-zone — never a vertical stack
+Horizontal zones always. Vertical list of controls = rejected.
 
-### Rule 2: Layout from getLocalBounds() — no scattered coordinates
+---
 
-```cpp
-// ✅ CORRECT
-void FluxEditor::resized() {
-    auto bounds = getLocalBounds().reduced(24);
-    auto header = bounds.removeFromTop(44);
-    pluginNameLabel.setBounds(header);
-    auto heroZone = bounds.removeFromTop(160);
-    driveKnob.setBounds(heroZone.removeFromLeft(heroZone.getWidth() / 2).reduced(12));
-    toneKnob.setBounds(heroZone.reduced(12));
-    mixKnob.setBounds(bounds.removeFromBottom(40).removeFromRight(100).reduced(8));
-}
+## Color Grammar — 7 tokens, nothing more
 
-// ❌ REJECTED
-driveKnob.setBounds(50, 80, 80, 80);  // absolute coordinates = FAIL
-toneKnob.setBounds(150, 80, 80, 80);  // same
+Define these in FoundryLookAndFeel constructor. Do not add more colors.
+
+```
+backgroundColour  — near-black, the base
+surfaceColour     — one step lighter (panels, header)
+controlColour     — one step lighter (knob bg, button bg)
+borderColour      — barely visible separator (~15% lighter than base)
+textColour        — high contrast (≥7:1 on bg)
+dimTextColour     — muted secondary (~50% luminance)
+accentColour      — ONE chromatic color, the plugin's soul
 ```
 
-Must use at least one of: `getLocalBounds()`, `reduced()`, `removeFromTop/Left/Right/Bottom()`, `juce::Grid`, `juce::FlexBox`.
+**Warn color** = `juce::Colour(0xffc03018)` — clip/overload only. Never reuse for anything else.
 
-### Rule 3: Multi-zone landscape, not a vertical stack
+---
 
-```cpp
-// ✅ CORRECT — horizontal zones
-auto bounds = getLocalBounds().reduced(20);
-auto header     = bounds.removeFromTop(44);   // plugin name, presets
-auto heroZone   = bounds.removeFromTop(160);  // primary controls side by side
-bounds.removeFromTop(12);                     // gap
-auto secondary  = bounds.removeFromTop(110);  // supporting controls
-auto footer     = bounds;                     // mix, output
+## Accent Color — match to sonic identity
 
-// ❌ REJECTED — vertical list
-int y = 60;
-driveKnob.setBounds(20, y, 80, 80); y += 100;
-toneKnob.setBounds(20, y, 80, 80);  y += 100; // vertical stack = FAIL
-```
+| Sound character | Accent | Base bg |
+|---|---|---|
+| Cold / digital / precise | `#3a7bd5` or `#00b4d8` | `#0d1014`–`#111520` |
+| Warm / analog / tape | `#c67c1a` or `#c87030` | `#141008`–`#1c1510` |
+| Aggressive / driven | `#c0392b` or `#8b3a3a` | `#110d0d` |
+| Spacious / ambient | `#2d6a6a` or `#6a4c93` | `#0e1214` |
+| Surgical / technical | `#b0bec5` or `#90a4ae` | `#0d0e10` |
+| Organic / vintage | `#6b6b3a` or `#7a5c3a` | `#161210` |
 
-## Visual Identity
+**One accent per plugin. Period.**
+Use accent only on: active knob arc, hero control indicator, key readout value, active state LED.
+Everything else uses neutral colors from the 7-token grammar.
 
-**Every plugin gets its own personality.** FoundryLookAndFeel is a foundation — override colours and knob style to match the plugin's character.
-
-```cpp
-// In FoundryLookAndFeel constructor, override for this specific plugin:
-backgroundColour = juce::Colour(0xff0e0e12); // cold blue-black for a digital effect
-surfaceColour    = juce::Colour(0xff1a1a22);
-accentColour     = juce::Colour(0xff4a9eff); // electric blue
-textColour       = juce::Colour(0xffe0e8ff);
-dimTextColour    = juce::Colour(0xff4a5060);
-```
-
-**Accent color = the plugin's soul.** One color, used on active controls and key visuals only:
-- Cold/digital/precise → steel blue, electric cyan `#3a7bd5`, `#00b4d8`
-- Warm/analog/musical → amber, gold, copper `#c67c1a`, `#d4a017`
-- Aggressive/driven → deep red, rust `#c0392b`, `#8B3A3A`
-- Spacious/ambient → teal, muted violet `#2d6a6a`, `#6a4c93`
-- Surgical/technical → cool white, light grey `#b0bec5`, `#90a4ae`
-- Organic/vintage → olive, warm brown `#6b6b3a`, `#7a5c3a`
-
-**Override drawRotarySlider() for character:**
-- Thin arc + line indicator = precision, surgical
-- Thick filled arc = bold, immediate
-- Glowing arc = expressive, synth feel
-- Simple dot on ring = vintage, analog
+---
 
 ## Layout Architecture
 
 ```
-┌─────────────────────────────────┐
-│  HEADER (40-48px)               │  Plugin name, preset selector
-├─────────────────────────────────┤
-│                                 │
-│  HERO ZONE (~40% height)        │  ONE primary control or visualization
-│                                 │  Larger than everything else
-├─────────────────────────────────┤
-│  SECONDARY (~35% height)        │  Supporting params, grouped by function
-├─────────────────────────────────┤
-│  FOOTER (32-40px)               │  Mix, output, mode
-└─────────────────────────────────┘
+┌─────────────────────────────────────┐
+│  HEADER (40–48px)                   │  Name · type · preset · bypass
+├──────────┬──────────────────────────┤
+│          │                          │
+│  HERO    │  SECONDARY ZONES         │
+│  ZONE    │  input → processing      │
+│  (≥40%)  │  → character → output    │
+│          │                          │
+└──────────┴──────────────────────────┘
 ```
 
-Hero control = the plugin's identity. Make it physically dominant.
-- Reverb: large Decay knob or room visualization
-- Compressor: threshold + GR meter as one focal unit
-- Synth: oscillator display or main filter cutoff
-- Distortion: oversized Drive knob
+Hero zone = the plugin's identity control. One per plugin:
+- Compressor → threshold + GR meter as focal unit
+- Reverb → large Decay knob or room size visualization
+- Distortion → oversized Drive knob
+- EQ → frequency display
+- Synth → main filter cutoff or oscillator display
 
-## Control Vocabulary
+---
 
-- **Rotary** — continuous params users adjust often (frequency, time, depth). Max 8 per UI.
-- **Horizontal slider** — signal flow (input→output), mix/blend chains
-- **Buttons/toggles** — on/off, bypass, mode, character switches
-- **ComboBox** — algorithm, 5+ discrete choices
-- **Custom widgets** — XY pad, waveform display, meter — these elevate a plugin from functional to memorable
+## Knob Design — drawRotarySlider()
 
-Knob minimum size: 56×56px. Outer margin: 20-28px. Between controls: 8-12px.
+**One knob style per plugin.** Three acceptable patterns:
+
+**Precision / surgical** — thin arc + line indicator
+```cpp
+g.drawArc(knobBounds, startAngle, endAngle - startAngle, lineWidth);
+g.drawLine(centre, indicatorEnd, 1.5f);
+```
+
+**Bold / immediate** — thick filled arc
+```cpp
+g.fillPath(arcPath); // thick, solid
+```
+
+**Analog / vintage** — dot on ring, no arc
+```cpp
+g.fillEllipse(dotBounds); // small dot at position
+```
+
+Do not mix styles within the same plugin. No gradients on knobs. No glow effects except on LED indicators.
+
+Knob minimum size: 56×56px. Hero knob: 80–100px.
+
+---
+
+## Control Sizing by Importance
+
+All controls must NOT have equal visual weight:
+
+| Role | Size | Color |
+|---|---|---|
+| Hero (1 per plugin) | 80–100px knob or dominant widget | accent border + accent indicator |
+| Primary params | 56–68px knob | neutral border, neutral indicator |
+| Secondary params | 44–52px knob | dim border, dim indicator |
+| Toggles / modes | compact button | active = accent fill or accent text |
+
+Outer margin: 20–28px. Between controls: 8–12px. Between zones: 16–20px.
+
+---
 
 ## Typography
 
-- Monospaced font for all parameter labels and value readouts (technical, premium)
-- Light sans-serif for plugin name and section headers
-- Knob labels: ALL CAPS, 10-11px
+- All parameter labels: ALL CAPS, monospaced, 10–11px
+- Value readouts: monospaced, 11–13px
+- Plugin name: light sans-serif or monospaced, 14–16px
+- Section headers: ALL CAPS, 9–10px, dimTextColour
 - Never more than 2 font sizes within a zone
+- Never decorative fonts
 
-## Anti-patterns that will be rejected or look amateur
+---
 
-- Flat row of identical-sized knobs — no hierarchy, no personality
+## States — encode everything explicitly
+
+| State | Visual treatment |
+|---|---|
+| Active control | accent arc/indicator |
+| Inactive control | neutral arc/indicator |
+| LED on | accent fill + 4px glow (same color, 40% opacity) |
+| LED off | controlColour or dimTextColour |
+| Clip | warnColour only |
+| Bypass | LED goes from accent to borderColour |
+
+---
+
+## Anti-patterns — all produce amateur results
+
+- Flat row of identical-sized knobs — no hierarchy
+- All controls same color — accent loses meaning
+- Gradients anywhere except arc fill (avoid even there)
+- Shadows on knobs — use tonal shift instead
 - Controls touching window edge — always margin
-- All controls the same color — accent only on what matters most
-- Viewport/ScrollBar/ListBox — everything visible at once, no scrolling
-- Tall single-column layout — multi-zone horizontal always
-- `setSize` with variables or constants — literals only
-- Generic grey everything — this plugin deserves its own soul
+- Vertical single-column layout
+- More than one chromatic accent color
+- Generic `juce::Colours::grey` without customization
+- `setSize` with variables or named constants
