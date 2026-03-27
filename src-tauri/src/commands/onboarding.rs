@@ -1,3 +1,4 @@
+use std::process::Command;
 use tauri::{command, State};
 
 use crate::platform;
@@ -52,4 +53,54 @@ pub async fn install_dependency(
     onboarding::release_install_lock();
 
     Ok(result)
+}
+
+/// Open a terminal window running `claude` so the user can complete the
+/// interactive OAuth sign-in flow.
+#[command]
+pub async fn launch_claude_auth() -> Result<bool, String> {
+    let claude_path = platform::resolve_claude_path()
+        .unwrap_or_else(|| platform::resolve_command("claude"));
+
+    #[cfg(target_os = "macos")]
+    {
+        // Open Terminal.app running claude
+        let script = format!(
+            "tell application \"Terminal\"
+                activate
+                do script \"'{}'\"
+            end tell",
+            claude_path
+        );
+        Command::new("osascript")
+            .args(["-e", &script])
+            .spawn()
+            .map_err(|e| format!("Could not open Terminal: {}", e))?;
+        return Ok(true);
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        // Open a new CMD window running claude
+        Command::new("cmd")
+            .args(["/c", "start", "cmd", "/k", &claude_path])
+            .spawn()
+            .map_err(|e| format!("Could not open terminal: {}", e))?;
+        return Ok(true);
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        // Try common terminal emulators
+        for term in &["gnome-terminal", "konsole", "xterm"] {
+            if Command::new(term)
+                .args(["--", &claude_path])
+                .spawn()
+                .is_ok()
+            {
+                return Ok(true);
+            }
+        }
+        return Err("Could not find a terminal emulator.".into());
+    }
 }

@@ -57,6 +57,7 @@ pub fn run() {
             commands::onboarding::get_onboarding_state,
             commands::onboarding::complete_onboarding,
             commands::onboarding::install_dependency,
+            commands::onboarding::launch_claude_auth,
         ])
         .setup(|app| {
             // Set dock icon (ensures correct icon in dev mode)

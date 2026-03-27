@@ -550,7 +550,7 @@ export default function Onboarding() {
                         )}
                       </div>
                       {dep.status === "failed" && dep.message ? (
-                        <div className="text-[11px] text-destructive/80 mt-0.5 line-clamp-2">
+                        <div className="text-[11px] text-destructive/80 mt-0.5 break-words">
                           {dep.message}
                         </div>
                       ) : dep.status === "auth_required" ? (
@@ -569,7 +569,16 @@ export default function Onboarding() {
                       {dep.status === "installed" && "Ready"}
                       {dep.status === "installing" && pct !== undefined && `${pct}%`}
                       {dep.status === "auth_required" && (
-                        <span className="text-amber-500">Sign in</span>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={async () => {
+                            try { await commands.launchClaudeAuth() } catch {}
+                          }}
+                          className="text-[11px] h-6 px-2 text-amber-500 hover:text-amber-500"
+                        >
+                          Sign in
+                        </Button>
                       )}
                       {dep.status === "failed" && (
                         <Button

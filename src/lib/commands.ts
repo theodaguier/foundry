@@ -84,3 +84,4 @@ export const getOnboardingState = () => invoke<OnboardingState>("get_onboarding_
 export const completeOnboarding = () => invoke<OnboardingState>("complete_onboarding");
 export const installDependency = (name: string) =>
   invoke<DependencyInstallResult>("install_dependency", { name });
+export const launchClaudeAuth = () => invoke<boolean>("launch_claude_auth");
