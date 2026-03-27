@@ -3,6 +3,14 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.31.0](https://github.com/theodaguier/foundry/compare/v1.30.0...v1.31.0) (2026-03-27)
+
+
+### Features
+
+* **ui:** add GenerationFeedback to plugin detail view — rate any past generation ([f2813eb](https://github.com/theodaguier/foundry/commit/f2813eb4b5d96fcc275a9fc8058bb3a19de843c1))
+* **ui:** GenerationFeedback supports historical telemetryId prop for rating past generations ([34d48a2](https://github.com/theodaguier/foundry/commit/34d48a2bc8d32dd935aba4e03d027c3860b24b36))
+
 ## [1.30.0](https://github.com/theodaguier/foundry/compare/v1.29.0...v1.30.0) (2026-03-27)
 
 
