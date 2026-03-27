@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.38.9](https://github.com/theodaguier/foundry/compare/v1.38.8...v1.38.9) (2026-03-27)
+
+
+### Bug Fixes
+
+* streamline onboarding flow and fix CI lockfile ([9154379](https://github.com/theodaguier/foundry/commit/915437953508c70407a90921979d371159578157)), closes [#99](https://github.com/theodaguier/foundry/issues/99)
+
 ## [1.38.8](https://github.com/theodaguier/foundry/compare/v1.38.7...v1.38.8) (2026-03-27)
 
 
