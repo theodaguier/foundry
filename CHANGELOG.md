@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.42.2](https://github.com/theodaguier/foundry/compare/v1.42.1...v1.42.2) (2026-03-27)
+
+
+### Bug Fixes
+
+* **onboarding:** fix Claude Code auth flow and VS Build Tools installer ([4a4d998](https://github.com/theodaguier/foundry/commit/4a4d9988b14bee4f2bf8bc649aff3e9e0cfba1d0))
+
 ## [1.42.1](https://github.com/theodaguier/foundry/compare/v1.42.0...v1.42.1) (2026-03-27)
 
 
