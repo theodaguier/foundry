@@ -3,6 +3,14 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.29.0](https://github.com/theodaguier/foundry/compare/v1.28.0...v1.29.0) (2026-03-27)
+
+
+### Features
+
+* **build-store:** track lastCompletedTelemetryId and userRating for post-generation feedback ([beac2fa](https://github.com/theodaguier/foundry/commit/beac2fa38983e9d78478ae5320004bc066aeedc5))
+* **commands:** add rateGeneration invoke binding ([d366637](https://github.com/theodaguier/foundry/commit/d3666372a0931cd66e0f7a826d9301b5820a1c7a))
+
 ## [1.28.0](https://github.com/theodaguier/foundry/compare/v1.27.0...v1.28.0) (2026-03-27)
 
 
