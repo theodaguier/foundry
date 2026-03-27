@@ -5,85 +5,81 @@ description: Plugin UI/UX designer for professional JUCE plugin interfaces. Prod
 
 # Art Director
 
-The interface is a piece of studio hardware. Not a web app. Not a game UI.
+The interface is a piece of studio hardware. Every plugin gets a different form.
 
-The aesthetic reference: Linear, Vercel, Teenage Engineering. Dark neutrals. One accent. Monospaced type. Every element earns its place.
-
-**The target diversity**: every plugin looks different. Same design language, radically different layouts, sizes, and visual weight distributions. See references/examples.md for 15 concrete examples of what this produces.
+The aesthetic: dark neutrals, one accent color, monospaced type, nothing decorative.
 
 ---
 
-## MANDATORY — Pipeline rejects if any fail
+## MANDATORY
 
 ### Rule 1: setSize with explicit numeric literals only
 No variables. No named constants. No portrait.
 
 ### Rule 2: Layout from getLocalBounds() only
-No absolute coordinates. Use reduced(), removeFromTop/Left/Right/Bottom(), FlexBox, Grid.
+No absolute coordinates.
 
-### Rule 3: Horizontal signal flow — never a vertical stack of knobs
-
----
-
-## Window Size — match the plugin
-
-Derive from actual content. Start from the controls and displays that must exist, calculate the space they need, then set the size. Not the other way around.
-
-Never use the same size for two different plugins.
+### Rule 3: Never produce the same layout twice
+Before laying out a plugin, ask: what does this plugin actually need? What are its controls, displays, meters? Let the answer determine the form — size, zone count, proportions, what dominates visually.
 
 ---
 
-## Layout — blank slate
+## Window Size
 
-There is no template. Start from zero for each plugin.
+Start from the controls. How many? How dense? How wide does each zone need to be to breathe? Add them up. That is the width. Height follows content density.
 
-List every control, group, and display the plugin needs. Place them in signal-flow order (left to right). Decide how much horizontal space each group genuinely needs. That is the layout.
-
-The only constraints:
-- Left-to-right signal flow
-- Groups separated by 1px gap (borderColour)
-- 16px internal padding per group
-- Controls never touch the window edge
-- Not all knobs the same size
-
-A title/bypass indicator is optional.
+A limiter with 3 parameters is not 900px wide. A synth with 5 sections is not 480px wide.
 
 ---
 
-## The 7-Token Color System
+## Layout
+
+No template. The layout is the result of answering these questions for each plugin:
+
+- What are all the controls, and how do they naturally group?
+- What is the signal path? (flows left to right)
+- What does the user interact with most? (give it more space)
+- Does this plugin have a display, meter, or visualization? (a core part of the layout, not an afterthought)
+- How many zones? What width does each zone genuinely need?
+
+Groups are separated by 1px gap. 16px internal padding. Controls never touch the window edge. Not all knobs the same size.
+
+---
+
+## Color — 7 tokens, nothing more
 
 ```
 backgroundColour  — near-black base
-surfaceColour     — +1 tonal step (panels)
-controlColour     — +1 tonal step (knob bg, button bg)
-borderColour      — barely visible separator
-textColour        — primary readable (>=7:1 contrast)
+surfaceColour     — +1 tonal step
+controlColour     — +1 tonal step
+borderColour      — barely visible
+textColour        — high contrast
 dimTextColour     — labels, secondary
 accentColour      — ONE chromatic color
-warnColour        — 0xffc03018, clip only, nowhere else
+warnColour        — 0xffc03018, clip only
 ```
 
-Tonal steps only. No hue changes between levels.
-
 Match accent to sound:
-- Cold/digital → `#3a7bd5` or `#00b4d8`
-- Warm/analog → `#c67c1a` or `#c87030`
-- Aggressive → `#c0392b` or `#8b3a3a`
-- Spacious/ambient → `#2d6a6a` or `#5a3a8a`
+- Cold/digital → `#3a7bd5` · `#00b4d8`
+- Warm/analog → `#c67c1a` · `#c87030`
+- Aggressive → `#c0392b` · `#8b3a3a`
+- Spacious/ambient → `#2d6a6a` · `#5a3a8a`
 - Surgical → `#90a4ae`
 - Organic/vintage → `#7a5c3a`
 
-One accent per plugin. Applies only to the most important interactive element, active LEDs, key readout values.
+Accent touches only the most important interactive element, active LEDs, and key readout values. Everything else is neutral.
 
 ---
 
 ## Knob — one style per plugin
 
-**Style A — line indicator**: thin arc bg, 2px line from centre.
-**Style B — dot on ring**: no arc, small filled circle at angle.
-**Style C — filled arc**: arc from min to current position.
+**A — line indicator**: 2px line from centre, thin arc background.
+**B — dot on ring**: small filled circle at angle, no arc.
+**C — filled arc**: solid arc from min to current value.
 
-One style. No mixing. No gradients. No glow on knobs.
+Pick one. Never mix. No gradients. No glow on knobs.
+
+Not all knobs equal. The most important control is physically larger and carries the accent. All others recede.
 
 | Role | Size | Border |
 |---|---|---|
@@ -91,39 +87,24 @@ One style. No mixing. No gradients. No glow on knobs.
 | Standard | 40–48px | borderColour 1px |
 | Secondary | 30–36px | borderColour 1px |
 
-Labels: ALL CAPS · 8–9px · dimTextColour
-Values: dimTextColour (standard) · accentColour (primary only)
-
 ---
 
 ## States
 
-| State | Treatment |
-|---|---|
-| Active control | accentColour border + indicator |
-| Inactive | borderColour + dimTextColour indicator |
-| LED on | accentColour + glow (40% alpha, expanded 3px) |
-| LED off | controlColour |
-| Clip | warnColour only |
+Active: accentColour border + indicator.
+Inactive: borderColour + dimTextColour indicator.
+LED on: accentColour + glow (40% alpha, expanded 3px).
+LED off: controlColour.
+Clip: warnColour only.
 
 ---
 
-## Anti-patterns
+## Hard stops
 
-- Using a layout template instead of deriving from the plugin
-- Same window size for every plugin
-- Mandatory header or hero structure
-- Flat row of identical-sized knobs
-- Multiple chromatic colors
-- Gradients anywhere
-- Glow on knobs (LEDs only)
-- Absolute coordinate layout
-- Portrait orientation
-- Controls at window edge
-- Vertical single-column list
-
----
-
-## Reference examples
-
-See `references/examples.md` — 15 layouts derived from actual plugin types, showing the range of sizes, zone structures, and visual weight distributions this skill produces.
+- Same window size for two plugins → rejected
+- All knobs identical size → rejected
+- More than one chromatic color → rejected
+- Gradients → rejected
+- Absolute coordinate layout → rejected
+- Vertical single-column list → rejected
+- Controls touching window edge → rejected
