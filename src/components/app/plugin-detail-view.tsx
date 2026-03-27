@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { PluginArtworkView } from "@/components/app/plugin-artwork-view"
 import { VersionHistoryView } from "@/components/app/version-history-view"
+import { GenerationFeedback } from "@/components/app/generation-feedback"
 import { MoreHorizontal, FolderOpen, RotateCcw } from "lucide-react"
 
 interface Props {
@@ -178,6 +179,17 @@ export function PluginDetailView({ plugin }: Props) {
                   <div className="flex items-center justify-between py-2">
                     <span className="text-sm text-muted-foreground">Model</span>
                     <span className="text-sm">{plugin.model.name}</span>
+                  </div>
+                </>
+              )}
+              {plugin.versions?.length > 0 && plugin.versions[plugin.versions.length - 1]?.telemetryId && (
+                <>
+                  <Separator />
+                  <div className="flex items-center justify-between py-2">
+                    <span className="text-sm text-muted-foreground">Feedback</span>
+                    <GenerationFeedback
+                      telemetryId={plugin.versions[plugin.versions.length - 1].telemetryId!}
+                    />
                   </div>
                 </>
               )}
