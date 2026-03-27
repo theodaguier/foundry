@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.38.0](https://github.com/theodaguier/foundry/compare/v1.37.2...v1.38.0) (2026-03-27)
+
+
+### Features
+
+* **supabase:** create waitlist table with email, daw, profile, status, RLS ([f87808f](https://github.com/theodaguier/foundry/commit/f87808fa47a4b754a30f3d425a673b4fa441dc5b))
+
 ## [1.37.2](https://github.com/theodaguier/foundry/compare/v1.37.1...v1.37.2) (2026-03-27)
 
 
