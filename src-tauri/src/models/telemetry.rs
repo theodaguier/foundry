@@ -56,7 +56,6 @@ pub struct TelemetryRow {
     pub agent: String,
     pub model: String,
     pub original_prompt: String,
-    pub enhanced_prompt: Option<String>,
     pub started_at: String,
     pub generation_duration: Option<f64>,
     pub audit_duration: Option<f64>,
@@ -94,7 +93,6 @@ impl TelemetryRow {
             agent: t.agent.clone(),
             model: t.model.clone(),
             original_prompt: t.original_prompt.clone(),
-            enhanced_prompt: t.enhanced_prompt.clone(),
             started_at: t.started_at.clone(),
             // Supabase columns are NOT NULL — default to 0.0 when missing
             generation_duration: t.generation_duration.or(Some(0.0)),
