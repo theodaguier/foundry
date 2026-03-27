@@ -3,6 +3,15 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.33.0](https://github.com/theodaguier/foundry/compare/v1.32.0...v1.33.0) (2026-03-27)
+
+
+### Features
+
+* **analytics:** add PostHog analytics wrapper with typed event helpers ([16fa993](https://github.com/theodaguier/foundry/commit/16fa99394cbf134ccca17e92fde97fe53d81fff9))
+* **analytics:** add posthog-js dependency ([b1010e2](https://github.com/theodaguier/foundry/commit/b1010e250cbdf78f2510eac01c9a45b32febf4bb))
+* **analytics:** init PostHog and track app_opened on startup ([3368332](https://github.com/theodaguier/foundry/commit/3368332afa1b3e57a3b0c7bb8e5a2d35e928ec70))
+
 ## [1.32.0](https://github.com/theodaguier/foundry/compare/v1.31.0...v1.32.0) (2026-03-27)
 
 
