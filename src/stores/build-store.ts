@@ -7,7 +7,13 @@ import type {
   GenerationDebugContext,
   RefineConfig,
 } from "@/lib/types";
-import * as commands from "@/lib/commands";
+import * as commands from "@/lib/commands"
+import {
+  trackGenerationStarted,
+  trackGenerationCompleted,
+  trackGenerationRated,
+  trackRefineStarted,
+} from "@/lib/analytics";
 import { useAppStore } from "@/stores/app-store";
 
 function stripDebugConfig(config: GenerationConfig): GenerationConfig {
@@ -168,6 +174,12 @@ export const useBuildStore = create<BuildStore>((set, get) => ({
         set({ isRunning: false });
         return;
       }
+      trackGenerationStarted({
+        pluginType: config.pluginType ?? "unknown",
+        agent: config.agent,
+        model: config.model,
+        format: config.format,
+      });
       await commands.startGeneration(config);
     } catch (error) {
       console.error("Failed to start generation:", error);
@@ -213,6 +225,7 @@ export const useBuildStore = create<BuildStore>((set, get) => ({
         set({ isRunning: false });
         return;
       }
+      trackRefineStarted({ agent: config.plugin.agent ?? "unknown", model: config.plugin.model?.id ?? "unknown" });
       await commands.startRefine(config);
     } catch (error) {
       console.error("Failed to start refine:", error);
@@ -232,6 +245,7 @@ export const useBuildStore = create<BuildStore>((set, get) => ({
     if (!lastCompletedTelemetryId) return;
     set({ userRating: rating });
     commands.rateGeneration(lastCompletedTelemetryId, rating).catch(console.error);
+    trackGenerationRated({ rating, telemetryId: lastCompletedTelemetryId });
   },
 
   reset: () =>
@@ -307,6 +321,7 @@ export const useBuildStore = create<BuildStore>((set, get) => ({
   handleComplete: (plugin) => {
     const lastVersion = plugin?.versions?.[plugin.versions.length - 1];
     const telemetryId = lastVersion?.telemetryId ?? null;
+    const { elapsedSeconds, buildAttempt, config } = get();
     set({
       activePluginId: null,
       isRunning: false,
@@ -315,6 +330,25 @@ export const useBuildStore = create<BuildStore>((set, get) => ({
       lastCompletedTelemetryId: telemetryId,
       userRating: null,
     });
+    trackGenerationCompleted({
+      pluginType: config?.pluginType ?? "unknown",
+      agent: config?.agent ?? "unknown",
+      model: config?.model ?? "unknown",
+      outcome: "success",
+      durationSeconds: elapsedSeconds,
+      buildAttempts: buildAttempt,
+    });
   },
-  handleError: (message) => set({ isRunning: false, lastErrorMessage: message }),
+  handleError: (message) => {
+    const { config, elapsedSeconds, buildAttempt } = get();
+    set({ isRunning: false, lastErrorMessage: message });
+    trackGenerationCompleted({
+      pluginType: config?.pluginType ?? "unknown",
+      agent: config?.agent ?? "unknown",
+      model: config?.model ?? "unknown",
+      outcome: "failed",
+      durationSeconds: elapsedSeconds,
+      buildAttempts: buildAttempt,
+    });
+  },
 }));
