@@ -3,6 +3,15 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.38.1](https://github.com/theodaguier/foundry/compare/v1.38.0...v1.38.1) (2026-03-27)
+
+
+### Bug Fixes
+
+* **dashboard:** use getRequestContext for ADMIN_PASSWORD in auth route ([1df17c4](https://github.com/theodaguier/foundry/commit/1df17c482f148427c449b047ae6ae9ab2e307955))
+* **dashboard:** use getRequestContext for ADMIN_PASSWORD in middleware ([89ef747](https://github.com/theodaguier/foundry/commit/89ef7478b22e00c210aa12f72a19b7830568ca38))
+* **dashboard:** use getRequestContext() to read Cloudflare env vars at runtime ([dafc558](https://github.com/theodaguier/foundry/commit/dafc558ba4b8c8265e046a8f7620bbbcc5840963))
+
 ## [1.38.0](https://github.com/theodaguier/foundry/compare/v1.37.2...v1.38.0) (2026-03-27)
 
 
