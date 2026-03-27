@@ -1,9 +1,37 @@
 use std::process::Command;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use serde::{Deserialize, Serialize};
 
 use crate::platform;
 use crate::services::auth_service::{SupabaseAuth, SUPABASE_ANON_KEY, SUPABASE_URL};
+
+/// Global lock: only one install can run at a time.
+static INSTALL_ACTIVE: AtomicBool = AtomicBool::new(false);
+
+/// Create a Command that hides console windows on Windows.
+fn silent_command(cmd: &str) -> Command {
+    #[allow(unused_mut)]
+    let mut c = Command::new(cmd);
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        c.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    }
+    c
+}
+
+/// Try to acquire the install lock. Returns true if acquired.
+pub fn try_acquire_install_lock() -> bool {
+    INSTALL_ACTIVE
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_ok()
+}
+
+/// Release the install lock.
+pub fn release_install_lock() {
+    INSTALL_ACTIVE.store(false, Ordering::SeqCst);
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
@@ -109,7 +137,7 @@ pub fn install_xcode_clt() -> DependencyInstallResult {
 
     #[cfg(target_os = "macos")]
     {
-        let output = Command::new("xcode-select").args(["--install"]).output();
+        let output = silent_command("xcode-select").args(["--install"]).output();
 
         match output {
             Ok(o) => {
@@ -216,7 +244,7 @@ fn run_winget_install(
     ];
     args.extend_from_slice(extra_args);
 
-    let result = Command::new(&winget).args(&args).output();
+    let result = silent_command(&winget).args(&args).output();
 
     match result {
         Ok(output) if output.status.success() => DependencyInstallResult {
@@ -257,7 +285,7 @@ fn install_homebrew() -> Result<(), String> {
 
     #[cfg(target_os = "macos")]
     {
-        let result = Command::new("/bin/bash")
+        let result = silent_command("/bin/bash")
         .args([
             "-c",
             "NONINTERACTIVE=1 /bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\"",
@@ -309,7 +337,7 @@ pub fn install_cmake() -> DependencyInstallResult {
         }
     };
 
-    let result = Command::new(&brew).args(["install", "cmake"]).output();
+    let result = silent_command(&brew).args(["install", "cmake"]).output();
 
     match result {
         Ok(o) if o.status.success() => DependencyInstallResult {
@@ -361,6 +389,29 @@ pub fn install_cpp_build_tools() -> DependencyInstallResult {
     }
 }
 
+/// On Windows, try well-known npm install locations after a fresh Node.js install.
+#[cfg(target_os = "windows")]
+fn resolve_npm_from_known_paths() -> Option<String> {
+    let program_files = std::env::var("ProgramFiles").unwrap_or_default();
+    let appdata = std::env::var("APPDATA").unwrap_or_default();
+
+    let candidates = [
+        std::path::PathBuf::from(&program_files)
+            .join("nodejs")
+            .join("npm.cmd"),
+        std::path::PathBuf::from(&appdata)
+            .join("npm")
+            .join("npm.cmd"),
+    ];
+
+    for path in &candidates {
+        if path.is_file() {
+            return Some(path.to_string_lossy().to_string());
+        }
+    }
+    None
+}
+
 fn ensure_npm() -> Result<String, String> {
     if let Some(npm) = resolve_npm_path() {
         return Ok(npm);
@@ -373,30 +424,50 @@ fn ensure_npm() -> Result<String, String> {
             return Err(install_result.message);
         }
 
-        return resolve_npm_path().ok_or_else(|| {
-            "Node.js installed but npm could not be found on PATH. Restart Foundry and try again."
-                .to_string()
-        });
-    }
+        // Invalidate shell cache so new PATH entries are visible
+        platform::invalidate_shell_cache();
 
-    let brew = resolve_brew_path().ok_or_else(|| {
-        "npm is not installed and Homebrew is not available. Please install Node.js from https://nodejs.org".to_string()
-    })?;
+        // Brief wait for PATH to settle after Windows install
+        std::thread::sleep(std::time::Duration::from_secs(2));
 
-    let result = Command::new(&brew)
-        .args(["install", "node"])
-        .output()
-        .map_err(|e| format!("Failed to install Node.js: {}", e))?;
-
-    if !result.status.success() {
-        let stderr = String::from_utf8_lossy(&result.stderr);
-        if !stderr.contains("already installed") {
-            return Err(format!("Failed to install Node.js: {}", stderr.trim()));
+        // Try standard resolution first, then known install paths
+        if let Some(npm) = resolve_npm_path() {
+            return Ok(npm);
         }
+        if let Some(npm) = resolve_npm_from_known_paths() {
+            return Ok(npm);
+        }
+
+        return Err(
+            "Node.js was installed but npm is not yet available. Please restart Foundry and try again."
+                .to_string(),
+        );
     }
 
-    resolve_npm_path()
-        .ok_or_else(|| "Node.js installed but npm could not be found on PATH.".to_string())
+    #[cfg(not(target_os = "windows"))]
+    {
+        let brew = resolve_brew_path().ok_or_else(|| {
+            "npm is not installed and Homebrew is not available. Please install Node.js from https://nodejs.org".to_string()
+        })?;
+
+        let result = silent_command(&brew)
+            .args(["install", "node"])
+            .output()
+            .map_err(|e| format!("Failed to install Node.js: {}", e))?;
+
+        if !result.status.success() {
+            let stderr = String::from_utf8_lossy(&result.stderr);
+            if !stderr.contains("already installed") {
+                return Err(format!("Failed to install Node.js: {}", stderr.trim()));
+            }
+        }
+
+        // Invalidate cache after installing Node
+        platform::invalidate_shell_cache();
+
+        resolve_npm_path()
+            .ok_or_else(|| "Node.js installed but npm could not be found on PATH.".to_string())
+    }
 }
 
 /// Install Claude Code CLI via npm.
@@ -419,25 +490,25 @@ pub fn install_claude_code() -> DependencyInstallResult {
         }
     };
 
-    let result = Command::new(&npm)
+    let result = silent_command(&npm)
         .args(["install", "-g", "@anthropic-ai/claude-code"])
         .output();
 
     match result {
         Ok(o) if o.status.success() => DependencyInstallResult {
             success: true,
-            message: "Claude Code CLI installed successfully.".into(),
+            message: "Claude Code installed successfully.".into(),
         },
         Ok(o) => {
             let stderr = String::from_utf8_lossy(&o.stderr);
             DependencyInstallResult {
                 success: false,
-                message: format!("Failed to install Claude Code CLI: {}", stderr.trim()),
+                message: format!("Could not install Claude Code. {}", stderr.lines().last().unwrap_or("").trim()),
             }
         }
         Err(e) => DependencyInstallResult {
             success: false,
-            message: format!("Failed to run npm: {}", e),
+            message: format!("Could not install Claude Code: {}", e),
         },
     }
 }
@@ -462,25 +533,25 @@ pub fn install_codex() -> DependencyInstallResult {
         }
     };
 
-    let result = Command::new(&npm)
+    let result = silent_command(&npm)
         .args(["install", "-g", "@openai/codex"])
         .output();
 
     match result {
         Ok(o) if o.status.success() => DependencyInstallResult {
             success: true,
-            message: "Codex CLI installed successfully.".into(),
+            message: "Codex installed successfully.".into(),
         },
         Ok(o) => {
             let stderr = String::from_utf8_lossy(&o.stderr);
             DependencyInstallResult {
                 success: false,
-                message: format!("Failed to install Codex CLI: {}", stderr.trim()),
+                message: format!("Could not install Codex. {}", stderr.lines().last().unwrap_or("").trim()),
             }
         }
         Err(e) => DependencyInstallResult {
             success: false,
-            message: format!("Failed to run npm: {}", e),
+            message: format!("Could not install Codex: {}", e),
         },
     }
 }

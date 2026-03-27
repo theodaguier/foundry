@@ -1,7 +1,10 @@
 use super::types::{BundleMapping, DependencySpec, InstallDir, InstallOperation};
 use crate::models::plugin::PluginFormat;
+use std::os::windows::process::CommandExt;
 use std::path::PathBuf;
 use std::process::Command;
+
+const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 /// On Windows, inherit the system environment directly (no login shell).
 pub fn shell_environment() -> Vec<(String, String)> {
@@ -12,6 +15,7 @@ pub fn shell_environment() -> Vec<(String, String)> {
 pub fn resolve_claude_path() -> Option<String> {
     let output = Command::new("cmd")
         .args(["/C", "where", "claude"])
+        .creation_flags(CREATE_NO_WINDOW)
         .output()
         .ok()?;
     if output.status.success() {
@@ -27,6 +31,7 @@ pub fn resolve_claude_path() -> Option<String> {
 pub fn resolve_codex_path() -> Option<String> {
     let output = Command::new("cmd")
         .args(["/C", "where", "codex"])
+        .creation_flags(CREATE_NO_WINDOW)
         .output()
         .ok()?;
     if output.status.success() {
@@ -41,6 +46,7 @@ pub fn resolve_codex_path() -> Option<String> {
 pub fn resolve_command(cmd: &str) -> String {
     Command::new("cmd")
         .args(["/C", "where", cmd])
+        .creation_flags(CREATE_NO_WINDOW)
         .output()
         .ok()
         .and_then(|o| {
@@ -56,8 +62,11 @@ pub fn resolve_command(cmd: &str) -> String {
 }
 
 /// Create a Command directly (no /usr/bin/env on Windows).
+/// Automatically hides console windows.
 pub fn create_command(cmd: &str) -> Command {
-    Command::new(cmd)
+    let mut c = Command::new(cmd);
+    c.creation_flags(CREATE_NO_WINDOW);
+    c
 }
 
 /// CMake configure arguments for Windows (use Ninja for consistency).
@@ -227,6 +236,7 @@ pub fn check_dependency(spec: &DependencySpec) -> Option<String> {
     let resolved = resolve_command(spec.check_command);
     Command::new(&resolved)
         .args(spec.check_args)
+        .creation_flags(CREATE_NO_WINDOW)
         .output()
         .ok()
         .and_then(|o| {
@@ -284,6 +294,7 @@ fn resolve_visual_studio_installation() -> Option<String> {
             "-property",
             "installationPath",
         ])
+        .creation_flags(CREATE_NO_WINDOW)
         .output()
         .ok()?;
 
