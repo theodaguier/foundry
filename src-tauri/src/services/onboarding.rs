@@ -215,6 +215,40 @@ fn resolve_winget_path() -> Option<String> {
 }
 
 #[cfg(target_os = "windows")]
+/// Extract a short, user-friendly error from raw winget output.
+/// Strips progress spinners, license boilerplate, and blank lines.
+fn sanitize_winget_output(raw: &str) -> String {
+    let meaningful: Vec<&str> = raw
+        .lines()
+        .map(|l| l.trim())
+        .filter(|l| {
+            !l.is_empty()
+                && !l.chars().all(|c| matches!(c, '-' | '\\' | '|' | '/' | ' '))
+                && !l.contains("Successfully verified installer hash")
+                && !l.contains("Starting package install")
+                && !l.contains("This application is licensed")
+                && !l.contains("Microsoft is not responsible")
+                && !l.contains("does it grant any licenses")
+                && !l.contains("third-party packages")
+                && !l.starts_with("Version ")
+                && !l.starts_with('[') // [Microsoft.VisualStudio...] header
+        })
+        .collect();
+
+    if meaningful.is_empty() {
+        return "Installation did not complete. Try again or install manually.".to_string();
+    }
+
+    // Take the last meaningful line (usually the actual error)
+    let last = meaningful.last().unwrap();
+    if last.len() > 120 {
+        format!("{}…", &last[..120])
+    } else {
+        last.to_string()
+    }
+}
+
+#[cfg(target_os = "windows")]
 fn run_winget_install(
     package_id: &str,
     display_name: &str,
@@ -264,15 +298,16 @@ fn run_winget_install(
                     message: format!("{} is already installed.", display_name),
                 }
             } else {
+                let clean = sanitize_winget_output(&combined);
                 DependencyInstallResult {
                     success: false,
-                    message: format!("Failed to install {}: {}", display_name, combined.trim()),
+                    message: format!("Could not install {}. {}", display_name, clean),
                 }
             }
         }
         Err(error) => DependencyInstallResult {
             success: false,
-            message: format!("Failed to run winget: {}", error),
+            message: format!("Could not install {}: {}", display_name, error),
         },
     }
 }
