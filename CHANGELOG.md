@@ -3,6 +3,14 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.35.0](https://github.com/theodaguier/foundry/compare/v1.34.0...v1.35.0) (2026-03-27)
+
+
+### Features
+
+* **analytics:** add PostHog snippet to landing page ([d129a89](https://github.com/theodaguier/foundry/commit/d129a891fddeefc61d48b5c245c2ffd4b1b69e05))
+* **analytics:** add VITE_POSTHOG_KEY to .env.example ([f42ad80](https://github.com/theodaguier/foundry/commit/f42ad808d149fdcdcd524cd07dc24e01c4861095))
+
 ## [1.34.0](https://github.com/theodaguier/foundry/compare/v1.33.0...v1.34.0) (2026-03-27)
 
 
