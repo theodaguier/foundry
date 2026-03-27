@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.38.6](https://github.com/theodaguier/foundry/compare/v1.38.5...v1.38.6) (2026-03-27)
+
+
+### Bug Fixes
+
+* **dashboard:** lazy-init Supabase client for Cloudflare Pages compatibility ([6cd6727](https://github.com/theodaguier/foundry/commit/6cd6727e7e08aa239a666a1f5554a0be3add99b7))
+
 ## [1.38.5](https://github.com/theodaguier/foundry/compare/v1.38.4...v1.38.5) (2026-03-27)
 
 
