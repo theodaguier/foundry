@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.41.0](https://github.com/theodaguier/foundry/compare/v1.40.1...v1.41.0) (2026-03-27)
+
+
+### Features
+
+* **onboarding:** use native Claude Code installer instead of npm ([90175b8](https://github.com/theodaguier/foundry/commit/90175b85e79e3e5e9b08ea11b8123fdc6330d212))
+
 ## [1.40.1](https://github.com/theodaguier/foundry/compare/v1.40.0...v1.40.1) (2026-03-27)
 
 
