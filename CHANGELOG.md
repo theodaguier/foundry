@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.38.10](https://github.com/theodaguier/foundry/compare/v1.38.9...v1.38.10) (2026-03-27)
+
+
+### Bug Fixes
+
+* add missing vite-env.d.ts and CI typecheck step ([1218fec](https://github.com/theodaguier/foundry/commit/1218fec03d9d90ba6ddda5964e1b111aade57ae2))
+
 ## [1.38.9](https://github.com/theodaguier/foundry/compare/v1.38.8...v1.38.9) (2026-03-27)
 
 
