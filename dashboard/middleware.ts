@@ -1,22 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getRequestContext } from "@cloudflare/next-on-pages"
 
-function getPassword() {
-  try {
-    const ctx = getRequestContext()
-    return (ctx.env as Record<string, string>).ADMIN_PASSWORD ?? "foundry"
-  } catch {
-    return process.env.ADMIN_PASSWORD ?? "foundry"
-  }
-}
-
-export const runtime = "edge"
+const PASSWORD = process.env.ADMIN_PASSWORD ?? "foundry"
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
   if (pathname.startsWith("/login") || pathname.startsWith("/api/")) return NextResponse.next()
 
-  const PASSWORD = getPassword()
   const cookie = req.cookies.get("foundry_dash_auth")
   if (cookie?.value === PASSWORD) return NextResponse.next()
 
