@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.42.5](https://github.com/theodaguier/foundry/compare/v1.42.4...v1.42.5) (2026-03-27)
+
+
+### Bug Fixes
+
+* **art-director:** remove mandatory header+hero, layout fully derived from plugin ([46399ba](https://github.com/theodaguier/foundry/commit/46399bacb14afe1df6bc61f899099391f2d944c2))
+
 ## [1.42.4](https://github.com/theodaguier/foundry/compare/v1.42.3...v1.42.4) (2026-03-27)
 
 
