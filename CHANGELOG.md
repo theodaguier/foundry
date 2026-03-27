@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.38.11](https://github.com/theodaguier/foundry/compare/v1.38.10...v1.38.11) (2026-03-27)
+
+
+### Bug Fixes
+
+* add missing @testing-library/jest-dom dev dependency ([e1d770b](https://github.com/theodaguier/foundry/commit/e1d770b02c889417ffa891b39f6c066860877b80))
+
 ## [1.38.10](https://github.com/theodaguier/foundry/compare/v1.38.9...v1.38.10) (2026-03-27)
 
 
