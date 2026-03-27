@@ -63,6 +63,16 @@ const DEP_ORDER = [
   "JUCE SDK",
 ]
 
+/** Estimated install duration in seconds per dependency (used for progress) */
+const ESTIMATED_DURATION: Record<string, number> = {
+  xcode_clt: 180,      // ~3 min (GUI installer)
+  cpp_build_tools: 420, // ~7 min (large VS workload)
+  cmake: 30,
+  claude_code: 20,
+  codex: 20,
+  juce: 25,
+}
+
 function depSortOrder(name: string) {
   const i = DEP_ORDER.indexOf(name)
   return i === -1 ? DEP_ORDER.length : i
@@ -86,11 +96,99 @@ function mapDependency(
 }
 
 // ---------------------------------------------------------------------------
+// Hook: elapsed-time progress estimation
+// ---------------------------------------------------------------------------
+
+function useInstallProgress(deps: Dep[]) {
+  const [progress, setProgress] = useState<Record<string, number>>({})
+  const timersRef = useRef<Record<string, ReturnType<typeof setInterval>>>({})
+  const startTimesRef = useRef<Record<string, number>>({})
+
+  useEffect(() => {
+    for (const dep of deps) {
+      if (dep.status === "installing" && !timersRef.current[dep.key]) {
+        // Start tracking this dep
+        startTimesRef.current[dep.key] = Date.now()
+        setProgress(prev => ({ ...prev, [dep.key]: 0 }))
+
+        const estimatedMs = (ESTIMATED_DURATION[dep.key] ?? 30) * 1000
+
+        timersRef.current[dep.key] = setInterval(() => {
+          const elapsed = Date.now() - startTimesRef.current[dep.key]
+          // Asymptotic curve: approaches 90% but never reaches it
+          // progress = 90 * (1 - e^(-2 * elapsed / estimated))
+          const pct = Math.min(90, 90 * (1 - Math.exp((-2 * elapsed) / estimatedMs)))
+          setProgress(prev => ({ ...prev, [dep.key]: Math.round(pct) }))
+        }, 500)
+      }
+
+      if (dep.status === "installed" && timersRef.current[dep.key]) {
+        // Complete: jump to 100%
+        clearInterval(timersRef.current[dep.key])
+        delete timersRef.current[dep.key]
+        delete startTimesRef.current[dep.key]
+        setProgress(prev => ({ ...prev, [dep.key]: 100 }))
+      }
+
+      if (dep.status === "failed" && timersRef.current[dep.key]) {
+        // Failed: stop timer
+        clearInterval(timersRef.current[dep.key])
+        delete timersRef.current[dep.key]
+        delete startTimesRef.current[dep.key]
+        setProgress(prev => {
+          const next = { ...prev }
+          delete next[dep.key]
+          return next
+        })
+      }
+    }
+
+    return () => {
+      // Cleanup on unmount
+      for (const key of Object.keys(timersRef.current)) {
+        clearInterval(timersRef.current[key])
+      }
+    }
+  }, [deps])
+
+  return progress
+}
+
+// ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
 
-function StatusIcon({ status }: { status: DepStatus }) {
-  if (status === "checking" || status === "installing") {
+function StatusIcon({ status, progress }: { status: DepStatus; progress?: number }) {
+  if (status === "installing" && progress !== undefined) {
+    // Circular progress ring
+    const radius = 6
+    const circumference = 2 * Math.PI * radius
+    const offset = circumference - (progress / 100) * circumference
+    return (
+      <div className="w-5 h-5 flex items-center justify-center shrink-0">
+        <svg width="16" height="16" viewBox="0 0 16 16" className="text-primary -rotate-90">
+          <circle
+            cx="8" cy="8" r={radius}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            opacity="0.15"
+          />
+          <circle
+            cx="8" cy="8" r={radius}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeDasharray={circumference}
+            strokeDashoffset={offset}
+            strokeLinecap="round"
+            className="transition-[stroke-dashoffset] duration-500 ease-out"
+          />
+        </svg>
+      </div>
+    )
+  }
+  if (status === "checking") {
     return (
       <div className="w-5 h-5 flex items-center justify-center shrink-0">
         <div className="w-3.5 h-3.5 border-[1.5px] border-primary/60 border-t-transparent rounded-full animate-spin" />
@@ -125,16 +223,6 @@ function StatusIcon({ status }: { status: DepStatus }) {
   )
 }
 
-function statusLabel(dep: Dep): string {
-  switch (dep.status) {
-    case "checking": return "Checking…"
-    case "installed": return "Ready"
-    case "installing": return "Setting up…"
-    case "failed": return dep.message ?? "Failed"
-    case "missing": return "Not installed"
-  }
-}
-
 function statusColor(status: DepStatus): string {
   switch (status) {
     case "installed": return "text-emerald-500"
@@ -155,6 +243,8 @@ export default function Onboarding() {
   const [appeared, setAppeared] = useState(false)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const abortedRef = useRef(false)
+
+  const installProgress = useInstallProgress(deps)
 
   // Entrance animation
   useEffect(() => {
@@ -325,11 +415,11 @@ export default function Onboarding() {
     return () => clearTimeout(t)
   }, [phase])
 
-  // ---- Progress ----
+  // ---- Overall progress ----
 
   const installedCount = requiredDeps.filter(d => d.status === "installed").length
   const totalRequired = requiredDeps.length
-  const progressPct = totalRequired > 0 ? (installedCount / totalRequired) * 100 : 0
+  const overallPct = totalRequired > 0 ? (installedCount / totalRequired) * 100 : 0
 
   // ---------------------------------------------------------------------------
   // Render
@@ -400,60 +490,64 @@ export default function Onboarding() {
               <div className="w-full h-1 rounded-full bg-muted overflow-hidden">
                 <div
                   className="h-full bg-primary rounded-full transition-all duration-500 ease-out"
-                  style={{ width: `${progressPct}%` }}
+                  style={{ width: `${overallPct}%` }}
                 />
               </div>
             )}
 
             {/* Dependency list */}
             <div className="flex flex-col rounded-lg overflow-hidden border border-border/50">
-              {deps.map((dep, i) => (
-                <div
-                  key={dep.key}
-                  className={`flex items-center gap-3 px-4 py-3 ${
-                    i > 0 ? "border-t border-border/30" : ""
-                  } ${dep.status === "installing" ? "bg-muted/60" : "bg-muted/30"}`}
-                >
-                  <StatusIcon status={dep.status} />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[13px] font-medium text-foreground">
-                        {dep.label}
-                      </span>
-                      {!dep.required && (
-                        <span className="text-[10px] uppercase tracking-wider text-muted-foreground/50 font-medium">
-                          Optional
+              {deps.map((dep, i) => {
+                const pct = installProgress[dep.key]
+                return (
+                  <div
+                    key={dep.key}
+                    className={`flex items-center gap-3 px-4 py-3 ${
+                      i > 0 ? "border-t border-border/30" : ""
+                    } ${dep.status === "installing" ? "bg-muted/60" : "bg-muted/30"}`}
+                  >
+                    <StatusIcon status={dep.status} progress={pct} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[13px] font-medium text-foreground">
+                          {dep.label}
                         </span>
+                        {!dep.required && (
+                          <span className="text-[10px] uppercase tracking-wider text-muted-foreground/50 font-medium">
+                            Optional
+                          </span>
+                        )}
+                      </div>
+                      {dep.status === "failed" && dep.message ? (
+                        <div className="text-[11px] text-destructive/80 mt-0.5 line-clamp-2">
+                          {dep.message}
+                        </div>
+                      ) : (
+                        <div className="text-[11px] text-muted-foreground/70 mt-0.5">
+                          {dep.status === "installing"
+                            ? "Setting up…"
+                            : dep.description}
+                        </div>
                       )}
                     </div>
-                    {dep.status === "failed" && dep.message ? (
-                      <div className="text-[11px] text-destructive/80 mt-0.5 line-clamp-2">
-                        {dep.message}
-                      </div>
-                    ) : (
-                      <div className="text-[11px] text-muted-foreground/70 mt-0.5">
-                        {dep.status === "installing"
-                          ? "Setting up…"
-                          : dep.description}
-                      </div>
-                    )}
+                    <span className={`text-[11px] font-medium shrink-0 tabular-nums ${statusColor(dep.status)}`}>
+                      {dep.status === "installed" && "Ready"}
+                      {dep.status === "installing" && pct !== undefined && `${pct}%`}
+                      {dep.status === "failed" && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          disabled={isInstalling}
+                          onClick={() => installSingle(dep)}
+                          className="text-[11px] h-6 px-2 text-destructive hover:text-destructive"
+                        >
+                          Retry
+                        </Button>
+                      )}
+                    </span>
                   </div>
-                  <span className={`text-[11px] font-medium shrink-0 ${statusColor(dep.status)}`}>
-                    {dep.status === "installed" && "Ready"}
-                    {dep.status === "failed" && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        disabled={isInstalling}
-                        onClick={() => installSingle(dep)}
-                        className="text-[11px] h-6 px-2 text-destructive hover:text-destructive"
-                      >
-                        Retry
-                      </Button>
-                    )}
-                  </span>
-                </div>
-              ))}
+                )
+              })}
             </div>
 
             {/* Actions */}
