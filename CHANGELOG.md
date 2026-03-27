@@ -3,6 +3,14 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.34.0](https://github.com/theodaguier/foundry/compare/v1.33.0...v1.34.0) (2026-03-27)
+
+
+### Features
+
+* **analytics:** identify user on login, reset on sign out ([53b3ba5](https://github.com/theodaguier/foundry/commit/53b3ba58629724cec6cdfdc40d189f50b27d5f5d))
+* **analytics:** track generation started, completed, failed, rated, refine started ([74e0880](https://github.com/theodaguier/foundry/commit/74e0880224d4d4bdb5981b3f897374af6189052e))
+
 ## [1.33.0](https://github.com/theodaguier/foundry/compare/v1.32.0...v1.33.0) (2026-03-27)
 
 
