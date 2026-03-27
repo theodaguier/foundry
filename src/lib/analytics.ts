@@ -1,7 +1,7 @@
 import posthog from "posthog-js"
 
-const POSTHOG_KEY = import.meta.env.VITE_POSTHOG_KEY as string | undefined
-const POSTHOG_HOST = (import.meta.env.VITE_POSTHOG_HOST as string | undefined) ?? "https://eu.i.posthog.com"
+const POSTHOG_KEY = import.meta.env.VITE_PUBLIC_POSTHOG_PROJECT_TOKEN as string | undefined
+const POSTHOG_HOST = (import.meta.env.VITE_PUBLIC_POSTHOG_HOST as string | undefined) ?? "https://eu.i.posthog.com"  // default
 
 let initialized = false
 
