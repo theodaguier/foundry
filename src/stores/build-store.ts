@@ -42,6 +42,9 @@ interface BuildStore {
   config: GenerationConfig | null;
   refineConfig: RefineConfig | null;
   lastErrorMessage: string | null;
+  lastCompletedTelemetryId: string | null;
+  userRating: 1 | -1 | null;
+  setUserRating: (rating: 1 | -1) => void;
 
   startGeneration: (config: GenerationConfig) => Promise<void>;
   retryPlugin: (plugin: Plugin) => Promise<void>;
@@ -139,6 +142,8 @@ export const useBuildStore = create<BuildStore>((set, get) => ({
   config: null,
   refineConfig: null,
   lastErrorMessage: null,
+  lastCompletedTelemetryId: null,
+  userRating: null,
 
   startGeneration: async (config) => {
     set({
@@ -222,6 +227,13 @@ export const useBuildStore = create<BuildStore>((set, get) => ({
   },
   setShowConsole: (show) => set({ showConsole: show }),
   tick: () => set((s) => ({ elapsedSeconds: s.elapsedSeconds + 1 })),
+  setUserRating: (rating) => {
+    const { lastCompletedTelemetryId } = get();
+    if (!lastCompletedTelemetryId) return;
+    set({ userRating: rating });
+    commands.rateGeneration(lastCompletedTelemetryId, rating).catch(console.error);
+  },
+
   reset: () =>
     set({
       activePluginId: null,
@@ -239,6 +251,8 @@ export const useBuildStore = create<BuildStore>((set, get) => ({
       config: null,
       refineConfig: null,
       lastErrorMessage: null,
+      lastCompletedTelemetryId: null,
+      userRating: null,
     }),
 
   handleStep: (step) => {
@@ -290,12 +304,17 @@ export const useBuildStore = create<BuildStore>((set, get) => ({
     })),
   handleProgress: (progress) => set({ progress }),
   handleBuildAttempt: (attempt) => set({ buildAttempt: attempt }),
-  handleComplete: () =>
+  handleComplete: (plugin) => {
+    const lastVersion = plugin?.versions?.[plugin.versions.length - 1];
+    const telemetryId = lastVersion?.telemetryId ?? null;
     set({
       activePluginId: null,
       isRunning: false,
       progress: 1,
       lastErrorMessage: null,
-    }),
+      lastCompletedTelemetryId: telemetryId,
+      userRating: null,
+    });
+  },
   handleError: (message) => set({ isRunning: false, lastErrorMessage: message }),
 }));
