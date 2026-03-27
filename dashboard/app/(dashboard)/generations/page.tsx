@@ -5,6 +5,7 @@ import { fmt, fmtCost, fmtTokens, shortModel } from "@/lib/utils"
 import { format, parseISO } from "date-fns"
 import { GenerationsFilters } from "./filters"
 
+export const runtime = 'edge'
 export const revalidate = 30
 
 function OutcomeTag({ outcome }: { outcome: string | null }) {
