@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.35.2](https://github.com/theodaguier/foundry/compare/v1.35.1...v1.35.2) (2026-03-27)
+
+
+### Bug Fixes
+
+* **telemetry:** remove enhanced_prompt from TelemetryRow — field was deleted in migration ([d05915b](https://github.com/theodaguier/foundry/commit/d05915b92c97a3e86616fb0bac6e4ac88991bd0c))
+
 ## [1.35.1](https://github.com/theodaguier/foundry/compare/v1.35.0...v1.35.1) (2026-03-27)
 
 
