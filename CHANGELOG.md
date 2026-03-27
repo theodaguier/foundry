@@ -3,6 +3,14 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.38.3](https://github.com/theodaguier/foundry/compare/v1.38.2...v1.38.3) (2026-03-27)
+
+
+### Bug Fixes
+
+* **dashboard:** remove runtime export from auth route ([e0fe16f](https://github.com/theodaguier/foundry/commit/e0fe16f1b6ab63ec246ad52917dce21082d2e487))
+* **dashboard:** remove runtime export from middleware — always edge by default ([9113efe](https://github.com/theodaguier/foundry/commit/9113efe29e14b6a8867b9090b421759574dc21ff))
+
 ## [1.38.2](https://github.com/theodaguier/foundry/compare/v1.38.1...v1.38.2) (2026-03-27)
 
 
