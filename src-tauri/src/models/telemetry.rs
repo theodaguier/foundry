@@ -33,6 +33,7 @@ pub struct GenerationTelemetry {
     pub agent_cli_version: Option<String>,
     pub juce_version: Option<String>,
     pub created_at: String,
+    pub user_rating: Option<i16>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -79,6 +80,7 @@ pub struct TelemetryRow {
     pub cpu_architecture: Option<String>,
     pub agent_cli_version: Option<String>,
     pub juce_version: Option<String>,
+    pub user_rating: Option<i16>,
 }
 
 impl TelemetryRow {
@@ -118,6 +120,7 @@ impl TelemetryRow {
             cpu_architecture: t.cpu_architecture.clone(),
             agent_cli_version: t.agent_cli_version.clone(),
             juce_version: t.juce_version.clone(),
+            user_rating: t.user_rating,
         }
     }
 }
@@ -306,6 +309,7 @@ impl TelemetryBuilder {
             agent_cli_version: Some(env!("CARGO_PKG_VERSION").to_string()),
             juce_version: self.juce_version,
             created_at: chrono::Utc::now().to_rfc3339(),
+            user_rating: None,
         }
     }
 }
