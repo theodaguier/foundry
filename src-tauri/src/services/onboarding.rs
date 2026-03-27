@@ -481,15 +481,14 @@ pub fn install_cpp_build_tools() -> DependencyInstallResult {
         let temp_dir = std::env::temp_dir();
         let bootstrapper_path = temp_dir.join("vs_BuildTools.exe");
 
-        // Download using PowerShell (curl may not be available)
-        let download = silent_command("powershell")
+        // Use curl.exe (built into Windows 10 1803+) — much faster than
+        // PowerShell's Invoke-WebRequest
+        let download = silent_command("curl.exe")
             .args([
-                "-NoProfile",
-                "-Command",
-                &format!(
-                    "Invoke-WebRequest -Uri 'https://aka.ms/vs/17/release/vs_BuildTools.exe' -OutFile '{}'",
-                    bootstrapper_path.display()
-                ),
+                "-fsSL",
+                "-o",
+                &bootstrapper_path.to_string_lossy(),
+                "https://aka.ms/vs/17/release/vs_BuildTools.exe",
             ])
             .output();
 
@@ -503,13 +502,13 @@ pub fn install_cpp_build_tools() -> DependencyInstallResult {
             }
         }
 
-        // Launch the bootstrapper with C++ workload — GUI mode so the user
-        // can see progress. This returns immediately (non-blocking).
+        // Launch the bootstrapper with C++ workload pre-selected.
+        // Full interactive UI so the user sees the entire download + install
+        // progress. Foundry polls with vswhere in the background.
         let launch = silent_command(&bootstrapper_path.to_string_lossy())
             .args([
                 "--add", "Microsoft.VisualStudio.Workload.VCTools",
                 "--includeRecommended",
-                "--passive",  // shows progress UI, no interaction needed
                 "--norestart",
             ])
             .spawn();

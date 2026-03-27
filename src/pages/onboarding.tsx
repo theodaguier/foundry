@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback, useRef } from "react"
-import { open } from "@tauri-apps/plugin-shell"
 import { Button } from "@/components/ui/button"
 import { FoundryLogo } from "@/components/app/foundry-logo"
 import { useAppStore } from "@/stores/app-store"
@@ -66,8 +65,8 @@ const DEP_ORDER = [
 
 /** Estimated install duration in seconds per dependency (used for progress) */
 const ESTIMATED_DURATION: Record<string, number> = {
-  xcode_clt: 180,      // ~3 min (GUI installer)
-  cpp_build_tools: 420, // ~7 min (large VS workload)
+  xcode_clt: 180,     // ~3 min (GUI installer, polled)
+  cpp_build_tools: 30, // ~30s download, then GUI installer takes over
   cmake: 30,
   claude_code: 20,
   codex: 20,
@@ -334,6 +333,12 @@ export default function Onboarding() {
       const isGuiInstaller = (dep.key === "xcode_clt" || dep.key === "cpp_build_tools") && result.success
       if (isGuiInstaller) {
         const depName = dep.key === "xcode_clt" ? "Xcode Command Line Tools" : "C++ Build Tools"
+        updateDep(dep.key, {
+          status: "installing",
+          message: dep.key === "cpp_build_tools"
+            ? "Complete the install in the Microsoft window"
+            : result.message,
+        })
         if (pollRef.current) clearInterval(pollRef.current)
         pollRef.current = setInterval(async () => {
           try {
@@ -547,7 +552,7 @@ export default function Onboarding() {
                         </div>
                       ) : dep.status === "auth_required" ? (
                         <div className="text-[11px] text-amber-500/80 mt-0.5">
-                          Installed — sign in to activate
+                          Run <code className="bg-muted px-1 py-0.5 rounded font-mono text-[10px]">claude</code> in a terminal to sign in
                         </div>
                       ) : (
                         <div className="text-[11px] text-muted-foreground/70 mt-0.5">
@@ -561,19 +566,7 @@ export default function Onboarding() {
                       {dep.status === "installed" && "Ready"}
                       {dep.status === "installing" && pct !== undefined && `${pct}%`}
                       {dep.status === "auth_required" && (
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          onClick={async () => {
-                            // Open terminal with claude auth login
-                            try {
-                              await open("https://claude.ai/login")
-                            } catch { /* fallback: user opens manually */ }
-                          }}
-                          className="text-[11px] h-6 px-2 text-amber-500 hover:text-amber-500"
-                        >
-                          Sign in
-                        </Button>
+                        <span className="text-amber-500">Sign in</span>
                       )}
                       {dep.status === "failed" && (
                         <Button
