@@ -25,48 +25,25 @@ No absolute coordinates. Use reduced(), removeFromTop/Left/Right/Bottom(), FlexB
 
 ## Window Size — match the plugin
 
-Derive from actual content. Ask: how many controls? how many zones? how much visual density?
-
-| Plugin type | Typical size |
-|---|---|
-| Single-parameter (limiter, clipper) | 480×220 |
-| Focused utility (gate, saturator) | 620×260 |
-| Standard processor (compressor, chorus) | 760×300 |
-| Complex processor (EQ, multiband) | 880×360 |
-| Instrument / synth | 960×480 |
+Derive from actual content. Start from the controls and displays that must exist, calculate the space they need, then set the size. Not the other way around.
 
 Never use the same size for two different plugins.
 
 ---
 
-## Layout — derived from the plugin, not a template
+## Layout — blank slate
 
-There is no required structure. The layout comes from answering:
+There is no template. Start from zero for each plugin.
 
-1. What is the signal path?
-2. What are all the controls, and how do they group?
-3. Which zone dominates visually? (not always a single knob — could be a display, a meter pair, a graph)
-4. Does this plugin need a persistent title/name visible? If yes: small label, integrated into a zone, not a mandatory header bar.
+List every control, group, and display the plugin needs. Place them in signal-flow order (left to right). Decide how much horizontal space each group genuinely needs. That is the layout.
 
-**Signal direction**: left-to-right. Proportions vary:
+The only constraints:
+- Left-to-right signal flow
+- Groups separated by 1px gap (borderColour)
+- 16px internal padding per group
+- Controls never touch the window edge
 
-```
-// Few controls — dominant zone takes space
-[PRIMARY ZONE 50%][SUPPORTING 30%][OUTPUT 20%]
-
-// Multiple equal zones — balanced
-[INPUT][ZONE A][ZONE B][ZONE C][OUTPUT]
-
-// Display-heavy
-[DISPLAY 55%][PARAMS 30%][OUTPUT 15%]
-
-// Synth-like — sections
-[OSC][FILTER][ENV][MOD MATRIX]
-```
-
-The dominant zone gets more horizontal space. If all zones look equal, reconsider.
-
-A top header bar (plugin name + bypass) is **optional** — include it only when it adds clarity. For minimal plugins it can be omitted entirely or reduced to a small label inside a zone.
+A title/bypass indicator is optional. Include it only when it genuinely helps orientation.
 
 ---
 
@@ -80,7 +57,7 @@ borderColour      — barely visible separator
 textColour        — primary readable (≥7:1 contrast)
 dimTextColour     — labels, secondary
 accentColour      — ONE chromatic color
-warnColour        — 0xffc03018, clip only
+warnColour        — 0xffc03018, clip only, nowhere else
 ```
 
 Tonal steps only — no hue changes between levels.
@@ -93,7 +70,7 @@ Match accent to sound:
 - Surgical → `#90a4ae`
 - Organic/vintage → `#7a5c3a`
 
-One accent per plugin. Applies only to: the visually dominant control, active LEDs, key readout value. Everything else neutral.
+One accent per plugin. Applies only to the most important interactive element, active LEDs, and key readout values. Everything else is neutral.
 
 ---
 
@@ -105,14 +82,16 @@ One accent per plugin. Applies only to: the visually dominant control, active LE
 
 One style. No mixing. No gradients. No glow on knobs.
 
+Not all knobs are equal. The most important control gets more physical size and the accent color. All others are visually recessive.
+
 | Role | Size | Border |
 |---|---|---|
-| Dominant (1 per plugin) | 76–100px | accentColour 2px |
+| Primary (1 per plugin) | 76–100px | accentColour 2px |
 | Standard | 40–48px | borderColour 1px |
 | Secondary | 30–36px | borderColour 1px |
 
 Labels: ALL CAPS · 8–9px · dimTextColour
-Values: dimTextColour (standard) · accentColour (dominant control)
+Values: dimTextColour (standard) · accentColour (primary only)
 
 ---
 
@@ -130,8 +109,9 @@ Values: dimTextColour (standard) · accentColour (dominant control)
 
 ## Anti-patterns
 
+- Using a layout template instead of deriving from the plugin
 - Same window size for every plugin
-- Mandatory header bar on every plugin
+- Mandatory header or hero on every plugin
 - Flat row of identical-sized knobs
 - Multiple chromatic colors
 - Gradients anywhere
