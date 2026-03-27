@@ -1,7 +1,7 @@
 import posthog from "posthog-js"
 
 const POSTHOG_KEY = import.meta.env.VITE_PUBLIC_POSTHOG_PROJECT_TOKEN as string | undefined
-const POSTHOG_HOST = (import.meta.env.VITE_PUBLIC_POSTHOG_HOST as string | undefined) ?? "https://eu.i.posthog.com"  // default
+const POSTHOG_HOST = (import.meta.env.VITE_PUBLIC_POSTHOG_HOST as string | undefined) ?? "https://e.byfoundry.app"
 
 let initialized = false
 
@@ -9,6 +9,7 @@ export function initAnalytics() {
   if (!POSTHOG_KEY || initialized) return
   posthog.init(POSTHOG_KEY, {
     api_host: POSTHOG_HOST,
+    ui_host: "https://eu.posthog.com",
     person_profiles: "identified_only",
     capture_pageview: false,
     capture_pageleave: false,
