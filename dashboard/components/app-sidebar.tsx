@@ -63,7 +63,7 @@ export function AppSidebar() {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
-              render={<Link href="/api/logout" />}
+              render={<a href="/api/logout" />}
               size="sm"
               tooltip="Logout"
               className="text-muted-foreground hover:text-foreground"
