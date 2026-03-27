@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.38.8](https://github.com/theodaguier/foundry/compare/v1.38.7...v1.38.8) (2026-03-27)
+
+
+### Bug Fixes
+
+* **dashboard:** stop Next.js prefetch from triggering logout ([a0220ae](https://github.com/theodaguier/foundry/commit/a0220aea50b71e5d0da7aab3162253d6b9063060))
+
 ## [1.38.7](https://github.com/theodaguier/foundry/compare/v1.38.6...v1.38.7) (2026-03-27)
 
 
