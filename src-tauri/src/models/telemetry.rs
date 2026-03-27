@@ -309,7 +309,7 @@ impl TelemetryBuilder {
             channel_layout: self.channel_layout,
             os_version: Some(os_version),
             cpu_architecture: Some(cpu_arch),
-            agent_cli_version: None,
+            agent_cli_version: Some(env!("CARGO_PKG_VERSION").to_string()),
             juce_version: self.juce_version,
             created_at: chrono::Utc::now().to_rfc3339(),
         }
