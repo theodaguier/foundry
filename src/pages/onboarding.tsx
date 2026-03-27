@@ -330,21 +330,23 @@ export default function Onboarding() {
 
       const result = await commands.installDependency(dep.key)
 
-      if (dep.key === "xcode_clt" && result.success) {
-        // Xcode CLT uses a GUI popup — poll until detected
+      // GUI-based installers (Xcode CLT, VS Build Tools) — poll until detected
+      const isGuiInstaller = (dep.key === "xcode_clt" || dep.key === "cpp_build_tools") && result.success
+      if (isGuiInstaller) {
+        const depName = dep.key === "xcode_clt" ? "Xcode Command Line Tools" : "C++ Build Tools"
         if (pollRef.current) clearInterval(pollRef.current)
         pollRef.current = setInterval(async () => {
           try {
             const results = await commands.checkDependencies()
-            const xcode = results.find(r => r.name === "Xcode Command Line Tools")
-            if (xcode?.installed) {
+            const found = results.find(r => r.name === depName)
+            if (found?.installed) {
               if (pollRef.current) clearInterval(pollRef.current)
               pollRef.current = null
               updateDep(dep.key, { status: "installed", message: undefined })
             }
           } catch { /* keep polling */ }
-        }, 4000)
-        // Stop after 10 minutes
+        }, 5000)
+        // Stop after 15 minutes (Build Tools can take a while)
         setTimeout(() => {
           if (pollRef.current) {
             clearInterval(pollRef.current)
@@ -354,7 +356,7 @@ export default function Onboarding() {
               message: "Installation timed out. Click Retry to try again.",
             })
           }
-        }, 600_000)
+        }, 900_000)
         return
       }
 

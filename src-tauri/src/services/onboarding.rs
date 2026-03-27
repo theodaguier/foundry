@@ -441,7 +441,23 @@ pub fn install_cmake() -> DependencyInstallResult {
     }
 }
 
+/// Check if VS Build Tools with C++ workload are installed via vswhere.
+#[cfg(target_os = "windows")]
+fn vs_build_tools_installed() -> bool {
+    platform::check_dependency(&platform::types::DependencySpec {
+        name: "C++ Build Tools",
+        check_command: "__vs_build_tools__",
+        check_args: &[],
+    })
+    .is_some()
+}
+
 /// Install Visual Studio Build Tools on Windows.
+///
+/// Uses the official Microsoft bootstrapper (vs_BuildTools.exe) with a GUI
+/// installer — same pattern as Xcode CLT on macOS. The function downloads
+/// the bootstrapper, launches it, and returns immediately. The frontend
+/// polls with `check_dependencies` until vswhere detects the installation.
 pub fn install_cpp_build_tools() -> DependencyInstallResult {
     #[cfg(not(target_os = "windows"))]
     {
@@ -453,51 +469,61 @@ pub fn install_cpp_build_tools() -> DependencyInstallResult {
 
     #[cfg(target_os = "windows")]
     {
-        // Pre-check: already installed? (vswhere is more reliable than winget)
-        if platform::check_dependency(&platform::types::DependencySpec {
-            name: "C++ Build Tools",
-            check_command: "__vs_build_tools__",
-            check_args: &[],
-        })
-        .is_some()
-        {
+        // Pre-check with vswhere
+        if vs_build_tools_installed() {
             return DependencyInstallResult {
                 success: true,
                 message: "Windows Build Tools are already installed.".into(),
             };
         }
 
-        let result = run_winget_install(
-            "Microsoft.VisualStudio.2022.BuildTools",
-            "Windows Build Tools",
-            &[
-                "--override",
-                "--wait --passive --norestart --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended",
-            ],
-        );
+        // Download the official VS Build Tools bootstrapper
+        let temp_dir = std::env::temp_dir();
+        let bootstrapper_path = temp_dir.join("vs_BuildTools.exe");
 
-        if result.success {
-            return result;
+        // Download using PowerShell (curl may not be available)
+        let download = silent_command("powershell")
+            .args([
+                "-NoProfile",
+                "-Command",
+                &format!(
+                    "Invoke-WebRequest -Uri 'https://aka.ms/vs/17/release/vs_BuildTools.exe' -OutFile '{}'",
+                    bootstrapper_path.display()
+                ),
+            ])
+            .output();
+
+        match download {
+            Ok(o) if o.status.success() && bootstrapper_path.is_file() => {}
+            _ => {
+                return DependencyInstallResult {
+                    success: false,
+                    message: "Could not download the Build Tools installer. Check your internet connection and try again.".into(),
+                };
+            }
         }
 
-        // winget often returns non-zero even when the tools ARE installed.
-        // Re-check with vswhere — if the tools are present, it's a success.
-        platform::invalidate_shell_cache();
+        // Launch the bootstrapper with C++ workload — GUI mode so the user
+        // can see progress. This returns immediately (non-blocking).
+        let launch = silent_command(&bootstrapper_path.to_string_lossy())
+            .args([
+                "--add", "Microsoft.VisualStudio.Workload.VCTools",
+                "--includeRecommended",
+                "--passive",  // shows progress UI, no interaction needed
+                "--norestart",
+            ])
+            .spawn();
 
-        if platform::check_dependency(&platform::types::DependencySpec {
-            name: "C++ Build Tools",
-            check_command: "__vs_build_tools__",
-            check_args: &[],
-        })
-        .is_some()
-        {
-            return DependencyInstallResult {
+        match launch {
+            Ok(_) => DependencyInstallResult {
                 success: true,
-                message: "Windows Build Tools are already installed.".into(),
-            };
+                message: "Build Tools installer launched. Please wait for it to complete.".into(),
+            },
+            Err(e) => DependencyInstallResult {
+                success: false,
+                message: format!("Could not launch the Build Tools installer: {}", e),
+            },
         }
-
-        result
     }
 }
 
