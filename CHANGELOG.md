@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.38.7](https://github.com/theodaguier/foundry/compare/v1.38.6...v1.38.7) (2026-03-27)
+
+
+### Bug Fixes
+
+* **dashboard:** call supabase() as function for CF Pages edge compat ([41a979c](https://github.com/theodaguier/foundry/commit/41a979c0e8b73fd7b87642ed1cc6aa01270718f7))
+
 ## [1.38.6](https://github.com/theodaguier/foundry/compare/v1.38.5...v1.38.6) (2026-03-27)
 
 
