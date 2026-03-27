@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.42.0](https://github.com/theodaguier/foundry/compare/v1.41.1...v1.42.0) (2026-03-27)
+
+
+### Features
+
+* **onboarding:** add Claude Code auth check and sanitize winget errors ([136c64b](https://github.com/theodaguier/foundry/commit/136c64ba96ccd7d63cdb76c474ab434bd8407b85))
+
 ## [1.41.1](https://github.com/theodaguier/foundry/compare/v1.41.0...v1.41.1) (2026-03-27)
 
 
