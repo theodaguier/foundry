@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog"
 import { CheckCircle2, Circle, Loader2 } from "lucide-react"
 import type { AgentModel, GenerationStep } from "@/lib/types"
+import { GenerationFeedback } from "@/components/app/generation-feedback"
 
 const STEP_ORDER: Record<GenerationStep, number> = {
   preparingEnvironment: 0,
@@ -116,6 +117,8 @@ export default function GenerationProgress({ mode }: Props) {
   const streamingText = useBuildStore((s) => s.streamingText)
   const buildAttempt = useBuildStore((s) => s.buildAttempt)
   const config = useBuildStore((s) => s.config)
+  const isRunning = useBuildStore((s) => s.isRunning)
+  const lastCompletedTelemetryId = useBuildStore((s) => s.lastCompletedTelemetryId)
   const refineConfig = useBuildStore((s) => s.refineConfig)
   const setShowConsole = useBuildStore((s) => s.setShowConsole)
   const reset = useBuildStore((s) => s.reset)
@@ -180,6 +183,12 @@ export default function GenerationProgress({ mode }: Props) {
           <div className="w-full h-1 bg-muted rounded-full overflow-hidden">
             <div className="h-full bg-primary transition-all duration-300 rounded-full" style={{ width: `${progress * 100}%` }} />
           </div>
+
+          {!isRunning && lastCompletedTelemetryId && (
+            <div className="flex justify-center">
+              <GenerationFeedback />
+            </div>
+          )}
 
           <div className="flex items-center gap-4 justify-center">
             <Button variant="ghost" size="sm" onClick={() => setShowConsole(!showConsole)}>
