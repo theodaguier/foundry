@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.42.1](https://github.com/theodaguier/foundry/compare/v1.42.0...v1.42.1) (2026-03-27)
+
+
+### Bug Fixes
+
+* **onboarding/windows:** use official VS bootstrapper instead of winget ([42483a4](https://github.com/theodaguier/foundry/commit/42483a442f830fa9a1ab04ce3188826bf528291e))
+
 ## [1.42.0](https://github.com/theodaguier/foundry/compare/v1.41.1...v1.42.0) (2026-03-27)
 
 
