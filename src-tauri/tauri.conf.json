@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Foundry",
-  "version": "1.35.2",
+  "version": "1.35.3",
   "identifier": "com.foundry.app",
   "build": {
     "frontendDist": "../dist",

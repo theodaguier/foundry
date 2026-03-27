@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.35.3](https://github.com/theodaguier/foundry/compare/v1.35.2...v1.35.3) (2026-03-27)
+
+
+### Bug Fixes
+
+* **commands:** use tauri::State for rate_generation — avoids SupabaseAuth clone ([5f3ef5e](https://github.com/theodaguier/foundry/commit/5f3ef5e963825dc112b9c19fe7d33fa1e617e730))
+
 ## [1.35.2](https://github.com/theodaguier/foundry/compare/v1.35.1...v1.35.2) (2026-03-27)
 
 
