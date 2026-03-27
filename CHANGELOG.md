@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.43.0](https://github.com/theodaguier/foundry/compare/v1.42.7...v1.43.0) (2026-03-27)
+
+
+### Features
+
+* **art-director:** add references/examples.md with 15 layout examples ([d9147e2](https://github.com/theodaguier/foundry/commit/d9147e2725b6b30b2e323e8b66bba5252a662c9f))
+
 ## [1.42.7](https://github.com/theodaguier/foundry/compare/v1.42.6...v1.42.7) (2026-03-27)
 
 
