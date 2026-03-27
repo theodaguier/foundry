@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.45.0](https://github.com/theodaguier/foundry/compare/v1.44.0...v1.45.0) (2026-03-27)
+
+
+### Features
+
+* **onboarding/windows:** add Git for Windows as dependency ([0756343](https://github.com/theodaguier/foundry/commit/07563435b63fd1636cec36e7bd0a50764f9c0243))
+
 ## [1.44.0](https://github.com/theodaguier/foundry/compare/v1.43.0...v1.44.0) (2026-03-27)
 
 
