@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.42.4](https://github.com/theodaguier/foundry/compare/v1.42.3...v1.42.4) (2026-03-27)
+
+
+### Bug Fixes
+
+* **art-director:** flexible layout and window size derived from plugin content ([8d78a4c](https://github.com/theodaguier/foundry/commit/8d78a4ca8e974e1c0003ffe894fcf242cc3a1f41))
+
 ## [1.42.3](https://github.com/theodaguier/foundry/compare/v1.42.2...v1.42.3) (2026-03-27)
 
 
