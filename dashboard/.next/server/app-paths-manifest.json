@@ -1,6 +1,0 @@
-{
-  "/(dashboard)/pipeline/page": "app/(dashboard)/pipeline/page.js",
-  "/(dashboard)/generations/page": "app/(dashboard)/generations/page.js",
-  "/(dashboard)/page": "app/(dashboard)/page.js",
-  "/(dashboard)/users/page": "app/(dashboard)/users/page.js"
-}
