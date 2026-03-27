@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.41.1](https://github.com/theodaguier/foundry/compare/v1.41.0...v1.41.1) (2026-03-27)
+
+
+### Bug Fixes
+
+* **onboarding/windows:** reliable Build Tools detection with vswhere ([1767a24](https://github.com/theodaguier/foundry/commit/1767a244066e1d45fd7d93be526f107b2a701a59))
+
 ## [1.41.0](https://github.com/theodaguier/foundry/compare/v1.40.1...v1.41.0) (2026-03-27)
 
 
