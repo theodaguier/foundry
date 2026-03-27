@@ -52,6 +52,7 @@ pub fn run() {
             commands::settings::reset_install_path,
             commands::telemetry::load_telemetry,
             commands::telemetry::load_all_telemetry,
+            commands::telemetry::rate_generation,
             commands::filesystem::show_in_finder,
             commands::onboarding::get_onboarding_state,
             commands::onboarding::complete_onboarding,
