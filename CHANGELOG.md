@@ -3,6 +3,15 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.38.4](https://github.com/theodaguier/foundry/compare/v1.38.3...v1.38.4) (2026-03-27)
+
+
+### Bug Fixes
+
+* **dashboard:** add edge runtime to /api/auth ([7fb3d73](https://github.com/theodaguier/foundry/commit/7fb3d73533e07880f12a93200c8c2b4d9dc8f1eb))
+* **dashboard:** add edge runtime to /api/logout ([9860b64](https://github.com/theodaguier/foundry/commit/9860b64e72ef22220a2a8b967f8794e6494945ee))
+* **dashboard:** add edge runtime to /generations ([291c5e1](https://github.com/theodaguier/foundry/commit/291c5e150dabf00c6d54f2e50fd14cfd08bbe069))
+
 ## [1.38.3](https://github.com/theodaguier/foundry/compare/v1.38.2...v1.38.3) (2026-03-27)
 
 
