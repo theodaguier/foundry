@@ -176,24 +176,45 @@ fn resolve_brew_path() -> Option<String> {
 }
 
 fn resolve_npm_path() -> Option<String> {
-    let resolved = platform::resolve_command("npm");
-    if resolved != "npm" {
-        return Some(resolved);
-    }
     #[cfg(target_os = "windows")]
     {
+        // On Windows, always prefer npm.cmd — the bare "npm" shim is not a
+        // valid Win32 executable and will fail with "%1 is not a valid Win32
+        // application".
         let resolved = platform::resolve_command("npm.cmd");
         if resolved != "npm.cmd" {
             return Some(resolved);
         }
-    }
-    #[cfg(target_os = "macos")]
-    for path in &["/opt/homebrew/bin/npm", "/usr/local/bin/npm"] {
-        if std::path::Path::new(path).is_file() {
-            return Some(path.to_string());
+
+        // Check well-known install locations
+        let program_files = std::env::var("ProgramFiles").unwrap_or_default();
+        let appdata = std::env::var("APPDATA").unwrap_or_default();
+        for candidate in &[
+            std::path::PathBuf::from(&program_files).join("nodejs").join("npm.cmd"),
+            std::path::PathBuf::from(&appdata).join("npm").join("npm.cmd"),
+        ] {
+            if candidate.is_file() {
+                return Some(candidate.to_string_lossy().to_string());
+            }
         }
+
+        return None;
     }
-    None
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let resolved = platform::resolve_command("npm");
+        if resolved != "npm" {
+            return Some(resolved);
+        }
+        #[cfg(target_os = "macos")]
+        for path in &["/opt/homebrew/bin/npm", "/usr/local/bin/npm"] {
+            if std::path::Path::new(path).is_file() {
+                return Some(path.to_string());
+            }
+        }
+        None
+    }
 }
 
 #[cfg(target_os = "windows")]
@@ -292,6 +313,8 @@ fn run_winget_install(
             if combined.contains("No available upgrade found")
                 || combined.contains("No installed package found matching input criteria")
                 || combined.contains("already installed")
+                || combined.contains("Found an existing package already installed")
+                || combined.contains("No newer package versions are available")
             {
                 DependencyInstallResult {
                     success: true,
