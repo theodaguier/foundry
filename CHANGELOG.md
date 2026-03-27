@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.42.6](https://github.com/theodaguier/foundry/compare/v1.42.5...v1.42.6) (2026-03-27)
+
+
+### Bug Fixes
+
+* **art-director:** remove all layout patterns, blank slate approach ([375e02d](https://github.com/theodaguier/foundry/commit/375e02df6782d37d0fdf784fd5d7131e78c59347))
+
 ## [1.42.5](https://github.com/theodaguier/foundry/compare/v1.42.4...v1.42.5) (2026-03-27)
 
 
