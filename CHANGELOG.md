@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.38.5](https://github.com/theodaguier/foundry/compare/v1.38.4...v1.38.5) (2026-03-27)
+
+
+### Bug Fixes
+
+* **dashboard:** revert supabase.ts to simple process.env — getRequestContext was causing the crash ([163c37b](https://github.com/theodaguier/foundry/commit/163c37bed9e5bfda78b1a22e07d23b9189eb504d))
+
 ## [1.38.4](https://github.com/theodaguier/foundry/compare/v1.38.3...v1.38.4) (2026-03-27)
 
 
