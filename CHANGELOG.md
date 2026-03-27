@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.37.1](https://github.com/theodaguier/foundry/compare/v1.37.0...v1.37.1) (2026-03-27)
+
+
+### Bug Fixes
+
+* **dashboard:** add nodejs_compat flag to wrangler.toml ([c17fff9](https://github.com/theodaguier/foundry/commit/c17fff9103eee2d53bb7111be0d5214f1d72ac29))
+
 ## [1.37.0](https://github.com/theodaguier/foundry/compare/v1.36.0...v1.37.0) (2026-03-27)
 
 
