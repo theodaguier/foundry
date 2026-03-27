@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.42.7](https://github.com/theodaguier/foundry/compare/v1.42.6...v1.42.7) (2026-03-27)
+
+
+### Bug Fixes
+
+* **art-director:** add diversity target and examples reference ([8049977](https://github.com/theodaguier/foundry/commit/8049977432829f23ba488006b3c7f3939c73540c))
+
 ## [1.42.6](https://github.com/theodaguier/foundry/compare/v1.42.5...v1.42.6) (2026-03-27)
 
 
