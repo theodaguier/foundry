@@ -366,3 +366,74 @@ fn detect_cpu_architecture() -> String {
         std::env::consts::ARCH.to_string()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_builder() -> TelemetryBuilder {
+        TelemetryBuilder::new("generate", "a warm reverb", "claude-code", "sonnet")
+    }
+
+    #[test]
+    fn telemetry_build_populates_agent_cli_version() {
+        let t = make_builder().build();
+        assert!(
+            t.agent_cli_version.is_some(),
+            "agent_cli_version must be populated at build time"
+        );
+        let v = t.agent_cli_version.unwrap();
+        assert!(!v.is_empty(), "agent_cli_version must not be empty");
+        // Must look like a semver string
+        assert!(v.contains('.'), "agent_cli_version must be a semver string, got: {}", v);
+    }
+
+    #[test]
+    fn telemetry_build_no_hardcoded_none_fields() {
+        let t = make_builder().build();
+        assert!(t.os_version.is_some(), "os_version must be detected");
+        assert!(t.cpu_architecture.is_some(), "cpu_architecture must be detected");
+        // user_rating starts as None — that's correct
+        assert!(t.user_rating.is_none(), "user_rating starts as None before user rates");
+    }
+
+    #[test]
+    fn telemetry_row_user_rating_round_trips() {
+        let mut t = make_builder().build();
+        t.user_rating = Some(1);
+        let row = TelemetryRow::from_telemetry(&t, "user-123");
+        assert_eq!(row.user_rating, Some(1));
+
+        let mut t2 = make_builder().build();
+        t2.user_rating = Some(-1);
+        let row2 = TelemetryRow::from_telemetry(&t2, "user-123");
+        assert_eq!(row2.user_rating, Some(-1));
+    }
+
+    #[test]
+    fn telemetry_row_from_telemetry_preserves_all_fields() {
+        let mut b = make_builder();
+        b.plugin_id = Some("plugin-abc".to_string());
+        b.plugin_type = Some("effect".to_string());
+        b.format = Some("AU".to_string());
+        b.channel_layout = Some("Stereo".to_string());
+        b.fail("build", "CMake error");
+        let t = b.build();
+        let row = TelemetryRow::from_telemetry(&t, "user-xyz");
+
+        assert_eq!(row.plugin_id, Some("plugin-abc".to_string()));
+        assert_eq!(row.plugin_type, Some("effect".to_string()));
+        assert_eq!(row.outcome, "failed_build");
+        assert_eq!(row.failure_stage, Some("build".to_string()));
+        assert_eq!(row.failure_message, Some("CMake error".to_string()));
+    }
+
+    #[test]
+    fn normalize_agent_handles_variants() {
+        assert_eq!(normalize_agent("claude-code"), "claude-code");
+        assert_eq!(normalize_agent("Claude Code"), "claude-code");
+        assert_eq!(normalize_agent("Codex"), "codex");
+        assert_eq!(normalize_agent("codex-cli"), "codex");
+        assert_eq!(normalize_agent("unknown"), "claude-code");
+    }
+}
