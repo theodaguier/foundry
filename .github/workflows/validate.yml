@@ -36,6 +36,17 @@ jobs:
       - name: Build frontend
         run: npm run build
 
+      - name: Frontend tests
+        run: npm test
+
       - name: Check Tauri backend
         working-directory: src-tauri
         run: cargo check
+
+      - name: Rust tests
+        working-directory: src-tauri
+        run: cargo test --lib
+
+      - name: Rust clippy
+        working-directory: src-tauri
+        run: cargo clippy -- -D warnings
