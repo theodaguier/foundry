@@ -79,6 +79,9 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
+      - name: TypeScript check
+        run: npm run typecheck
+
       - name: Build frontend
         run: npm run build
 
@@ -220,6 +223,9 @@ jobs:
 
       - name: Install frontend dependencies
         run: npm ci
+
+      - name: TypeScript check
+        run: npm run typecheck
 
       - name: Build frontend
         run: npm run build
