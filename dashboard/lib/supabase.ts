@@ -1,11 +1,29 @@
 import { createClient } from "@supabase/supabase-js"
+import { getRequestContext } from "@cloudflare/next-on-pages"
 
-const url = process.env.SUPABASE_URL!
-const key = process.env.SUPABASE_SERVICE_ROLE_KEY!
+function getEnv() {
+  try {
+    // Runtime: Cloudflare Pages env bindings
+    const ctx = getRequestContext()
+    return ctx.env as Record<string, string>
+  } catch {
+    // Build time or local dev: fall back to process.env
+    return process.env as Record<string, string>
+  }
+}
 
-export const supabase = createClient(url, key, {
-  auth: { persistSession: false },
-})
+export function getSupabase() {
+  const env = getEnv()
+  const url = env.SUPABASE_URL
+  const key = env.SUPABASE_SERVICE_ROLE_KEY
+  if (!url || !key) throw new Error(`supabaseUrl is required. SUPABASE_URL=${url}`)
+  return createClient(url, key, { auth: { persistSession: false } })
+}
+
+// Legacy export for code that imports supabase directly
+export const supabase = {
+  from: (...args: Parameters<ReturnType<typeof getSupabase>["from"]>) => getSupabase().from(...args),
+}
 
 export type Json = string | number | boolean | null | { [key: string]: Json } | Json[]
 
