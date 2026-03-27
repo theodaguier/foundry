@@ -436,14 +436,51 @@ pub fn install_cpp_build_tools() -> DependencyInstallResult {
 
     #[cfg(target_os = "windows")]
     {
-        run_winget_install(
+        // Pre-check: already installed? (vswhere is more reliable than winget)
+        if platform::check_dependency(&platform::types::DependencySpec {
+            name: "C++ Build Tools",
+            check_command: "__vs_build_tools__",
+            check_args: &[],
+        })
+        .is_some()
+        {
+            return DependencyInstallResult {
+                success: true,
+                message: "Windows Build Tools are already installed.".into(),
+            };
+        }
+
+        let result = run_winget_install(
             "Microsoft.VisualStudio.2022.BuildTools",
-            "Visual Studio Build Tools",
+            "Windows Build Tools",
             &[
                 "--override",
                 "--wait --passive --norestart --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended",
             ],
-        )
+        );
+
+        if result.success {
+            return result;
+        }
+
+        // winget often returns non-zero even when the tools ARE installed.
+        // Re-check with vswhere — if the tools are present, it's a success.
+        platform::invalidate_shell_cache();
+
+        if platform::check_dependency(&platform::types::DependencySpec {
+            name: "C++ Build Tools",
+            check_command: "__vs_build_tools__",
+            check_args: &[],
+        })
+        .is_some()
+        {
+            return DependencyInstallResult {
+                success: true,
+                message: "Windows Build Tools are already installed.".into(),
+            };
+        }
+
+        result
     }
 }
 
