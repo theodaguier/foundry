@@ -71,6 +71,9 @@ export const setInstallPath = (format: string, path: string) =>
 export const resetInstallPath = (format: string) =>
   invoke<InstallPathsConfig>("reset_install_path", { format });
 
+export const rateGeneration = (id: string, rating: 1 | -1) =>
+  invoke<void>("rate_generation", { id, rating });
+
 export const loadTelemetry = (id: string) =>
   invoke<GenerationTelemetry | null>("load_telemetry", { id });
 export const loadAllTelemetry = () => invoke<GenerationTelemetry[]>("load_all_telemetry");
