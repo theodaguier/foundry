@@ -29,6 +29,7 @@ const DEP_LABELS: Record<string, string> = {
   "Xcode Command Line Tools": "Apple Build Tools",
   "C++ Build Tools": "Windows Build Tools",
   "CMake": "CMake",
+  "Git": "Git",
   "Claude Code CLI": "Claude Code",
   "Codex CLI": "Codex",
   "JUCE SDK": "Audio Framework",
@@ -38,6 +39,7 @@ const DEP_DESCRIPTIONS: Record<string, string> = {
   "Xcode Command Line Tools": "C++ compiler for building audio plugins",
   "C++ Build Tools": "C++ compiler for building audio plugins",
   "CMake": "Builds and compiles your plugin projects",
+  "Git": "Required by Claude Code on Windows",
   "Claude Code CLI": "AI engine that writes the plugin code",
   "Codex CLI": "Alternative AI engine (optional)",
   "JUCE SDK": "Audio plugin framework by JUCE",
@@ -47,6 +49,7 @@ const DEP_KEY_BY_NAME: Record<string, string> = {
   "Xcode Command Line Tools": "xcode_clt",
   "C++ Build Tools": "cpp_build_tools",
   "CMake": "cmake",
+  "Git": "git",
   "Claude Code CLI": "claude_code",
   "Codex CLI": "codex",
   "JUCE SDK": "juce",
@@ -58,6 +61,7 @@ const DEP_ORDER = [
   "Xcode Command Line Tools",
   "C++ Build Tools",
   "CMake",
+  "Git",
   "Claude Code CLI",
   "Codex CLI",
   "JUCE SDK",
@@ -65,9 +69,10 @@ const DEP_ORDER = [
 
 /** Estimated install duration in seconds per dependency (used for progress) */
 const ESTIMATED_DURATION: Record<string, number> = {
-  xcode_clt: 180,     // ~3 min (GUI installer, polled)
-  cpp_build_tools: 480, // ~8 min for VS Build Tools download + install
+  xcode_clt: 180,      // ~3 min (GUI installer, polled)
+  cpp_build_tools: 30,  // ~30s download, then MS installer takes over
   cmake: 30,
+  git: 45,
   claude_code: 20,
   codex: 20,
   juce: 25,

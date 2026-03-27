@@ -215,6 +215,11 @@ pub fn required_dependencies() -> Vec<DependencySpec> {
             check_args: &["--version"],
         },
         DependencySpec {
+            name: "Git",
+            check_command: "git",
+            check_args: &["--version"],
+        },
+        DependencySpec {
             name: "Claude Code CLI",
             check_command: "claude",
             check_args: &["--version"],

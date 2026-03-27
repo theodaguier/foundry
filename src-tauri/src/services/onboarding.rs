@@ -376,6 +376,30 @@ fn install_homebrew() -> Result<(), String> {
     }
 }
 
+/// Install Git for Windows via winget. Required by Claude Code on Windows.
+pub fn install_git() -> DependencyInstallResult {
+    let resolved = platform::resolve_command("git");
+    if resolved != "git" {
+        return DependencyInstallResult {
+            success: true,
+            message: "Git is already installed.".into(),
+        };
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        return run_winget_install("Git.Git", "Git for Windows", &[]);
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        DependencyInstallResult {
+            success: false,
+            message: "Git installation is only automated on Windows.".into(),
+        }
+    }
+}
+
 /// Install CMake via Homebrew (installs Homebrew first if needed).
 pub fn install_cmake() -> DependencyInstallResult {
     let resolved = platform::resolve_command("cmake");
@@ -519,10 +543,25 @@ fn format_vs_build_tools_failure(exit_code: Option<i32>) -> String {
         Some(1618) => {
             "Another Windows installation is already running. Let it finish, then retry.".into()
         }
-        Some(code) => format!(
-            "Microsoft Build Tools installer exited with code {}. Try again. If it keeps failing, restart Windows and retry the onboarding step.",
-            code
-        ),
+        Some(code) => match code as u32 {
+            0x80070005 => {
+                "Windows denied access while installing Build Tools. Approve the administrator prompt and try again."
+                    .into()
+            }
+            0x80070070 => {
+                "Not enough free disk space for Windows Build Tools. Free space on your system drive (usually C:) and try again."
+                    .into()
+            }
+            0x80072EE7 | 0x80072EFD => {
+                "Foundry could not reach Microsoft's download or install servers. Check your internet connection and try again."
+                    .into()
+            }
+            hresult => format!(
+                "Microsoft Build Tools installer exited with code {} (0x{:08X}). Try again. If it keeps failing, restart Windows and retry the onboarding step.",
+                code,
+                hresult
+            ),
+        },
         None => "Microsoft Build Tools installer did not return an exit code. Try again.".into(),
     }
 }
