@@ -55,7 +55,8 @@ const DEP_KEY_BY_NAME: Record<string, string> = {
   "JUCE SDK": "juce",
 }
 
-const OPTIONAL_DEPS = new Set(["Codex CLI"])
+const OPTIONAL_DEPS = new Set(["Codex CLI", "Claude Code CLI"])
+const PROVIDER_DEPS = new Set(["claude_code", "codex"])
 
 const DEP_ORDER = [
   "Xcode Command Line Tools",
@@ -390,13 +391,25 @@ export default function Onboarding() {
 
     // Re-check first to get latest state
     const fresh = await checkDeps()
-    const missing = fresh.filter(d => d.status === "missing" && d.required)
 
-    for (const dep of missing) {
+    // Install required deps (build tools, cmake, git, juce)
+    const missingRequired = fresh.filter(d => d.status === "missing" && d.required)
+    for (const dep of missingRequired) {
       if (abortedRef.current) return
       await installSingle(dep)
-      // Small delay for PATH cache to settle between installs
       await new Promise(r => setTimeout(r, 600))
+    }
+
+    // Install first available provider if none installed
+    const providers = fresh.filter(d => PROVIDER_DEPS.has(d.key))
+    const hasAnyProvider = providers.some(d => d.status === "installed")
+    if (!hasAnyProvider) {
+      // Install Claude Code first (primary), skip if it fails and try Codex
+      const claude = providers.find(d => d.key === "claude_code" && d.status === "missing")
+      if (claude) {
+        await installSingle(claude)
+        await new Promise(r => setTimeout(r, 600))
+      }
     }
 
     // Final recheck
@@ -411,7 +424,9 @@ export default function Onboarding() {
       const results = await checkDeps()
       if (!mounted) return
       const requiredMissing = results.filter(d => d.required && d.status !== "installed")
-      if (requiredMissing.length === 0) {
+      const providers = results.filter(d => PROVIDER_DEPS.has(d.key))
+      const hasAnyProvider = providers.some(d => d.status === "installed")
+      if (requiredMissing.length === 0 && hasAnyProvider) {
         setPhase("done")
       } else {
         setPhase("ready_to_setup")
@@ -424,7 +439,10 @@ export default function Onboarding() {
   // ---- Derived state ----
 
   const requiredDeps = deps.filter(d => d.required)
-  const allReady = requiredDeps.length > 0 && requiredDeps.every(d => d.status === "installed")
+  const providerDeps = deps.filter(d => PROVIDER_DEPS.has(d.key))
+  const hasProvider = providerDeps.some(d => d.status === "installed")
+  const allRequiredReady = requiredDeps.length > 0 && requiredDeps.every(d => d.status === "installed")
+  const allReady = allRequiredReady && hasProvider
   const hasAuthRequired = deps.some(d => d.status === "auth_required")
   const hasFailed = deps.some(d => d.status === "failed" && d.required)
   const isInstalling = phase === "installing" && deps.some(d => d.status === "installing")
@@ -548,9 +566,9 @@ export default function Onboarding() {
                         <span className="text-[13px] font-medium text-foreground">
                           {dep.label}
                         </span>
-                        {!dep.required && (
+                        {PROVIDER_DEPS.has(dep.key) && (
                           <span className="text-[10px] uppercase tracking-wider text-muted-foreground/50 font-medium">
-                            Optional
+                            {hasProvider ? "Optional" : "Pick one"}
                           </span>
                         )}
                       </div>
@@ -573,6 +591,17 @@ export default function Onboarding() {
                     <span className={`text-[11px] font-medium shrink-0 tabular-nums ${statusColor(dep.status)}`}>
                       {dep.status === "installed" && "Ready"}
                       {dep.status === "installing" && pct !== undefined && `${pct}%`}
+                      {dep.status === "missing" && (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          disabled={isInstalling}
+                          onClick={() => installSingle(dep)}
+                          className="text-[11px] h-6 px-2"
+                        >
+                          Install
+                        </Button>
+                      )}
                       {dep.status === "auth_required" && (
                         <Button
                           size="sm"
