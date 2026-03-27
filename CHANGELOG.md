@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.28.0](https://github.com/theodaguier/foundry/compare/v1.27.0...v1.28.0) (2026-03-27)
+
+
+### Features
+
+* **dashboard:** add personal admin dashboard (Next.js 15 + shadcn) ([e400777](https://github.com/theodaguier/foundry/commit/e400777f562403be99ca04ac71ea991eca8dcba6))
+
 ## [1.27.0](https://github.com/theodaguier/foundry/compare/v1.26.0...v1.27.0) (2026-03-27)
 
 
