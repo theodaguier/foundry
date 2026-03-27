@@ -1,18 +1,44 @@
+import { useState } from "react"
 import { ThumbsUp, ThumbsDown } from "lucide-react"
 import { useBuildStore } from "@/stores/build-store"
+import { rateGeneration } from "@/lib/commands"
 import { cn } from "@/lib/utils"
 
-export function GenerationFeedback() {
-  const userRating = useBuildStore((s) => s.userRating)
-  const setUserRating = useBuildStore((s) => s.setUserRating)
-  const telemetryId = useBuildStore((s) => s.lastCompletedTelemetryId)
+interface Props {
+  /** When provided, rates a specific historical generation (not the current build) */
+  telemetryId?: string
+  /** Pre-existing rating — shown as selected state */
+  initialRating?: 1 | -1 | null
+}
 
-  if (!telemetryId) return null
+export function GenerationFeedback({ telemetryId, initialRating }: Props) {
+  const storeTelemetryId = useBuildStore((s) => s.lastCompletedTelemetryId)
+  const storeRating = useBuildStore((s) => s.userRating)
+  const setStoreRating = useBuildStore((s) => s.setUserRating)
 
-  if (userRating !== null) {
+  // Historical mode: standalone state, doesn't touch build-store
+  const [localRating, setLocalRating] = useState<1 | -1 | null>(initialRating ?? null)
+
+  const isHistorical = telemetryId !== undefined
+  const effectiveId = isHistorical ? telemetryId : storeTelemetryId
+  const currentRating = isHistorical ? localRating : storeRating
+
+  if (!effectiveId) return null
+
+  const handleRate = (rating: 1 | -1) => {
+    if (currentRating !== null) return // already rated
+    if (isHistorical) {
+      setLocalRating(rating)
+      rateGeneration(effectiveId, rating).catch(console.error)
+    } else {
+      setStoreRating(rating)
+    }
+  }
+
+  if (currentRating !== null) {
     return (
       <div className="flex items-center gap-2 text-xs text-muted-foreground font-mono">
-        {userRating === 1 ? (
+        {currentRating === 1 ? (
           <ThumbsUp className="size-3.5 text-success" />
         ) : (
           <ThumbsDown className="size-3.5 text-destructive" />
@@ -27,7 +53,7 @@ export function GenerationFeedback() {
       <span className="text-xs text-muted-foreground font-mono">How did this turn out?</span>
       <div className="flex items-center gap-1.5">
         <button
-          onClick={() => setUserRating(1)}
+          onClick={() => handleRate(1)}
           className={cn(
             "flex items-center justify-center size-7 rounded-sm border border-border",
             "text-muted-foreground hover:text-success hover:border-success",
@@ -38,7 +64,7 @@ export function GenerationFeedback() {
           <ThumbsUp className="size-3.5" />
         </button>
         <button
-          onClick={() => setUserRating(-1)}
+          onClick={() => handleRate(-1)}
           className={cn(
             "flex items-center justify-center size-7 rounded-sm border border-border",
             "text-muted-foreground hover:text-destructive hover:border-destructive",
