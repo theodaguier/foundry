@@ -3682,6 +3682,77 @@ mod tests {
             summarize_error_snippet("first error\n\nsecond error\nthird error\nfourth error");
         assert_eq!(summary, "first error | second error | third error");
     }
+
+    // ── Regression tests for bugs fixed 2026-03 ──────────────────────────
+
+    /// Phase prompts must NOT tell Claude to read foundry-kit files.
+    /// When Read is disallowed in generate phases, Claude loops and never writes code.
+    #[test]
+    fn phase_prompts_do_not_instruct_claude_to_read_foundry_kit() {
+        let profile = CreativeProfile::for_prompt("a warm reverb", "effect");
+        let processor = build_processor_prompt(
+            "Reverb",
+            "audio effect",
+            "effect",
+            "stereo",
+            "a warm reverb",
+            &profile,
+            None,
+        );
+        let ui = build_fast_ui_prompt(
+            "Reverb",
+            "audio effect",
+            "effect",
+            "a warm reverb",
+            "stereo",
+            &profile,
+            &[],
+            None,
+        );
+        let forbidden = "Before writing any code, read `foundry-kit/";
+        assert!(
+            !processor.contains(forbidden),
+            "processor prompt must not instruct Claude to read foundry-kit files"
+        );
+        assert!(
+            !ui.contains(forbidden),
+            "UI prompt must not instruct Claude to read foundry-kit files"
+        );
+    }
+
+    /// UI prompt must reference skeleton files so Claude completes them, not rewrites from scratch.
+    #[test]
+    fn ui_prompt_references_editor_skeleton() {
+        let profile = CreativeProfile::for_prompt("a pad synth", "instrument");
+        let ui = build_fast_ui_prompt(
+            "Pad",
+            "playable instrument",
+            "instrument",
+            "a pad synth",
+            "stereo",
+            &profile,
+            &[],
+            None,
+        );
+        assert!(
+            ui.to_lowercase().contains("skeleton") || ui.contains("already exist"),
+            "UI prompt must reference the pre-written skeleton: Claude must complete it, not invent from scratch"
+        );
+    }
+
+    /// Prompts must not be trivially empty or too short to carry skill content.
+    #[test]
+    fn prompts_are_substantial() {
+        let profile = CreativeProfile::for_prompt("a compressor", "effect");
+        let processor = build_processor_prompt(
+            "Comp", "audio effect", "effect", "stereo", "a compressor", &profile, None,
+        );
+        let ui = build_fast_ui_prompt(
+            "Comp", "audio effect", "effect", "a compressor", "stereo", &profile, &[], None,
+        );
+        assert!(processor.len() > 500, "processor prompt too short ({} chars)", processor.len());
+        assert!(ui.len() > 500, "UI prompt too short ({} chars)", ui.len());
+    }
 }
 
 fn resolve_formats(format: &str) -> Vec<PluginFormat> {
