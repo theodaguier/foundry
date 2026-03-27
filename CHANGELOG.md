@@ -3,6 +3,15 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.32.0](https://github.com/theodaguier/foundry/compare/v1.31.0...v1.32.0) (2026-03-27)
+
+
+### Features
+
+* **test:** add vitest + testing-library for frontend tests ([07067c6](https://github.com/theodaguier/foundry/commit/07067c60843f66855f8d15155848b002635b5a63))
+* **test:** add vitest config to vite.config.ts ([13ec899](https://github.com/theodaguier/foundry/commit/13ec89977aad6076995c960c6ea540df563e0511))
+* **test:** add vitest setup file ([1002a8c](https://github.com/theodaguier/foundry/commit/1002a8c06a8e6cbf07902166d476177ddf664df0))
+
 ## [1.31.0](https://github.com/theodaguier/foundry/compare/v1.30.0...v1.31.0) (2026-03-27)
 
 
