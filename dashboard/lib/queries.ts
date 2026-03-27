@@ -5,9 +5,9 @@ import { format, subDays, eachDayOfInterval, parseISO, startOfDay } from "date-f
 
 export async function getOverviewStats() {
   const [gens, profiles, waitlist] = await Promise.all([
-    supabase.from("generation_telemetry").select("outcome, estimated_cost_usd, build_attempts"),
-    supabase.from("profiles").select("id", { count: "exact", head: true }),
-    supabase.from("waitlist").select("id", { count: "exact", head: true }).maybeSingle(),
+    supabase().from("generation_telemetry").select("outcome, estimated_cost_usd, build_attempts"),
+    supabase().from("profiles").select("id", { count: "exact", head: true }),
+    supabase().from("waitlist").select("id", { count: "exact", head: true }).maybeSingle(),
   ])
 
   const rows = (gens.data ?? []) as Pick<TelemetryRow, "outcome" | "estimated_cost_usd" | "build_attempts">[]
@@ -31,7 +31,7 @@ export async function getOverviewStats() {
 
 export async function getGenerationsTimeline(days = 30) {
   const from = subDays(new Date(), days)
-  const { data } = await supabase
+  const { data } = await supabase()
     .from("generation_telemetry")
     .select("started_at, outcome")
     .gte("started_at", from.toISOString())
@@ -61,7 +61,7 @@ export async function getGenerationsTimeline(days = 30) {
 // ─── Stage durations ──────────────────────────────────────────────────────────
 
 export async function getStageDurations() {
-  const { data } = await supabase
+  const { data } = await supabase()
     .from("generation_telemetry")
     .select("generation_duration, build_duration, install_duration, outcome")
     .eq("outcome", "success")
@@ -87,7 +87,7 @@ export async function getStageDurations() {
 // ─── Build attempts distribution ─────────────────────────────────────────────
 
 export async function getBuildAttemptsDistribution() {
-  const { data } = await supabase
+  const { data } = await supabase()
     .from("generation_telemetry")
     .select("build_attempts, outcome")
 
@@ -109,7 +109,7 @@ export async function getBuildAttemptsDistribution() {
 // ─── Failure breakdown ────────────────────────────────────────────────────────
 
 export async function getFailureBreakdown() {
-  const { data } = await supabase
+  const { data } = await supabase()
     .from("generation_telemetry")
     .select("failure_stage")
     .eq("outcome", "failed")
@@ -129,7 +129,7 @@ export async function getFailureBreakdown() {
 // ─── Success rate by model ────────────────────────────────────────────────────
 
 export async function getSuccessRateByModel() {
-  const { data } = await supabase
+  const { data } = await supabase()
     .from("generation_telemetry")
     .select("model, outcome")
 
@@ -156,7 +156,7 @@ export async function getSuccessRateByModel() {
 
 export async function getTokenCostTimeline(days = 30) {
   const from = subDays(new Date(), days)
-  const { data } = await supabase
+  const { data } = await supabase()
     .from("generation_telemetry")
     .select("started_at, input_tokens, output_tokens, cache_read_tokens, estimated_cost_usd")
     .gte("started_at", from.toISOString())
@@ -198,7 +198,7 @@ export async function getRecentGenerations(limit = 50, filters?: {
   model?: string
   plugin_type?: string
 }) {
-  let q = supabase
+  let q = supabase()
     .from("generation_telemetry")
     .select(
       "id, started_at, generation_type, agent, model, plugin_type, original_prompt, outcome, failure_stage, build_attempts, total_duration, generation_duration, build_duration, estimated_cost_usd, user_id, user_rating"
@@ -218,7 +218,7 @@ export async function getRecentGenerations(limit = 50, filters?: {
 // ─── Single telemetry row ─────────────────────────────────────────────────────
 
 export async function getTelemetryById(id: string): Promise<TelemetryRow | null> {
-  const { data } = await supabase
+  const { data } = await supabase()
     .from("generation_telemetry")
     .select("*")
     .eq("id", id)
@@ -230,8 +230,8 @@ export async function getTelemetryById(id: string): Promise<TelemetryRow | null>
 
 export async function getUsers() {
   const [profiles, genCounts] = await Promise.all([
-    supabase.from("profiles").select("*").order("id"),
-    supabase
+    supabase().from("profiles").select("*").order("id"),
+    supabase()
       .from("generation_telemetry")
       .select("user_id, outcome")
       .not("user_id", "is", null),
@@ -256,7 +256,7 @@ export async function getUsers() {
 // ─── Waitlist ─────────────────────────────────────────────────────────────────
 
 export async function getWaitlist(): Promise<WaitlistEntry[] | null> {
-  const { data, error } = await supabase
+  const { data, error } = await supabase()
     .from("waitlist")
     .select("*")
     .order("created_at", { ascending: false })
@@ -268,7 +268,7 @@ export async function getWaitlist(): Promise<WaitlistEntry[] | null> {
 // ─── Correlations (build_attempts vs total_duration) ─────────────────────────
 
 export async function getAttemptsVsDuration() {
-  const { data } = await supabase
+  const { data } = await supabase()
     .from("generation_telemetry")
     .select("build_attempts, total_duration, outcome")
     .eq("outcome", "success")
@@ -286,7 +286,7 @@ export async function getAttemptsVsDuration() {
 // ─── Filter options ───────────────────────────────────────────────────────────
 
 export async function getFilterOptions() {
-  const { data } = await supabase
+  const { data } = await supabase()
     .from("generation_telemetry")
     .select("agent, model, plugin_type")
 

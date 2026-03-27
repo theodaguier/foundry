@@ -1,32 +1,12 @@
-import { createClient, type SupabaseClient } from "@supabase/supabase-js"
+import { createClient } from "@supabase/supabase-js"
 
-let _client: SupabaseClient | null = null
-
-/**
- * Lazily create the Supabase client so env vars are read at request time,
- * not at module-init time (Cloudflare Pages populates process.env at request time).
- */
-export function getSupabaseClient(): SupabaseClient {
-  if (_client) return _client
-  const url = process.env.SUPABASE_URL
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!url || !key) {
-    throw new Error(
-      `Missing Supabase env vars: SUPABASE_URL=${url ? "set" : "missing"}, SUPABASE_SERVICE_ROLE_KEY=${key ? "set" : "missing"}`
-    )
-  }
-  _client = createClient(url, key, { auth: { persistSession: false } })
-  return _client
+export function supabase() {
+  return createClient(
+    process.env.SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { persistSession: false } },
+  )
 }
-
-/** Proxy that lazily initialises the client on first .from() call */
-export const supabase = new Proxy({} as SupabaseClient, {
-  get(_target, prop, receiver) {
-    const client = getSupabaseClient()
-    const value = Reflect.get(client, prop, receiver)
-    return typeof value === "function" ? value.bind(client) : value
-  },
-})
 
 export type Json = string | number | boolean | null | { [key: string]: Json } | Json[]
 
