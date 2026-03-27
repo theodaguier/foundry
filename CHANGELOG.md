@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.44.0](https://github.com/theodaguier/foundry/compare/v1.43.0...v1.44.0) (2026-03-27)
+
+
+### Features
+
+* **onboarding:** launch terminal for Claude Code sign-in ([c181d9e](https://github.com/theodaguier/foundry/commit/c181d9ebeea32462292eb9b45eaa930b789e4243))
+
 ## [1.43.0](https://github.com/theodaguier/foundry/compare/v1.42.7...v1.43.0) (2026-03-27)
 
 
