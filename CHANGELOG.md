@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.42.3](https://github.com/theodaguier/foundry/compare/v1.42.2...v1.42.3) (2026-03-27)
+
+
+### Bug Fixes
+
+* **onboarding/windows:** own build tools install flow ([b0cd280](https://github.com/theodaguier/foundry/commit/b0cd280c81137e9f1614bfda6662150b1588e160))
+
 ## [1.42.2](https://github.com/theodaguier/foundry/compare/v1.42.1...v1.42.2) (2026-03-27)
 
 
