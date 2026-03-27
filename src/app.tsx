@@ -20,10 +20,17 @@ import Profile from "@/pages/profile"
 import type { GenerationStep, PipelineLogLine, Plugin } from "@/lib/types"
 
 function LaunchScreen() {
+  const appVersion = useSettingsStore((s) => s.appVersion)
+
   return (
     <div className="flex flex-col items-center justify-center h-full gap-4">
       <FoundryLogo height={48} className="text-muted-foreground" />
       <div className="w-4 h-4 border-2 border-muted-foreground/60 border-t-transparent rounded-full animate-spin" />
+      {appVersion && (
+        <span className="text-[11px] text-muted-foreground/40 font-mono absolute bottom-4">
+          v{appVersion}
+        </span>
+      )}
     </div>
   )
 }
