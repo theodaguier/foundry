@@ -18,10 +18,8 @@ export interface TelemetryRow {
   agent: string | null
   model: string | null
   original_prompt: string | null
-  enhanced_prompt: string | null
   started_at: string | null
   generation_duration: number | null
-  audit_duration: number | null
   build_duration: number | null
   install_duration: number | null
   total_duration: number | null
@@ -34,7 +32,6 @@ export interface TelemetryRow {
   outcome: "success" | "failed" | "cancelled" | null
   failure_stage: string | null
   failure_message: string | null
-  failure_details: string | null
   plugin_type: string | null
   format: string | null
   channel_layout: string | null
@@ -42,6 +39,7 @@ export interface TelemetryRow {
   cpu_architecture: string | null
   agent_cli_version: string | null
   juce_version: string | null
+  user_rating: number | null
 }
 
 export interface Profile {
