@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.30.0](https://github.com/theodaguier/foundry/compare/v1.29.0...v1.30.0) (2026-03-27)
+
+
+### Features
+
+* **ui:** inject GenerationFeedback into post-generation success state ([f135f6c](https://github.com/theodaguier/foundry/commit/f135f6c27534b840c69b08a367788610520156e4))
+
 ## [1.29.0](https://github.com/theodaguier/foundry/compare/v1.28.0...v1.29.0) (2026-03-27)
 
 
