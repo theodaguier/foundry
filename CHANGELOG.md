@@ -3,6 +3,15 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.36.0](https://github.com/theodaguier/foundry/compare/v1.35.3...v1.36.0) (2026-03-27)
+
+
+### Features
+
+* **analytics:** add ui_host to PostHog init in landing ([26babeb](https://github.com/theodaguier/foundry/commit/26babeb428863b8e49c178e1822e4782b3b4352f))
+* **analytics:** update default PostHog host to reverse proxy ([3c18f00](https://github.com/theodaguier/foundry/commit/3c18f009785c735afa59e49298efd4544167c2cc))
+* **analytics:** use reverse proxy e.byfoundry.app as default api_host, add ui_host ([a1f8072](https://github.com/theodaguier/foundry/commit/a1f80727dfdf52c97d2aa20c5bc7d6a04b0605f4))
+
 ## [1.35.3](https://github.com/theodaguier/foundry/compare/v1.35.2...v1.35.3) (2026-03-27)
 
 
