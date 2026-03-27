@@ -239,18 +239,35 @@ fn resolve_winget_path() -> Option<String> {
 /// Extract a short, user-friendly error from raw winget output.
 /// Strips progress spinners, license boilerplate, and blank lines.
 fn sanitize_winget_output(raw: &str) -> String {
-    let meaningful: Vec<&str> = raw
+    let meaningful: Vec<String> = raw
         .lines()
-        .map(|l| l.trim())
+        .map(|l| {
+            // Strip spinner sequences: runs of - \ | / and spaces
+            let cleaned: String = l
+                .trim()
+                .replace("- \\", "")
+                .replace("| /", "")
+                .replace("\\ |", "")
+                .replace("/ -", "")
+                .trim()
+                .to_string();
+            // Also strip any remaining runs of just spinner chars at end
+            cleaned
+                .trim_end_matches(|c: char| matches!(c, '-' | '\\' | '|' | '/' | ' '))
+                .trim()
+                .to_string()
+        })
         .filter(|l| {
             !l.is_empty()
-                && !l.chars().all(|c| matches!(c, '-' | '\\' | '|' | '/' | ' '))
+                && l.len() > 2 // Skip lines that are just residual chars
+                && !l.chars().all(|c| matches!(c, '-' | '\\' | '|' | '/' | ' ' | '.'))
                 && !l.contains("Successfully verified installer hash")
                 && !l.contains("Starting package install")
                 && !l.contains("This application is licensed")
                 && !l.contains("Microsoft is not responsible")
                 && !l.contains("does it grant any licenses")
                 && !l.contains("third-party packages")
+                && !l.contains("install...")
                 && !l.starts_with("Version ")
                 && !l.starts_with('[') // [Microsoft.VisualStudio...] header
         })
@@ -261,7 +278,7 @@ fn sanitize_winget_output(raw: &str) -> String {
     }
 
     // Take the last meaningful line (usually the actual error)
-    let last = meaningful.last().unwrap();
+    let last = &meaningful[meaningful.len() - 1];
     if last.len() > 120 {
         format!("{}…", &last[..120])
     } else {

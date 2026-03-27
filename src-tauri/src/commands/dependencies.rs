@@ -12,6 +12,7 @@ struct ErrorEvent {
 pub struct DependencyStatus {
     pub name: String,
     pub installed: bool,
+    pub auth_required: bool,
     pub detail: Option<String>,
     pub version: Option<String>,
 }

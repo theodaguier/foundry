@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react"
+import { open } from "@tauri-apps/plugin-shell"
 import { Button } from "@/components/ui/button"
 import { FoundryLogo } from "@/components/app/foundry-logo"
 import { useAppStore } from "@/stores/app-store"
@@ -8,7 +9,7 @@ import * as commands from "@/lib/commands"
 // Types
 // ---------------------------------------------------------------------------
 
-type DepStatus = "checking" | "installed" | "missing" | "installing" | "failed"
+type DepStatus = "checking" | "installed" | "missing" | "installing" | "failed" | "auth_required"
 type SetupPhase = "checking" | "ready_to_setup" | "installing" | "done"
 
 interface Dep {
@@ -85,13 +86,20 @@ function depSortOrder(name: string) {
 function mapDependency(
   result: Awaited<ReturnType<typeof commands.checkDependencies>>[number],
 ): Dep {
+  let status: DepStatus = "missing"
+  if (result.installed && result.authRequired) {
+    status = "auth_required"
+  } else if (result.installed) {
+    status = "installed"
+  }
+
   return {
     name: result.name,
     key: DEP_KEY_BY_NAME[result.name] ?? result.name.toLowerCase().replace(/\s+/g, "_"),
     label: DEP_LABELS[result.name] ?? result.name,
     description: DEP_DESCRIPTIONS[result.name] ?? "Required for plugin generation",
     required: !OPTIONAL_DEPS.has(result.name),
-    status: result.installed ? "installed" : "missing",
+    status,
   }
 }
 
@@ -205,6 +213,17 @@ function StatusIcon({ status, progress }: { status: DepStatus; progress?: number
       </div>
     )
   }
+  if (status === "auth_required") {
+    return (
+      <div className="w-5 h-5 flex items-center justify-center shrink-0">
+        <svg width="16" height="16" viewBox="0 0 16 16" className="text-amber-500">
+          <circle cx="8" cy="8" r="8" fill="currentColor" />
+          <path d="M8 4.5V9" stroke="white" strokeWidth="1.5" strokeLinecap="round" fill="none" />
+          <circle cx="8" cy="11.5" r="1" fill="white" />
+        </svg>
+      </div>
+    )
+  }
   if (status === "failed") {
     return (
       <div className="w-5 h-5 flex items-center justify-center shrink-0">
@@ -226,6 +245,7 @@ function StatusIcon({ status, progress }: { status: DepStatus; progress?: number
 function statusColor(status: DepStatus): string {
   switch (status) {
     case "installed": return "text-emerald-500"
+    case "auth_required": return "text-amber-500"
     case "installing":
     case "checking": return "text-muted-foreground"
     case "failed": return "text-destructive"
@@ -390,6 +410,7 @@ export default function Onboarding() {
 
   const requiredDeps = deps.filter(d => d.required)
   const allReady = requiredDeps.length > 0 && requiredDeps.every(d => d.status === "installed")
+  const hasAuthRequired = deps.some(d => d.status === "auth_required")
   const hasFailed = deps.some(d => d.status === "failed" && d.required)
   const isInstalling = phase === "installing" && deps.some(d => d.status === "installing")
 
@@ -522,6 +543,10 @@ export default function Onboarding() {
                         <div className="text-[11px] text-destructive/80 mt-0.5 line-clamp-2">
                           {dep.message}
                         </div>
+                      ) : dep.status === "auth_required" ? (
+                        <div className="text-[11px] text-amber-500/80 mt-0.5">
+                          Installed — sign in to activate
+                        </div>
                       ) : (
                         <div className="text-[11px] text-muted-foreground/70 mt-0.5">
                           {dep.status === "installing"
@@ -533,6 +558,21 @@ export default function Onboarding() {
                     <span className={`text-[11px] font-medium shrink-0 tabular-nums ${statusColor(dep.status)}`}>
                       {dep.status === "installed" && "Ready"}
                       {dep.status === "installing" && pct !== undefined && `${pct}%`}
+                      {dep.status === "auth_required" && (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={async () => {
+                            // Open terminal with claude auth login
+                            try {
+                              await open("https://claude.ai/login")
+                            } catch { /* fallback: user opens manually */ }
+                          }}
+                          className="text-[11px] h-6 px-2 text-amber-500 hover:text-amber-500"
+                        >
+                          Sign in
+                        </Button>
+                      )}
                       {dep.status === "failed" && (
                         <Button
                           size="sm"
@@ -579,6 +619,21 @@ export default function Onboarding() {
                   </Button>
                   <Button onClick={installAll} className="flex-1">
                     Retry All
+                  </Button>
+                </div>
+              )}
+
+              {hasAuthRequired && !isInstalling && (
+                <div className="flex flex-col items-center gap-2 w-full">
+                  <p className="text-[12px] text-muted-foreground text-center">
+                    Open a terminal and run <code className="text-[11px] bg-muted px-1.5 py-0.5 rounded font-mono">claude</code> to sign in, then click Re-check.
+                  </p>
+                  <Button
+                    variant="secondary"
+                    onClick={checkDeps}
+                    className="w-full"
+                  >
+                    Re-check
                   </Button>
                 </div>
               )}

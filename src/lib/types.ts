@@ -155,6 +155,7 @@ export interface RawUserProfile extends Partial<UserProfile> {
 export interface DependencyStatus {
   name: string;
   installed: boolean;
+  authRequired: boolean;
   detail?: string;
   version?: string;
 }
