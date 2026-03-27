@@ -95,3 +95,57 @@ pub fn load_all() -> Result<Vec<GenerationTelemetry>, Box<dyn std::error::Error>
     }
     Ok(results)
 }
+
+/// Save a user rating (1 = good, -1 = bad) for a generation.
+/// Updates local JSON file and syncs to Supabase.
+pub fn rate(id: &str, rating: i16, auth: &SupabaseAuth) {
+    // Update local file
+    let dir = foundry_paths::telemetry_dir();
+    let path = dir.join(format!("{}.json", id));
+    if let Ok(data) = fs::read_to_string(&path) {
+        if let Ok(mut telemetry) = serde_json::from_str::<GenerationTelemetry>(&data) {
+            telemetry.user_rating = Some(rating);
+            if let Ok(json) = serde_json::to_string_pretty(&telemetry) {
+                let _ = fs::write(&path, json);
+            }
+        }
+    }
+
+    // Sync to Supabase
+    let id = id.to_string();
+    let session = auth.get_session();
+    tokio::spawn(async move {
+        if let Some(session) = session {
+            sync_rating_to_supabase(&id, rating, &session.access_token).await;
+        }
+    });
+}
+
+async fn sync_rating_to_supabase(id: &str, rating: i16, access_token: &str) {
+    let url = format!(
+        "{}/rest/v1/generation_telemetry?id=eq.{}",
+        *SUPABASE_URL, id
+    );
+    let body = serde_json::json!({ "user_rating": rating });
+    let client = reqwest::Client::new();
+    let result = client
+        .patch(&url)
+        .header("apikey", SUPABASE_ANON_KEY.as_str())
+        .header("Authorization", format!("Bearer {}", access_token))
+        .header("Content-Type", "application/json")
+        .header("Prefer", "return=minimal")
+        .json(&body)
+        .send()
+        .await;
+    match result {
+        Ok(resp) if resp.status().is_success() => {
+            log::info!("[Telemetry] Rating synced: {} = {}", id, rating);
+        }
+        Ok(resp) => {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            log::error!("[Telemetry] Rating sync failed ({}): {}", status, body);
+        }
+        Err(e) => log::error!("[Telemetry] Rating sync request failed: {}", e),
+    }
+}
