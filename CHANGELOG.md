@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.25.1](https://github.com/theodaguier/foundry/compare/v1.25.0...v1.25.1) (2026-03-27)
+
+
+### Bug Fixes
+
+* **telemetry:** populate agent_cli_version with app version at build time ([2b754de](https://github.com/theodaguier/foundry/commit/2b754dee8c1b06418182b77cfbc0149129a42291))
+
 ## [1.25.0](https://github.com/theodaguier/foundry/compare/v1.24.9...v1.25.0) (2026-03-26)
 
 
