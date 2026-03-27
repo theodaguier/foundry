@@ -66,7 +66,7 @@ const DEP_ORDER = [
 /** Estimated install duration in seconds per dependency (used for progress) */
 const ESTIMATED_DURATION: Record<string, number> = {
   xcode_clt: 180,     // ~3 min (GUI installer, polled)
-  cpp_build_tools: 30, // ~30s download, then GUI installer takes over
+  cpp_build_tools: 480, // ~8 min for VS Build Tools download + install
   cmake: 30,
   claude_code: 20,
   codex: 20,
@@ -311,7 +311,12 @@ export default function Onboarding() {
   const installSingle = useCallback(async (dep: Dep) => {
     if (abortedRef.current) return
 
-    updateDep(dep.key, { status: "installing", message: undefined })
+    updateDep(dep.key, {
+      status: "installing",
+      message: dep.key === "cpp_build_tools"
+        ? "Approve the Windows admin prompt if it appears."
+        : undefined,
+    })
 
     try {
       if (dep.key === "juce") {
@@ -329,15 +334,13 @@ export default function Onboarding() {
 
       const result = await commands.installDependency(dep.key)
 
-      // GUI-based installers (Xcode CLT, VS Build Tools) — poll until detected
-      const isGuiInstaller = (dep.key === "xcode_clt" || dep.key === "cpp_build_tools") && result.success
+      // Xcode CLT is still a GUI-based installer — poll until detected.
+      const isGuiInstaller = dep.key === "xcode_clt" && result.success
       if (isGuiInstaller) {
-        const depName = dep.key === "xcode_clt" ? "Xcode Command Line Tools" : "C++ Build Tools"
+        const depName = "Xcode Command Line Tools"
         updateDep(dep.key, {
           status: "installing",
-          message: dep.key === "cpp_build_tools"
-            ? "Complete the install in the Microsoft window"
-            : result.message,
+          message: result.message,
         })
         if (pollRef.current) clearInterval(pollRef.current)
         pollRef.current = setInterval(async () => {
@@ -557,7 +560,7 @@ export default function Onboarding() {
                       ) : (
                         <div className="text-[11px] text-muted-foreground/70 mt-0.5">
                           {dep.status === "installing"
-                            ? "Setting up…"
+                            ? dep.message ?? "Setting up…"
                             : dep.description}
                         </div>
                       )}

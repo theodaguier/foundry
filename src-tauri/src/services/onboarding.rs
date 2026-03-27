@@ -452,12 +452,86 @@ fn vs_build_tools_installed() -> bool {
     .is_some()
 }
 
+#[cfg(target_os = "windows")]
+fn download_vs_build_tools_bootstrapper(bootstrapper_path: &std::path::Path) -> Result<(), String> {
+    let bootstrapper = bootstrapper_path.to_string_lossy().to_string();
+
+    let curl_download = silent_command("curl.exe")
+        .args([
+            "-fsSL",
+            "-o",
+            &bootstrapper,
+            "https://aka.ms/vs/17/release/vs_BuildTools.exe",
+        ])
+        .output();
+
+    if matches!(curl_download, Ok(output) if output.status.success() && bootstrapper_path.is_file())
+    {
+        return Ok(());
+    }
+
+    let ps_script = format!(
+        "$ProgressPreference = 'SilentlyContinue'; Invoke-WebRequest -Uri 'https://aka.ms/vs/17/release/vs_BuildTools.exe' -OutFile '{}'",
+        bootstrapper.replace('\'', "''"),
+    );
+
+    let powershell_download = silent_command("powershell")
+        .args([
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            &ps_script,
+        ])
+        .output();
+
+    match powershell_download {
+        Ok(output) if output.status.success() && bootstrapper_path.is_file() => Ok(()),
+        _ => Err(
+            "Could not download the Build Tools installer. Check your internet connection and try again."
+                .into(),
+        ),
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn wait_for_vs_build_tools_registration(timeout_secs: u64) -> bool {
+    let start = std::time::Instant::now();
+    let timeout = std::time::Duration::from_secs(timeout_secs);
+
+    while start.elapsed() < timeout {
+        if vs_build_tools_installed() {
+            return true;
+        }
+        std::thread::sleep(std::time::Duration::from_secs(2));
+    }
+
+    vs_build_tools_installed()
+}
+
+#[cfg(target_os = "windows")]
+fn format_vs_build_tools_failure(exit_code: Option<i32>) -> String {
+    match exit_code {
+        Some(1602) => {
+            "Windows Build Tools installation was canceled. Approve the administrator prompt and try again."
+                .into()
+        }
+        Some(1618) => {
+            "Another Windows installation is already running. Let it finish, then retry.".into()
+        }
+        Some(code) => format!(
+            "Microsoft Build Tools installer exited with code {}. Try again. If it keeps failing, restart Windows and retry the onboarding step.",
+            code
+        ),
+        None => "Microsoft Build Tools installer did not return an exit code. Try again.".into(),
+    }
+}
+
 /// Install Visual Studio Build Tools on Windows.
 ///
-/// Uses the official Microsoft bootstrapper (vs_BuildTools.exe) with a GUI
-/// installer — same pattern as Xcode CLT on macOS. The function downloads
-/// the bootstrapper, launches it, and returns immediately. The frontend
-/// polls with `check_dependencies` until vswhere detects the installation.
+/// Uses the official Microsoft bootstrapper (vs_BuildTools.exe) in passive
+/// mode so Foundry can wait for completion, handle exit codes, and verify
+/// that the C++ workload is actually available before continuing onboarding.
 pub fn install_cpp_build_tools() -> DependencyInstallResult {
     #[cfg(not(target_os = "windows"))]
     {
@@ -481,43 +555,65 @@ pub fn install_cpp_build_tools() -> DependencyInstallResult {
         let temp_dir = std::env::temp_dir();
         let bootstrapper_path = temp_dir.join("vs_BuildTools.exe");
 
-        // Use curl.exe (built into Windows 10 1803+) — much faster than
-        // PowerShell's Invoke-WebRequest
-        let download = silent_command("curl.exe")
+        if let Err(message) = download_vs_build_tools_bootstrapper(&bootstrapper_path) {
+            return DependencyInstallResult {
+                success: false,
+                message,
+            };
+        }
+
+        let run_install = silent_command(&bootstrapper_path.to_string_lossy())
             .args([
-                "-fsSL",
-                "-o",
-                &bootstrapper_path.to_string_lossy(),
-                "https://aka.ms/vs/17/release/vs_BuildTools.exe",
+                "--add",
+                "Microsoft.VisualStudio.Workload.VCTools",
+                "--includeRecommended",
+                "--passive",
+                "--wait",
+                "--norestart",
             ])
             .output();
 
-        match download {
-            Ok(o) if o.status.success() && bootstrapper_path.is_file() => {}
-            _ => {
-                return DependencyInstallResult {
-                    success: false,
-                    message: "Could not download the Build Tools installer. Check your internet connection and try again.".into(),
+        let _ = std::fs::remove_file(&bootstrapper_path);
+
+        match run_install {
+            Ok(output) => {
+                let exit_code = output.status.code();
+                let install_succeeded = matches!(exit_code, Some(0) | Some(1641) | Some(3010));
+
+                if !install_succeeded {
+                    return DependencyInstallResult {
+                        success: false,
+                        message: format_vs_build_tools_failure(exit_code),
+                    };
+                }
+
+                if wait_for_vs_build_tools_registration(30) {
+                    let restart_suffix = if matches!(exit_code, Some(1641) | Some(3010)) {
+                        " Windows requested a restart, but the compiler is already available."
+                    } else {
+                        ""
+                    };
+
+                    return DependencyInstallResult {
+                        success: true,
+                        message: format!(
+                            "Windows Build Tools installed successfully.{}",
+                            restart_suffix
+                        ),
+                    };
+                }
+
+                let message = if matches!(exit_code, Some(1641) | Some(3010)) {
+                    "Windows requested a restart to finish the Build Tools installation. Restart Windows, reopen Foundry, and click Re-check.".into()
+                } else {
+                    "Build Tools installation finished, but Foundry could not verify the C++ workload afterwards. Restart Foundry and click Re-check.".into()
                 };
+
+                DependencyInstallResult {
+                    success: false,
+                    message,
+                }
             }
-        }
-
-        // Launch the bootstrapper with C++ workload pre-selected.
-        // Full interactive UI so the user sees the entire download + install
-        // progress. Foundry polls with vswhere in the background.
-        let launch = silent_command(&bootstrapper_path.to_string_lossy())
-            .args([
-                "--add", "Microsoft.VisualStudio.Workload.VCTools",
-                "--includeRecommended",
-                "--norestart",
-            ])
-            .spawn();
-
-        match launch {
-            Ok(_) => DependencyInstallResult {
-                success: true,
-                message: "Build Tools installer launched. Please wait for it to complete.".into(),
-            },
             Err(e) => DependencyInstallResult {
                 success: false,
                 message: format!("Could not launch the Build Tools installer: {}", e),
