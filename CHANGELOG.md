@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.40.0](https://github.com/theodaguier/foundry/compare/v1.39.1...v1.40.0) (2026-03-27)
+
+
+### Features
+
+* show app version in launch screen loader ([15c81bc](https://github.com/theodaguier/foundry/commit/15c81bc943c6dd684a5fe29a647ff3335baa9a69))
+
 ## [1.39.1](https://github.com/theodaguier/foundry/compare/v1.39.0...v1.39.1) (2026-03-27)
 
 
