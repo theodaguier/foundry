@@ -9,6 +9,8 @@ The interface is a piece of studio hardware. Not a web app. Not a game UI.
 
 The aesthetic reference: Linear, Vercel, Teenage Engineering. Dark neutrals. One accent. Monospaced type. Every element earns its place.
 
+**The target diversity**: every plugin looks different. Same design language, radically different layouts, sizes, and visual weight distributions. See references/examples.md for 15 concrete examples of what this produces.
+
 ---
 
 ## MANDATORY — Pipeline rejects if any fail
@@ -42,8 +44,9 @@ The only constraints:
 - Groups separated by 1px gap (borderColour)
 - 16px internal padding per group
 - Controls never touch the window edge
+- Not all knobs the same size
 
-A title/bypass indicator is optional. Include it only when it genuinely helps orientation.
+A title/bypass indicator is optional.
 
 ---
 
@@ -54,13 +57,13 @@ backgroundColour  — near-black base
 surfaceColour     — +1 tonal step (panels)
 controlColour     — +1 tonal step (knob bg, button bg)
 borderColour      — barely visible separator
-textColour        — primary readable (≥7:1 contrast)
+textColour        — primary readable (>=7:1 contrast)
 dimTextColour     — labels, secondary
 accentColour      — ONE chromatic color
 warnColour        — 0xffc03018, clip only, nowhere else
 ```
 
-Tonal steps only — no hue changes between levels.
+Tonal steps only. No hue changes between levels.
 
 Match accent to sound:
 - Cold/digital → `#3a7bd5` or `#00b4d8`
@@ -70,7 +73,7 @@ Match accent to sound:
 - Surgical → `#90a4ae`
 - Organic/vintage → `#7a5c3a`
 
-One accent per plugin. Applies only to the most important interactive element, active LEDs, and key readout values. Everything else is neutral.
+One accent per plugin. Applies only to the most important interactive element, active LEDs, key readout values.
 
 ---
 
@@ -81,8 +84,6 @@ One accent per plugin. Applies only to the most important interactive element, a
 **Style C — filled arc**: arc from min to current position.
 
 One style. No mixing. No gradients. No glow on knobs.
-
-Not all knobs are equal. The most important control gets more physical size and the accent color. All others are visually recessive.
 
 | Role | Size | Border |
 |---|---|---|
@@ -111,7 +112,7 @@ Values: dimTextColour (standard) · accentColour (primary only)
 
 - Using a layout template instead of deriving from the plugin
 - Same window size for every plugin
-- Mandatory header or hero on every plugin
+- Mandatory header or hero structure
 - Flat row of identical-sized knobs
 - Multiple chromatic colors
 - Gradients anywhere
@@ -120,3 +121,9 @@ Values: dimTextColour (standard) · accentColour (primary only)
 - Portrait orientation
 - Controls at window edge
 - Vertical single-column list
+
+---
+
+## Reference examples
+
+See `references/examples.md` — 15 layouts derived from actual plugin types, showing the range of sizes, zone structures, and visual weight distributions this skill produces.
