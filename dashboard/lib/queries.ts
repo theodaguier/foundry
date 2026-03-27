@@ -63,12 +63,12 @@ export async function getGenerationsTimeline(days = 30) {
 export async function getStageDurations() {
   const { data } = await supabase
     .from("generation_telemetry")
-    .select("generation_duration, build_duration, install_duration, audit_duration, outcome")
+    .select("generation_duration, build_duration, install_duration, outcome")
     .eq("outcome", "success")
 
   const rows = (data ?? []) as Pick<
     TelemetryRow,
-    "generation_duration" | "build_duration" | "install_duration" | "audit_duration" | "outcome"
+    "generation_duration" | "build_duration" | "install_duration" | "outcome"
   >[]
 
   const n = rows.length
@@ -78,10 +78,9 @@ export async function getStageDurations() {
     Math.round(rows.reduce((s, r) => s + ((r[key] as number) ?? 0), 0) / n)
 
   return [
-    { stage: "Generation", avgSeconds: Math.round(avg("generation_duration") / 1000) },
-    { stage: "Audit", avgSeconds: Math.round(avg("audit_duration") / 1000) },
-    { stage: "Build", avgSeconds: Math.round(avg("build_duration") / 1000) },
-    { stage: "Install", avgSeconds: Math.round(avg("install_duration") / 1000) },
+    { stage: "Generation", avgSeconds: avg("generation_duration") },
+    { stage: "Build", avgSeconds: avg("build_duration") },
+    { stage: "Install", avgSeconds: avg("install_duration") },
   ]
 }
 
@@ -202,7 +201,7 @@ export async function getRecentGenerations(limit = 50, filters?: {
   let q = supabase
     .from("generation_telemetry")
     .select(
-      "id, started_at, generation_type, agent, model, plugin_type, original_prompt, outcome, failure_stage, build_attempts, total_duration, estimated_cost_usd, user_id"
+      "id, started_at, generation_type, agent, model, plugin_type, original_prompt, outcome, failure_stage, build_attempts, total_duration, generation_duration, build_duration, estimated_cost_usd, user_id, user_rating"
     )
     .order("started_at", { ascending: false })
     .limit(limit)
