@@ -3,6 +3,14 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.26.0](https://github.com/theodaguier/foundry/compare/v1.25.1...v1.26.0) (2026-03-27)
+
+
+### Features
+
+* **supabase:** add user_rating column to generation_telemetry ([a6965d5](https://github.com/theodaguier/foundry/commit/a6965d5c4862aaca42d50acd4f3b64b071044db2))
+* **telemetry:** add user_rating field to GenerationTelemetry and TelemetryRow ([a9ebeb6](https://github.com/theodaguier/foundry/commit/a9ebeb60813f467071e2e308b06baea9daf9a7e3))
+
 ## [1.25.1](https://github.com/theodaguier/foundry/compare/v1.25.0...v1.25.1) (2026-03-27)
 
 
