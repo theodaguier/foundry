@@ -3,6 +3,15 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.35.1](https://github.com/theodaguier/foundry/compare/v1.35.0...v1.35.1) (2026-03-27)
+
+
+### Bug Fixes
+
+* **analytics:** align env var names with VITE_PUBLIC_POSTHOG_PROJECT_TOKEN / VITE_PUBLIC_POSTHOG_HOST ([d5e8679](https://github.com/theodaguier/foundry/commit/d5e8679976d2767c2b0b219546716d8d1b6334df))
+* **analytics:** align landing PostHog var name with PUBLIC_POSTHOG_PROJECT_TOKEN ([25c3ea5](https://github.com/theodaguier/foundry/commit/25c3ea5deb620d69542555f0bd9840ead086b08f))
+* **analytics:** update .env.example with correct PostHog var names ([ba5971a](https://github.com/theodaguier/foundry/commit/ba5971aa68e78d26c3fe71ff68fd8916186d4b19))
+
 ## [1.35.0](https://github.com/theodaguier/foundry/compare/v1.34.0...v1.35.0) (2026-03-27)
 
 
