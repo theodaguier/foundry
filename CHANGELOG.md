@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.40.1](https://github.com/theodaguier/foundry/compare/v1.40.0...v1.40.1) (2026-03-27)
+
+
+### Bug Fixes
+
+* **onboarding/windows:** fix npm.cmd resolution and winget success detection ([cad68d4](https://github.com/theodaguier/foundry/commit/cad68d4e8de972cbee2bf5fb9f778d1290e9476c))
+
 ## [1.40.0](https://github.com/theodaguier/foundry/compare/v1.39.1...v1.40.0) (2026-03-27)
 
 
