@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.39.1](https://github.com/theodaguier/foundry/compare/v1.39.0...v1.39.1) (2026-03-27)
+
+
+### Bug Fixes
+
+* **onboarding:** sanitize winget error output on Windows ([6a04e9d](https://github.com/theodaguier/foundry/commit/6a04e9de9c99f1e7c5717a4f377c1449a6bdc11c))
+
 ## [1.39.0](https://github.com/theodaguier/foundry/compare/v1.38.11...v1.39.0) (2026-03-27)
 
 
