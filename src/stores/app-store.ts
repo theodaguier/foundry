@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { Plugin, AuthState, UserProfile, PluginFilter, RawUserProfile } from "@/lib/types"
 import * as commands from "@/lib/commands"
+import { identifyUser, resetUser } from "@/lib/analytics"
 
 export type MainView =
   | { kind: "empty" }
@@ -92,6 +93,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   signOut: async () => {
     try { await commands.signOut(); } catch {}
     set({ authState: "unauthenticated", userProfile: null });
+    resetUser();
   },
 
   checkSession: async () => {
@@ -116,6 +118,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
             cardVariant: profile.card_variant ?? profile.cardVariant ?? "default",
           };
           set({ userProfile: mapped });
+          identifyUser(mapped.id, {
+            email: mapped.email,
+            plan: mapped.plan,
+            plugins_generated: mapped.pluginsGenerated,
+          });
         }
       } else {
         set({ authState: "unauthenticated" });
