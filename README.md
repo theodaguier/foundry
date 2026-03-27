@@ -85,6 +85,78 @@ See [`CLAUDE.md`](./CLAUDE.md) for full architecture, data model, and pipeline d
 
 ---
 
+## Development setup
+
+### Prerequisites
+
+| Tool | Version | Install |
+|---|---|---|
+| Node.js | 22+ | [nodejs.org](https://nodejs.org) |
+| Rust | stable | [rustup.rs](https://rustup.rs) |
+| Xcode CLT (macOS) | latest | `xcode-select --install` |
+| Visual Studio Build Tools (Windows) | 2022+ | `winget install Microsoft.VisualStudio.2022.BuildTools` |
+| CMake | 3.25+ | `brew install cmake` (macOS) / `winget install Kitware.CMake` (Windows) |
+
+### Clone and install
+
+```bash
+git clone https://github.com/theodaguier/foundry.git
+cd foundry
+npm install
+```
+
+### Environment variables
+
+Create a `.env` file at the root (optional, for Supabase auth and analytics):
+
+```env
+VITE_PUBLIC_POSTHOG_PROJECT_TOKEN=   # PostHog analytics (optional)
+VITE_PUBLIC_POSTHOG_HOST=            # PostHog host (optional)
+```
+
+Supabase credentials are compiled into the Rust binary via constants in `src-tauri/src/services/auth_service.rs`.
+
+### Run in development
+
+```bash
+npm run tauri dev
+```
+
+This starts the Vite dev server and the Tauri Rust backend. Hot-reload is active for the frontend; Rust changes trigger a recompile.
+
+### Build for production
+
+```bash
+npm run tauri build
+```
+
+Outputs a signed `.dmg` (macOS) or `.exe` installer (Windows) in `src-tauri/target/release/bundle/`.
+
+### Useful scripts
+
+| Command | Description |
+|---|---|
+| `npm run dev` | Start Vite dev server only |
+| `npm run build` | TypeScript check + Vite build |
+| `npm run typecheck` | Run `tsc --noEmit` |
+| `npm test` | Run Vitest test suite |
+| `npm run tauri dev` | Full desktop app in dev mode |
+| `npm run tauri build` | Production desktop build |
+
+### Runtime dependencies
+
+These are needed to **use** the app (checked during onboarding):
+
+| Dependency | Required | Notes |
+|---|---|---|
+| Xcode CLT (macOS) / VS Build Tools (Windows) | Yes | C++ compiler |
+| CMake | Yes | Build system |
+| Claude Code CLI | Yes | `npm install -g @anthropic-ai/claude-code` — requires an Anthropic API key |
+| Codex CLI | No | `npm install -g @openai/codex` — optional alternative agent |
+| JUCE 8 | Yes | Auto-downloaded on first run to `~/Library/Application Support/Foundry/JUCE/` |
+
+---
+
 ## Releases
 
 macOS builds are published as signed `.dmg` files on the [Releases](https://github.com/theodaguier/foundry/releases) page. After the first manual install, Foundry checks for updates in-app via the Tauri updater.
