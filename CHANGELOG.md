@@ -3,6 +3,14 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.37.0](https://github.com/theodaguier/foundry/compare/v1.36.0...v1.37.0) (2026-03-27)
+
+
+### Features
+
+* **dashboard:** add @cloudflare/next-on-pages and wrangler deploy script ([0b52707](https://github.com/theodaguier/foundry/commit/0b52707a875edda64a265f356d3f1fbcf700b53a))
+* **dashboard:** add wrangler.toml for Cloudflare Pages direct upload ([c9bd77d](https://github.com/theodaguier/foundry/commit/c9bd77d3cbc1dbc3af50ee6f660b874a15897390))
+
 ## [1.36.0](https://github.com/theodaguier/foundry/compare/v1.35.3...v1.36.0) (2026-03-27)
 
 
