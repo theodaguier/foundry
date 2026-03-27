@@ -3,6 +3,14 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.38.2](https://github.com/theodaguier/foundry/compare/v1.38.1...v1.38.2) (2026-03-27)
+
+
+### Bug Fixes
+
+* **dashboard:** remove deprecated instrumentationHook from next.config.mjs ([ed8bd7c](https://github.com/theodaguier/foundry/commit/ed8bd7ca7abcc27e9129781d9ef8ba3df62f9466))
+* **dashboard:** wrap useSearchParams in Suspense boundary on login page ([e78fb6d](https://github.com/theodaguier/foundry/commit/e78fb6d7cbf9ef4ecc3af3a2ef148dcef5bedff5))
+
 ## [1.38.1](https://github.com/theodaguier/foundry/compare/v1.38.0...v1.38.1) (2026-03-27)
 
 
