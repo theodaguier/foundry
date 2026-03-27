@@ -528,23 +528,76 @@ fn ensure_npm() -> Result<String, String> {
     }
 }
 
-/// Install Claude Code CLI via npm.
+/// Install Claude Code using the native installer (no Node.js required).
+/// Falls back to winget on Windows, brew on macOS, and npm as last resort.
 pub fn install_claude_code() -> DependencyInstallResult {
     let resolved = platform::resolve_command("claude");
     if resolved != "claude" {
         return DependencyInstallResult {
             success: true,
-            message: "Claude Code CLI is already installed.".into(),
+            message: "Claude Code is already installed.".into(),
         };
     }
 
+    // Try native installer first (recommended by Anthropic, no dependencies)
+    #[cfg(target_os = "windows")]
+    {
+        // Windows: try winget first (cleanest), then PowerShell native installer
+        let winget_result = run_winget_install("Anthropic.ClaudeCode", "Claude Code", &[]);
+        if winget_result.success {
+            platform::invalidate_shell_cache();
+            return winget_result;
+        }
+
+        // Fallback: PowerShell native installer
+        let ps_result = silent_command("powershell")
+            .args([
+                "-NoProfile",
+                "-ExecutionPolicy", "Bypass",
+                "-Command",
+                "irm https://claude.ai/install.ps1 | iex",
+            ])
+            .output();
+
+        match ps_result {
+            Ok(o) if o.status.success() => {
+                platform::invalidate_shell_cache();
+                return DependencyInstallResult {
+                    success: true,
+                    message: "Claude Code installed successfully.".into(),
+                };
+            }
+            _ => {}
+        }
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        // macOS/Linux: native installer via curl
+        let curl_result = silent_command("/bin/bash")
+            .args(["-c", "curl -fsSL https://claude.ai/install.sh | bash"])
+            .output();
+
+        match curl_result {
+            Ok(o) if o.status.success() => {
+                platform::invalidate_shell_cache();
+                return DependencyInstallResult {
+                    success: true,
+                    message: "Claude Code installed successfully.".into(),
+                };
+            }
+            _ => {}
+        }
+    }
+
+    // Last resort: npm
     let npm = match ensure_npm() {
         Ok(path) => path,
-        Err(e) => {
+        Err(_) => {
             return DependencyInstallResult {
                 success: false,
-                message: e,
-            }
+                message: "Could not install Claude Code. Please install it manually: https://code.claude.com/docs/setup".into(),
+            };
         }
     };
 
@@ -553,10 +606,13 @@ pub fn install_claude_code() -> DependencyInstallResult {
         .output();
 
     match result {
-        Ok(o) if o.status.success() => DependencyInstallResult {
-            success: true,
-            message: "Claude Code installed successfully.".into(),
-        },
+        Ok(o) if o.status.success() => {
+            platform::invalidate_shell_cache();
+            DependencyInstallResult {
+                success: true,
+                message: "Claude Code installed successfully.".into(),
+            }
+        }
         Ok(o) => {
             let stderr = String::from_utf8_lossy(&o.stderr);
             DependencyInstallResult {
