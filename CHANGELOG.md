@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.45.2](https://github.com/theodaguier/foundry/compare/v1.45.1...v1.45.2) (2026-03-27)
+
+
+### Bug Fixes
+
+* **ci:** use macos-14 for Intel cross-compilation ([26e8b6d](https://github.com/theodaguier/foundry/commit/26e8b6d95760da2dd62345377bac072f5ba2db13))
+
 ## [1.45.1](https://github.com/theodaguier/foundry/compare/v1.45.0...v1.45.1) (2026-03-27)
 
 
