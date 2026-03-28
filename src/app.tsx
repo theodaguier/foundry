@@ -47,7 +47,7 @@ function TopNav() {
   const isRunning = useBuildStore((s) => s.isRunning)
 
   return (
-    <div className="flex items-center gap-1 px-2 pb-1">
+    <div className="flex items-center gap-1">
       <Button
         variant="secondary"
         size="icon"
@@ -277,11 +277,11 @@ export default function App() {
       <GlobalAppUpdateManager />
       <AppSidebar />
       <SidebarInset className="min-w-0 overflow-hidden">
-        {/* Drag region + top nav */}
+        {/* Drag region + top nav aligned to sidebar header */}
         <div
           data-tauri-drag-region
-          className="shrink-0 select-none flex items-end justify-end"
-          style={{ height: titlebarInset }}
+          className="shrink-0 select-none flex items-end justify-end px-2 pb-1"
+          style={{ minHeight: Math.max(titlebarInset, 36) }}
         >
           <TopNav />
         </div>
