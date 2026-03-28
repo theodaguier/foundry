@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.45.3](https://github.com/theodaguier/foundry/compare/v1.45.2...v1.45.3) (2026-03-28)
+
+
+### Bug Fixes
+
+* **onboarding:** individual install buttons + require one provider ([b0dce61](https://github.com/theodaguier/foundry/commit/b0dce61d5cfd2616c01968871ef47148cb54e3a5))
+
 ## [1.45.2](https://github.com/theodaguier/foundry/compare/v1.45.1...v1.45.2) (2026-03-27)
 
 
