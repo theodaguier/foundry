@@ -41,6 +41,7 @@ export interface TelemetryRow {
   juce_version: string | null
   user_rating: number | null
   os_platform: string | null
+  os_version: string | null
 }
 
 export interface Profile {
