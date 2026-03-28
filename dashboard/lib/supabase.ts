@@ -36,7 +36,6 @@ export interface TelemetryRow {
   plugin_type: string | null
   format: string | null
   channel_layout: string | null
-  macos_version: string | null
   cpu_architecture: string | null
   agent_cli_version: string | null
   juce_version: string | null
