@@ -158,7 +158,7 @@ async fn inspect_environment(
 
     if juce_path.is_none() {
         let managed_path =
-            foundry_paths::managed_juce_dir(&foundry_paths::DEFAULT_MANAGED_JUCE_VERSION);
+            foundry_paths::managed_juce_dir(foundry_paths::DEFAULT_MANAGED_JUCE_VERSION);
         match validate_juce_directory(&managed_path) {
             Ok(()) => {
                 juce_source = Some("managed".to_string());
@@ -306,7 +306,7 @@ fn collect_dependency_issues() -> Vec<BuildEnvironmentIssue> {
 
 async fn download_and_install_managed_juce(app: Option<&AppHandle>) -> Result<PathBuf, String> {
     let managed_root = foundry_paths::managed_juce_root_dir();
-    let final_path = foundry_paths::managed_juce_dir(&foundry_paths::DEFAULT_MANAGED_JUCE_VERSION);
+    let final_path = foundry_paths::managed_juce_dir(foundry_paths::DEFAULT_MANAGED_JUCE_VERSION);
     let temp_root = foundry_paths::application_support_dir().join("tmp");
     let extract_root = temp_root.join(format!("juce-extract-{}", uuid::Uuid::new_v4().simple()));
     let archive_path = temp_root.join(format!(

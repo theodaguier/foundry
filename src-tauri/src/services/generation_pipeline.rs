@@ -645,10 +645,10 @@ async fn execute_refine(
             .unwrap_or_else(|| "Claude Code CLI is unavailable".into()));
     }
 
-    check_cancelled(&cancel_watch).map_err(|e| {
+    if let Err(error) = check_cancelled(&cancel_watch) {
         restore_backup(project_dir);
-        e
-    })?;
+        return Err(error);
+    }
 
     // Unlock CMakeLists.txt before build
     set_readonly(&cmake_path, false);
@@ -690,10 +690,10 @@ async fn execute_refine(
     }
     tb.end_build();
 
-    check_cancelled(&cancel_watch).map_err(|e| {
+    if let Err(error) = check_cancelled(&cancel_watch) {
         restore_backup(project_dir);
-        e
-    })?;
+        return Err(error);
+    }
 
     // Install
     emit_step(app, "installing");
@@ -701,12 +701,14 @@ async fn execute_refine(
     tb.start_install();
 
     let formats = config.plugin.formats.clone();
-    let install_paths =
-        install_plugin(project_dir, &config.plugin.name, &formats).map_err(|e| {
-            tb.fail("install", &e);
+    let install_paths = match install_plugin(project_dir, &config.plugin.name, &formats) {
+        Ok(paths) => paths,
+        Err(error) => {
+            tb.fail("install", &error);
             restore_backup(project_dir);
-            e
-        })?;
+            return Err(error);
+        }
+    };
     tb.end_install();
 
     // Clean backup
@@ -1035,6 +1037,7 @@ fn sync_plugin_generation_metadata(
 
 // ---- Build Loop ----
 
+#[allow(clippy::too_many_arguments)]
 async fn run_build_loop(
     agent: &str,
     cli_path: &str,
@@ -1059,6 +1062,7 @@ async fn run_build_loop(
     .await
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn run_build_loop_with_skip(
     agent: &str,
     cli_path: &str,
@@ -2579,6 +2583,7 @@ fn should_run_ui_recovery(missing_files: &[&str], validation_issues: &[String]) 
 }
 
 #[cfg_attr(not(test), allow(dead_code))]
+#[allow(clippy::too_many_arguments)]
 fn build_ui_recovery_prompt(
     plugin_name: &str,
     plugin_role: &str,
@@ -2697,6 +2702,7 @@ Finish only when the UI source tree is complete and valid.
 }
 
 #[cfg_attr(not(test), allow(dead_code))]
+#[allow(clippy::too_many_arguments)]
 fn build_generation_repair_prompt(
     plugin_name: &str,
     plugin_role: &str,
@@ -2795,6 +2801,103 @@ fn summarize_error_snippet(errors: &str) -> String {
         .take(3)
         .collect::<Vec<_>>()
         .join(" | ")
+}
+
+#[cfg(test)]
+impl CreativeProfile {
+    fn for_prompt(user_prompt: &str, plugin_type: &str) -> Self {
+        infer_creative_profile("PromptTest", plugin_type, user_prompt)
+    }
+}
+
+#[cfg(test)]
+fn build_processor_prompt(
+    plugin_name: &str,
+    plugin_role: &str,
+    _plugin_type: &str,
+    channel_layout: &str,
+    user_prompt: &str,
+    creative_profile: &CreativeProfile,
+    debug_context: Option<&GenerationDebugContext>,
+) -> String {
+    build_generation_repair_prompt(
+        plugin_name,
+        plugin_role,
+        user_prompt,
+        channel_layout,
+        creative_profile,
+        debug_context,
+        &[],
+        &[],
+    )
+}
+
+#[cfg(test)]
+fn build_fast_processor_prompt(
+    plugin_name: &str,
+    plugin_role: &str,
+    plugin_type: &str,
+    user_prompt: &str,
+    channel_layout: &str,
+    creative_profile: &CreativeProfile,
+    debug_context: Option<&GenerationDebugContext>,
+) -> String {
+    build_processor_prompt(
+        plugin_name,
+        plugin_role,
+        plugin_type,
+        channel_layout,
+        user_prompt,
+        creative_profile,
+        debug_context,
+    )
+}
+
+#[cfg(test)]
+fn build_fast_ui_prompt(
+    plugin_name: &str,
+    plugin_role: &str,
+    _plugin_type: &str,
+    user_prompt: &str,
+    channel_layout: &str,
+    creative_profile: &CreativeProfile,
+    parameter_manifest: &[String],
+    debug_context: Option<&GenerationDebugContext>,
+) -> String {
+    let mut prompt = build_ui_recovery_prompt(
+        plugin_name,
+        plugin_role,
+        user_prompt,
+        channel_layout,
+        creative_profile,
+        parameter_manifest,
+        debug_context,
+        &[],
+        &[],
+    );
+    prompt.push_str(
+        "\nSkeleton files already exist in Source/; complete those skeletons instead of rewriting the project from scratch.\n",
+    );
+    prompt
+}
+
+#[cfg(test)]
+fn build_emergency_ui_prompt(
+    plugin_name: &str,
+    parameter_manifest: &[String],
+    creative_profile: &CreativeProfile,
+    debug_context: Option<&GenerationDebugContext>,
+) -> String {
+    build_fast_ui_prompt(
+        plugin_name,
+        "audio effect",
+        "effect",
+        "emergency UI recovery",
+        "stereo",
+        creative_profile,
+        parameter_manifest,
+        debug_context,
+    )
 }
 
 #[cfg(test)]
