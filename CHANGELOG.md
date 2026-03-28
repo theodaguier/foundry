@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.49.0](https://github.com/theodaguier/foundry/compare/v1.48.2...v1.49.0) (2026-03-28)
+
+
+### Features
+
+* redesign UI, add plugin feedback ratings, and improve UX ([15ca139](https://github.com/theodaguier/foundry/commit/15ca139ea3bf0f223bb27868a34651070b40dc91))
+
 ## [1.48.2](https://github.com/theodaguier/foundry/compare/v1.48.1...v1.48.2) (2026-03-28)
 
 
