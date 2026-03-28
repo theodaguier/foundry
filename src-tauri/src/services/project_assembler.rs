@@ -193,6 +193,21 @@ fn resolve_plugin_type(prompt: &str, plugin_type_override: Option<&str>) -> Stri
     }
 }
 
+/// Creative profile fields injected into the mission brief.
+pub struct CreativeContext {
+    pub signature_interaction: String,
+    pub control_strategy: String,
+    pub ui_direction: String,
+    pub sonic_hook: String,
+    pub contrast_detail: String,
+    pub sound_design_focus: String,
+    pub visualization_focus: String,
+    pub control_palette: String,
+    pub anti_template_warning: String,
+    pub editor_width: i32,
+    pub editor_height: i32,
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn assemble(
     prompt: &str,
@@ -203,6 +218,7 @@ pub fn assemble(
     _preset_count: i32,
     _model: &str,
     juce_path: &Path,
+    creative_context: Option<&CreativeContext>,
 ) -> Result<AssembledProject, String> {
     let plugin_type = resolve_plugin_type(prompt, plugin_type_override);
     let interface_style = infer_interface_style(prompt, &plugin_type);
@@ -216,24 +232,17 @@ pub fn assemble(
 
     write_cmake_lists(&project_dir, plugin_name, &plugin_type, format, juce_path)?;
     write_foundry_kit(&project_dir)?;
-    write_editor_skeleton(&source_dir, plugin_name)?;
-    write_claude_md(
-        &project_dir,
+
+    let brief = build_mission_brief(
         plugin_name,
         &plugin_type,
         interface_style,
         prompt,
         channel_layout,
-    )?;
-    // Codex reads AGENTS.md instead of CLAUDE.md — write both so either agent works.
-    write_agents_md(
-        &project_dir,
-        plugin_name,
-        &plugin_type,
-        interface_style,
-        prompt,
-        channel_layout,
-    )?;
+        creative_context,
+    );
+    fs::write(project_dir.join("CLAUDE.md"), &brief).map_err(|e| e.to_string())?;
+    fs::write(project_dir.join("AGENTS.md"), &brief).map_err(|e| e.to_string())?;
 
     Ok(AssembledProject {
         directory: project_dir,
@@ -324,77 +333,155 @@ fn infer_interface_style(prompt: &str, plugin_type: &str) -> &'static str {
 }
 
 
-fn write_editor_skeleton(
-    source_dir: &Path,
-    plugin_name: &str,
-) -> Result<(), String> {
-    // PluginEditor.h skeleton — correct structure guaranteed
-    let h = format!(
-        r#"#pragma once
-#include <JuceHeader.h>
-#include "PluginProcessor.h"
+fn select_skills_for_type(plugin_type: &str) -> String {
+    let juce_expert = include_str!("../../../foundry-kit/skills/juce-expert/SKILL.md");
+    let art_director = include_str!("../../../foundry-kit/skills/art-director/SKILL.md");
 
-class {name}Editor : public juce::AudioProcessorEditor
-{{
-public:
-    explicit {name}Editor({name}Processor&);
-    ~{name}Editor() override;
+    // Always include juce-expert (compiler rules) and art-director (UI rules).
+    // Add sound-engineer or beatmaker based on plugin type.
+    let domain_skill = match plugin_type {
+        "instrument" => include_str!("../../../foundry-kit/skills/beatmaker/SKILL.md"),
+        _ => include_str!("../../../foundry-kit/skills/sound-engineer/SKILL.md"),
+    };
 
-    void paint(juce::Graphics&) override;
-    void resized() override;
+    format!(
+        "{juce_expert}\n\n---\n\n{art_director}\n\n---\n\n{domain_skill}",
+        juce_expert = juce_expert,
+        art_director = art_director,
+        domain_skill = domain_skill,
+    )
+}
 
-private:
-    {name}Processor& processorRef;
+fn plugin_type_constraints(plugin_type: &str) -> &'static str {
+    match plugin_type {
+        "instrument" => {
+            "- This is a playable instrument, not an insert effect or utility.\n\
+            - Generate sound from MIDI note events. Use `juce::Synthesiser` + voices.\n\
+            - The default preset must be immediately playable and sound good.\n\
+            - Do not build a pass-through chain with only metering or gain utilities."
+        }
+        "utility" => {
+            "- Prioritize metering, analysis, routing, correction, or gain utility workflows.\n\
+            - Do not add fake synth voices or a decorative wet/dry FX chain unless the brief asks for it.\n\
+            - Processing should be technical, transparent, and purpose-driven."
+        }
+        _ => {
+            "- This is an audio effect. Process incoming audio in `processBlock`.\n\
+            - Do not require MIDI-note playback or build a synth voice architecture unless the brief asks.\n\
+            - A clear input → effect → output signal path is expected."
+        }
+    }
+}
 
-    // TODO: declare your controls here
-    // juce::Slider myKnob;
-    // juce::SliderParameterAttachment myKnobAttachment;
+fn build_mission_brief(
+    name: &str,
+    plugin_type: &str,
+    interface_style: &str,
+    prompt: &str,
+    channel_layout: &str,
+    creative_context: Option<&CreativeContext>,
+) -> String {
+    let plugin_role = match plugin_type {
+        "instrument" => "playable instrument",
+        "utility" => "utility or analysis tool",
+        _ => "audio effect",
+    };
+    let type_constraints = plugin_type_constraints(plugin_type);
+    let skills = select_skills_for_type(plugin_type);
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR({name}Editor)
-}};
+    let creative_section = if let Some(ctx) = creative_context {
+        format!(
+            r#"## Creative Direction
+
+- Signature interaction: {signature_interaction}
+- Sonic hook: {sonic_hook}
+- Sound design focus: {sound_design_focus}
+- Control strategy: {control_strategy}
+- UI direction: {ui_direction}
+- Contrast detail: {contrast_detail}
+- Visualization focus: {visualization_focus}
+- Control palette: {control_palette}
+- Anti-template: {anti_template_warning}
+- Target editor size: {editor_width}x{editor_height}"#,
+            signature_interaction = ctx.signature_interaction,
+            sonic_hook = ctx.sonic_hook,
+            sound_design_focus = ctx.sound_design_focus,
+            control_strategy = ctx.control_strategy,
+            ui_direction = ctx.ui_direction,
+            contrast_detail = ctx.contrast_detail,
+            visualization_focus = ctx.visualization_focus,
+            control_palette = ctx.control_palette,
+            anti_template_warning = ctx.anti_template_warning,
+            editor_width = ctx.editor_width,
+            editor_height = ctx.editor_height,
+        )
+    } else {
+        String::new()
+    };
+
+    format!(
+        r#"# {name} — JUCE Plugin
+
+## Mission
+Build a complete, compilable JUCE {role} plugin: {prompt}
+
+## Plugin Type
+{plugin_type}
+
+## Channel Layout
+{channels}
+
+## Interface Direction
+{interface_style}
+
+{creative_section}
+
+## Source Files to Create
+
+You must create all five files in Source/:
+
+### Phase 1 — Processor (write these first)
+- `Source/PluginProcessor.h`
+- `Source/PluginProcessor.cpp`
+
+### Phase 2 — UI (write these after the processor)
+- `Source/FoundryLookAndFeel.h`
+- `Source/PluginEditor.h`
+- `Source/PluginEditor.cpp`
+
+## Architecture Rules
+- Class names: `{name}Processor` and `{name}Editor`.
+- Use `juce::` prefix everywhere. Include `JuceHeader.h` in all files.
+- Implement APVTS parameters with real processBlock logic. No dead controls.
+- Use `FoundryLookAndFeel` in the editor. Every visible control needs an APVTS attachment.
+- Editor must call `setSize(width, height)` with explicit numeric landscape dimensions.
+- Layout from `getLocalBounds().reduced(...)` — no absolute coordinates, no scrolling.
+- Multi-zone layout: header/display, hero control region, secondary sections. Not a single vertical column.
+- Do NOT touch CMakeLists.txt.
+{type_constraints}
+
+## Workflow
+- Write the processor files first (Phase 1), then the UI files (Phase 2).
+- You know the parameters you just created — use the same IDs in the editor attachments.
+- Be decisive. Write complete files. Do not plan or explain before writing.
+- If you spot an error after writing, fix it with a targeted Edit.
+
+---
+
+# Expert Knowledge
+
+{skills}
 "#,
-        name = plugin_name
-    );
-
-    // PluginEditor.cpp skeleton — setSize and getLocalBounds guaranteed
-    let cpp = format!(
-        r#"#include <JuceHeader.h>
-#include "PluginEditor.h"
-
-{name}Editor::{name}Editor({name}Processor& p)
-    : AudioProcessorEditor(&p), processorRef(p)
-{{
-    setSize(820, 520);
-    // TODO: add controls — setLookAndFeel, addAndMakeVisible, attachments, etc.
-}}
-
-{name}Editor::~{name}Editor()
-{{
-    setLookAndFeel(nullptr);
-}}
-
-void {name}Editor::paint(juce::Graphics& g)
-{{
-    g.fillAll(juce::Colour(0xff1a1a22));
-    g.setColour(juce::Colour(0xffe0e8ff));
-    g.setFont(juce::Font(juce::FontOptions(14.0f)));
-    g.drawText("{name}", getLocalBounds(), juce::Justification::centred, true);
-}}
-
-void {name}Editor::resized()
-{{
-    auto bounds = getLocalBounds().reduced(24);
-    auto header = bounds.removeFromTop(44);
-    (void)header;
-    // TODO: lay out controls using bounds.removeFromTop / removeFromLeft etc.
-}}
-"#,
-        name = plugin_name
-    );
-
-    fs::write(source_dir.join("PluginEditor.h"), h).map_err(|e| e.to_string())?;
-    fs::write(source_dir.join("PluginEditor.cpp"), cpp).map_err(|e| e.to_string())?;
-    Ok(())
+        name = name,
+        role = plugin_role,
+        prompt = prompt,
+        plugin_type = plugin_type,
+        channels = channel_layout,
+        interface_style = interface_style,
+        creative_section = creative_section,
+        type_constraints = type_constraints,
+        skills = skills,
+    )
 }
 
 fn write_cmake_lists(
@@ -404,7 +491,9 @@ fn write_cmake_lists(
     format: &str,
     juce_path: &Path,
 ) -> Result<(), String> {
-    let juce_str = juce_path.to_string_lossy();
+    // CMake requires forward slashes even on Windows — backslashes are
+    // interpreted as escape sequences inside strings.
+    let juce_str = juce_path.to_string_lossy().replace('\\', "/");
     let prefix: String = name.chars().take(2).collect::<String>().to_uppercase();
     let suffix = format!("{:02X}", rand_byte());
     let plugin_code: String = format!("{}{}", prefix, suffix).chars().take(4).collect();
@@ -464,180 +553,6 @@ juce_generate_juce_header({name})
     fs::write(dir.join("CMakeLists.txt"), content).map_err(|e| e.to_string())
 }
 
-fn write_claude_md(
-    dir: &Path,
-    name: &str,
-    plugin_type: &str,
-    interface_style: &str,
-    prompt: &str,
-    channel_layout: &str,
-) -> Result<(), String> {
-    let plugin_role = match plugin_type {
-        "instrument" => "playable instrument",
-        "utility" => "utility or analysis tool",
-        _ => "audio effect",
-    };
-
-    // Foundry Kit skills are inlined directly so Claude receives them in context
-    // without any Read calls. Read is disallowed in generate phases to prevent
-    // wasted turns, so file references would be silently ignored anyway.
-    let sound_engineer = include_str!("../../../foundry-kit/skills/sound-engineer/SKILL.md");
-    let juce_expert    = include_str!("../../../foundry-kit/skills/juce-expert/SKILL.md");
-    let art_director   = include_str!("../../../foundry-kit/skills/art-director/SKILL.md");
-    let beatmaker      = include_str!("../../../foundry-kit/skills/beatmaker/SKILL.md");
-
-    let content = format!(
-        r#"# {name} — JUCE Plugin
-
-## Mission
-Build a JUCE {role} plugin: {prompt}
-
-## Plugin Type
-{plugin_type}
-
-## Channel Layout
-{channels}
-
-## Interface Direction
-{style} — adjust the number and complexity of controls accordingly.
-
-## Source Files
-- Source/PluginProcessor.h
-- Source/PluginProcessor.cpp
-- Source/PluginEditor.h
-- Source/PluginEditor.cpp
-- Source/FoundryLookAndFeel.h
-
-## Phase Rules
-- The orchestration prompt is phase-aware and authoritative.
-- Processor phase: create only PluginProcessor.h and PluginProcessor.cpp. Write immediately.
-- UI phase: Source/PluginEditor.h and Source/PluginEditor.cpp skeletons already exist with correct setSize/getLocalBounds structure. Overwrite them with full implementations. Also write FoundryLookAndFeel.h.
-- Do not plan or explain before writing. First tool call must be Write.
-- Stop when the requested phase is complete.
-
----
-
-# Foundry Kit — Expert Knowledge
-
-The following expert personas define the quality standard for every plugin. Apply them. A plugin that compiles but sounds generic or looks like a scrollable list of sliders has failed.
-
----
-
-{sound_engineer}
-
----
-
-{juce_expert}
-
----
-
-{art_director}
-
----
-
-{beatmaker}
-"#,
-        name = name,
-        role = plugin_role,
-        prompt = prompt,
-        plugin_type = plugin_type,
-        channels = channel_layout,
-        style = interface_style,
-        sound_engineer = sound_engineer,
-        juce_expert = juce_expert,
-        art_director = art_director,
-        beatmaker = beatmaker,
-    );
-
-    fs::write(dir.join("CLAUDE.md"), content).map_err(|e| e.to_string())
-}
-
-/// Write AGENTS.md — the Codex equivalent of CLAUDE.md.
-/// Same inlined content so Codex receives the Foundry Kit without any Read calls.
-fn write_agents_md(
-    dir: &Path,
-    name: &str,
-    plugin_type: &str,
-    interface_style: &str,
-    prompt: &str,
-    channel_layout: &str,
-) -> Result<(), String> {
-    let plugin_role = match plugin_type {
-        "instrument" => "playable instrument",
-        "utility" => "utility or analysis tool",
-        _ => "audio effect",
-    };
-
-    let sound_engineer = include_str!("../../../foundry-kit/skills/sound-engineer/SKILL.md");
-    let juce_expert    = include_str!("../../../foundry-kit/skills/juce-expert/SKILL.md");
-    let art_director   = include_str!("../../../foundry-kit/skills/art-director/SKILL.md");
-    let beatmaker      = include_str!("../../../foundry-kit/skills/beatmaker/SKILL.md");
-
-    let content = format!(
-        r#"# {name} — JUCE Plugin
-
-## Mission
-Build a JUCE {role} plugin: {prompt}
-
-## Plugin Type
-{plugin_type}
-
-## Channel Layout
-{channels}
-
-## Interface Direction
-{style} — adjust the number and complexity of controls accordingly.
-
-## Source Files
-- Source/PluginProcessor.h
-- Source/PluginProcessor.cpp
-- Source/PluginEditor.h
-- Source/PluginEditor.cpp
-- Source/FoundryLookAndFeel.h
-
-## Phase Rules
-- The orchestration prompt is phase-aware and authoritative.
-- Processor phase: create only PluginProcessor.h and PluginProcessor.cpp. Write immediately.
-- UI phase: Source/PluginEditor.h and Source/PluginEditor.cpp skeletons already exist with correct setSize/getLocalBounds structure. Overwrite them with full implementations. Also write FoundryLookAndFeel.h.
-- Do not plan or explain before writing. First tool call must be Write.
-- Stop when the requested phase is complete.
-
----
-
-# Foundry Kit — Expert Knowledge
-
-The following expert personas define the quality standard for every plugin. Apply them. A plugin that compiles but sounds generic or looks like a scrollable list of sliders has failed.
-
----
-
-{sound_engineer}
-
----
-
-{juce_expert}
-
----
-
-{art_director}
-
----
-
-{beatmaker}
-"#,
-        name = name,
-        role = plugin_role,
-        prompt = prompt,
-        plugin_type = plugin_type,
-        channels = channel_layout,
-        style = interface_style,
-        sound_engineer = sound_engineer,
-        juce_expert = juce_expert,
-        art_director = art_director,
-        beatmaker = beatmaker,
-    );
-
-    fs::write(dir.join("AGENTS.md"), content).map_err(|e| e.to_string())
-}
 
 fn write_foundry_kit(project_dir: &Path) -> Result<(), String> {
     let kit_dir = project_dir.join("foundry-kit");

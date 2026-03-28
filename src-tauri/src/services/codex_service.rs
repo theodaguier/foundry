@@ -23,7 +23,7 @@ pub async fn run(
     on_event: impl Fn(ClaudeEvent) + Send + 'static,
     mut cancel_rx: tokio::sync::watch::Receiver<bool>,
 ) -> RunResult {
-    const IDLE_HEARTBEAT_SECS: u64 = 15;
+    const IDLE_HEARTBEAT_SECS: u64 = 60;
 
     // Codex has no --append-system-prompt, so we bake the system instructions
     // into the prompt itself.
@@ -114,16 +114,8 @@ pub async fn run(
     let mut final_success = true; // Codex doesn't have explicit success/failure in events
     let mut structured_error: Option<String> = None;
 
-    let watchdog_secs = match mode {
-        "generate" => 360,
-        "generate_processor" | "generate_ui" | "refine" | "quality_audit" => 300,
-        _ => 900,
-    };
-    let no_write_timeout_secs = match mode {
-        "generate_processor" => Some(75),
-        "generate_ui" => Some(45),
-        _ => None,
-    };
+    let watchdog_secs: u64 = 1800;
+    let no_write_timeout_secs: Option<u64> = None;
     let watchdog = tokio::time::sleep(std::time::Duration::from_secs(watchdog_secs));
     tokio::pin!(watchdog);
     let mut heartbeat = tokio::time::interval(std::time::Duration::from_secs(IDLE_HEARTBEAT_SECS));
@@ -160,28 +152,7 @@ pub async fn run(
 
             _ = heartbeat.tick() => {
                 let idle_for = last_activity.elapsed().as_secs();
-                if let Some(timeout_secs) = no_write_timeout_secs {
-                    if !saw_expected_outputs && idle_for >= timeout_secs {
-                        let message = format!(
-                            "Expected output files were not created after {}s in {} mode",
-                            timeout_secs, mode
-                        );
-                        on_event(ClaudeEvent::Error(message.clone()));
-                        let _ = child.kill().await;
-                        return RunResult {
-                            success: false, output: all_output, error: Some(message),
-                            input_tokens: if total_input_tokens > 0 { Some(total_input_tokens) } else { None },
-                            output_tokens: if total_output_tokens > 0 { Some(total_output_tokens) } else { None },
-                            cache_read_tokens: if total_cached_tokens > 0 { Some(total_cached_tokens) } else { None },
-                            cost_usd: None,
-                            num_turns: Some(current_turns),
-                        };
-                    }
-                }
                 if idle_for >= IDLE_HEARTBEAT_SECS && idle_for != last_heartbeat_second {
-                    if !saw_expected_outputs {
-                        saw_expected_outputs = expected_output_files_exist(project_dir, mode);
-                    }
                     last_heartbeat_second = idle_for;
                     on_event(ClaudeEvent::Text(format!(
                         "Heartbeat: no new Codex output for {}s. The model is likely drafting files or waiting for a tool result.",
@@ -322,13 +293,10 @@ pub async fn fix(
     cancel_rx: tokio::sync::watch::Receiver<bool>,
 ) -> RunResult {
     let prompt = format!(
-        "Build failed (attempt {}). Fix ALL errors in 2 turns.\n\
-        Turn 1: Read ALL Source/ files.\n\
-        Turn 2: Fix ALL issues.\n\n\
-        Errors:\n{}\n\n\
-        Rules: ONLY edit Source/ files. Do NOT touch CMakeLists.txt. C++17, juce:: prefix everywhere,\n\
-        juce::Font(juce::FontOptions(float)) not juce::Font(float), .h/.cpp signatures must match.\n\
-        Linker errors = your source code, NOT CMakeLists.txt.",
+        "Build failed (attempt {}). Fix the errors below.\n\
+        If files are missing, create them. If code has errors, fix them.\n\
+        Read AGENTS.md for the full plugin spec. Only edit Source/ files. Do NOT touch CMakeLists.txt.\n\n\
+        Errors:\n{}",
         attempt, errors
     );
     run(
@@ -589,105 +557,21 @@ fn expected_output_files_exist(project_dir: &str, mode: &str) -> bool {
         .all(|relative| root.join(relative).exists())
 }
 
-/// Map pipeline mode to system instructions baked into the prompt for Codex.
+/// Minimal system instructions baked into the prompt for Codex.
+/// The real context is in the AGENTS.md content prepended by agent_service.
 fn mode_system_instructions(mode: &str) -> &'static str {
     match mode {
-        "plan" => concat!(
-            "SPEED IS CRITICAL. Produce a short, visible planning pass immediately.\n",
-            "Respond with a concise implementation plan in 3-6 bullets.\n",
-            "Cover only: DSP architecture, parameter list, and UI structure.\n",
-            "Do NOT use any tools. Do NOT read or write files. Stop after the plan."
-        ),
-        "generate" => concat!(
-            "SPEED IS CRITICAL, but the first pass must still be compile-oriented.\n",
-            "Start with one short progress note describing DSP architecture, interaction concept, and UI structure.\n",
-            "The prompt contains ALL the information you need — do NOT read any files.\n",
-            "Turn 1: Immediately create Source/PluginProcessor.h and Source/PluginProcessor.cpp.\n",
-            "Turn 2: Create Source/FoundryLookAndFeel.h, Source/PluginEditor.h, and Source/PluginEditor.cpp.\n",
-            "Turn 3: Only if necessary, make one targeted edit pass.\n",
-            "Use shell write commands immediately when you create files; do not wait for a separate file tool.\n",
-            "Prefer distinctive control hierarchy over a generic row of knobs.\n",
-            "Do NOT verify your work with Read calls. Trust the prompt and write decisively.\n",
-            "Never respond with only text — always use tools after the initial sentence."
-        ),
-        "generate_processor" => concat!(
-            "SPEED IS CRITICAL, and observability matters.\n",
-            "Start with one short sentence describing the DSP/processor work you are about to do.\n",
-            "The prompt contains ALL the information you need — do NOT read any files.\n",
-            "Create ONLY Source/PluginProcessor.h and Source/PluginProcessor.cpp.\n",
-            "Use shell write commands immediately to create those files, for example with heredoc redirects.\n",
-            "If needed, make one final targeted edit pass.\n",
-            "Do NOT create editor or look-and-feel files in this phase.\n",
-            "Do NOT verify your work with Read calls. Trust your output.\n",
-            "Never respond with only text — always use tools after the initial sentence."
-        ),
-        "generate_ui" => concat!(
-            "SPEED IS CRITICAL, and observability matters.\n",
-            "Start with one short sentence describing the UI work you are about to do.\n",
-            "The prompt contains the parameter manifest and class names you need — do NOT read any files.\n",
-            "Immediately create Source/FoundryLookAndFeel.h, Source/PluginEditor.h, and Source/PluginEditor.cpp.\n",
-            "Use shell write commands immediately for missing files and edit only if needed.\n",
-            "In PluginEditor.cpp, write an explicit numeric landscape call like setSize(820, 520); in the constructor.\n",
-            "Do not use named constants, helper variables, or portrait dimensions for setSize(...).\n",
-            "Keep the editor landscape, aligned, and non-overlapping.\n",
-            "Do NOT modify CMakeLists.txt.\n",
-            "Do NOT rewrite processor files unless absolutely necessary.\n",
-            "Never respond with only text — always use tools after the initial sentence."
-        ),
-        "repair_generation" => concat!(
-            "RECOVERY MODE. Fix the generated Source/ tree quickly and decisively.\n",
-            "Start with one short sentence describing the repair you are about to make.\n",
-            "Read existing Source/ files first if they exist, then repair or create what is missing.\n",
-            "You MAY fully rewrite a broken Source/ file if that is faster and safer than patching it.\n",
-            "If PluginEditor.cpp has sizing issues, write an explicit numeric landscape call like setSize(820, 520); in the constructor.\n",
-            "Do not use named constants, helper variables, or portrait dimensions for setSize(...).\n",
-            "Only touch Source/ files. Do NOT modify CMakeLists.txt.\n",
-            "Never respond with only text — always use tools after the initial sentence."
-        ),
-        "refine" => concat!(
-            "SPEED IS CRITICAL. Minimize the number of turns.\n",
-            "Before using any tool, briefly state what you are about to do in one sentence.\n",
-            "Turn 1: Read ALL existing Source/ files.\n",
-            "Turn 2+: Make targeted changes — do NOT rewrite entire files.\n",
-            "Only modify what is necessary to fulfill the user's request. Keep everything else intact.\n",
-            "Never respond with only text — always use tools."
-        ),
-        "quality_audit" => concat!(
-            "QUALITY IS THE PRIORITY.\n",
-            "Start with one short sentence describing what you are auditing.\n",
-            "Turn 1: Read ALL existing Source/ files.\n",
-            "Turn 2+: Improve sound quality, parameter usefulness, and audible impact with targeted edits.\n",
-            "Requirements:\n",
-            "- No dead knobs: every exposed parameter must audibly affect the result.\n",
-            "- Instruments must sound good immediately at default settings on first MIDI note.\n",
-            "- Effects must produce a clearly audible effect at meaningful settings.\n",
-            "- Use proper gain staging and avoid outputs that are too quiet.\n",
-            "- Keep class names and parameter IDs stable.\n",
-            "Do NOT touch CMakeLists.txt.\n",
-            "Never respond with only text — always use tools."
-        ),
-        _ => concat!(
-            "SPEED IS CRITICAL, but observability matters too.\n",
-            "Start with a very short progress message describing your implementation plan in 2-4 bullets.\n",
-            "The prompt contains ALL the information you need — do NOT read any files.\n",
-            "Turn 1: Immediately create Source/PluginProcessor.h and Source/PluginProcessor.cpp.\n",
-            "Turn 2: Create Source/PluginEditor.h, Source/PluginEditor.cpp, and Source/FoundryLookAndFeel.h.\n",
-            "Turn 3: Only if you made an error, fix it. Otherwise, STOP.\n",
-            "Do NOT verify your work with Read calls. Trust your output.\n",
-            "Before each batch of tool calls, briefly say what you are about to do.\n",
-            "Never respond with only text — always use tools."
-        ),
+        "generate" => "Build a complete JUCE plugin. The prompt contains the full spec and expert knowledge. Write all Source/ files. Do NOT touch CMakeLists.txt.",
+        "refine" => "Modify an existing JUCE plugin. Read the Source/ files, then apply targeted changes. Do NOT touch CMakeLists.txt.",
+        _ => "Fix the errors in this JUCE plugin. Only edit Source/ files. Do NOT touch CMakeLists.txt.",
     }
 }
 
-/// Map pipeline mode to a max turns string (used for local enforcement).
+/// Max turns for local enforcement (Codex has no --max-turns flag).
 fn mode_max_turns(mode: &str) -> &'static str {
     match mode {
-        "plan" => "2",
-        "generate" => "5",
-        "generate_processor" => "4",
-        "generate_ui" | "repair_generation" => "5",
-        "refine" | "quality_audit" => "6",
+        "generate" => "8",
+        "refine" => "6",
         _ => "6",
     }
 }

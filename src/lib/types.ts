@@ -116,8 +116,7 @@ export interface RefineConfig {
 export type GenerationStep =
   | "preparingEnvironment"
   | "preparingProject"
-  | "generatingDSP"
-  | "generatingUI"
+  | "generating"
   | "compiling"
   | "installing";
 

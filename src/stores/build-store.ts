@@ -74,26 +74,23 @@ interface BuildStore {
 const stepIndex: Record<GenerationStep, number> = {
   preparingEnvironment: 0,
   preparingProject: 1,
-  generatingDSP: 2,
-  generatingUI: 3,
-  compiling: 4,
-  installing: 5,
+  generating: 2,
+  compiling: 3,
+  installing: 4,
 };
 
 const generationVisibleIndex: Record<GenerationStep, number> = {
   preparingEnvironment: 0,
   preparingProject: 1,
-  generatingDSP: 2,
-  generatingUI: 3,
-  compiling: 4,
-  installing: 5,
+  generating: 2,
+  compiling: 3,
+  installing: 4,
 };
 
 const refineVisibleIndex: Record<GenerationStep, number> = {
   preparingEnvironment: 0,
   preparingProject: 0,
-  generatingDSP: 1,
-  generatingUI: 1,
+  generating: 1,
   compiling: 2,
   installing: 3,
 };

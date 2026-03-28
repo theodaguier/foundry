@@ -18,24 +18,22 @@ import { GenerationFeedback } from "@/components/app/generation-feedback"
 const STEP_ORDER: Record<GenerationStep, number> = {
   preparingEnvironment: 0,
   preparingProject: 1,
-  generatingDSP: 2,
-  generatingUI: 3,
-  compiling: 4,
-  installing: 5,
+  generating: 2,
+  compiling: 3,
+  installing: 4,
 }
 
 const GLYPHS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 const ALL_STEPS: GenerationStep[] = [
   "preparingEnvironment",
   "preparingProject",
-  "generatingDSP",
-  "generatingUI",
+  "generating",
   "compiling",
   "installing",
 ]
 const REFINE_STEPS: GenerationStep[] = [
   "preparingEnvironment",
-  "generatingDSP",
+  "generating",
   "compiling",
   "installing",
 ]

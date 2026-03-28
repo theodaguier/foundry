@@ -246,6 +246,20 @@ async fn execute_generation(
         }
     } else {
         emit_log(app, "Assembling project files...", None);
+        let pre_profile = infer_creative_profile(&plugin_name, &project_assembler::infer_plugin_type(&config.prompt), &config.prompt);
+        let creative_ctx = project_assembler::CreativeContext {
+            signature_interaction: pre_profile.signature_interaction.to_string(),
+            control_strategy: pre_profile.control_strategy.to_string(),
+            ui_direction: pre_profile.ui_direction.to_string(),
+            sonic_hook: pre_profile.sonic_hook.to_string(),
+            contrast_detail: pre_profile.contrast_detail.to_string(),
+            sound_design_focus: pre_profile.sound_design_focus.to_string(),
+            visualization_focus: pre_profile.visualization_focus.to_string(),
+            control_palette: pre_profile.control_palette.to_string(),
+            anti_template_warning: pre_profile.anti_template_warning.to_string(),
+            editor_width: pre_profile.editor_width,
+            editor_height: pre_profile.editor_height,
+        };
         let project = project_assembler::assemble(
             &config.prompt,
             &plugin_name,
@@ -255,6 +269,7 @@ async fn execute_generation(
             config.preset_count,
             &config.model,
             Path::new(&resolved_juce_path),
+            Some(&creative_ctx),
         )?;
         persist_plugin_build_directory(&build_entry.id, &project.directory).map_err(|e| e.to_string())?;
         project
@@ -283,78 +298,8 @@ async fn execute_generation(
 
     check_cancelled(&cancel_watch)?;
 
-    if let Some(debug_context) = debug_context {
-        emit_log(
-            app,
-            "DEBUG PIPELINE: replaying the last failure context before regeneration.",
-            Some("active"),
-        );
-
-        if !debug_context.previous_error.trim().is_empty() {
-            emit_log(
-                app,
-                &format!(
-                    "DEBUG TARGET · {}",
-                    summarize_error_snippet(&debug_context.previous_error)
-                ),
-                Some("error"),
-            );
-        }
-
-        let debug_prompt = build_debug_retry_plan_prompt(
-            &plugin_name,
-            plugin_role,
-            plugin_type,
-            &config.prompt,
-            &config.channel_layout,
-            &creative_profile,
-            debug_context,
-        );
-
-        let app_clone = app.clone();
-        let debug_result = agent_service::run(
-            agent_name,
-            &cli_path,
-            &debug_prompt,
-            &project_dir_str,
-            model_flag,
-            "plan",
-            move |event| handle_claude_event(&app_clone, &event),
-            cancel_watch.clone(),
-        )
-        .await;
-
-        tb.accumulate_run(&debug_result);
-
-        if is_infra_failure(&debug_result.error) {
-            tb.fail(
-                "generation",
-                debug_result.error.as_deref().unwrap_or("CLI unavailable"),
-            );
-            return Err(debug_result
-                .error
-                .unwrap_or_else(|| "Claude Code CLI is unavailable".into()));
-        }
-
-        if let Some(error) = debug_result.error {
-            emit_log(
-                app,
-                &format!("DEBUG PLAN WARNING · {}", error),
-                Some("error"),
-            );
-        } else {
-            emit_log(
-                app,
-                "DEBUG PIPELINE: diagnostic pass complete.",
-                Some("success"),
-            );
-        }
-
-        check_cancelled(&cancel_watch)?;
-    }
-
-    // Step 2: Generate code in a single self-contained pass for speed.
-    emit_step(app, "generatingDSP");
+    // Step 2: Generate all source files in a single pass.
+    emit_step(app, "generating");
     emit_log(app, "START: Generating plugin code...", Some("active"));
     tb.start_generation();
     emit_log(
@@ -366,13 +311,14 @@ async fn execute_generation(
     emit_log(
         app,
         &format!(
-            "── {} · {}: DSP pass ──",
+            "── {} · {} ──",
             agent_display.to_lowercase(),
             model_flag
         ),
         Some("active"),
     );
-    let processor_prompt = build_fast_processor_prompt(
+
+    let unified_prompt = build_unified_generation_prompt(
         &plugin_name,
         plugin_role,
         plugin_type,
@@ -383,295 +329,43 @@ async fn execute_generation(
     );
 
     let app_clone = app.clone();
-    let processor_result = agent_service::run(
+    let gen_result = agent_service::run(
         agent_name,
         &cli_path,
-        &processor_prompt,
+        &unified_prompt,
         &project_dir_str,
         model_flag,
-        "generate_processor",
+        "generate",
         move |event| handle_claude_event(&app_clone, &event),
         cancel_watch.clone(),
     )
     .await;
 
-    tb.accumulate_run(&processor_result);
-    let mut processor_phase_error = processor_result.error.clone();
-
-    if is_infra_failure(&processor_result.error) {
-        tb.fail(
-            "generation",
-            processor_result
-                .error
-                .as_deref()
-                .unwrap_or("CLI unavailable"),
-        );
-        return Err(processor_result
-            .error
-            .unwrap_or_else(|| "Claude Code CLI is unavailable".into()));
-    }
-
-    let mut processor_missing: Vec<&str> =
-        ["Source/PluginProcessor.h", "Source/PluginProcessor.cpp"]
-            .into_iter()
-            .filter(|path| !project.directory.join(path).exists())
-            .collect();
-
-    if !processor_missing.is_empty() {
-        emit_log(
-            app,
-            &format!(
-                "DSP pass incomplete — attempting recovery before UI pass. Missing: {}",
-                processor_missing.join(", ")
-            ),
-            Some("active"),
-        );
-
-        let repair_prompt = build_generation_repair_prompt(
-            &plugin_name,
-            plugin_role,
-            &config.prompt,
-            &config.channel_layout,
-            &creative_profile,
-            debug_context,
-            &processor_missing,
-            &[],
-        );
-
-        let app_clone = app.clone();
-        let repair_result = agent_service::run(
-            agent_name,
-            &cli_path,
-            &repair_prompt,
-            &project_dir_str,
-            model_flag,
-            "repair_generation",
-            move |event| handle_claude_event(&app_clone, &event),
-            cancel_watch.clone(),
-        )
-        .await;
-
-        tb.accumulate_run(&repair_result);
-        processor_phase_error = repair_result.error.clone().or(processor_phase_error);
-
-        if is_infra_failure(&repair_result.error) {
-            tb.fail(
-                "generation",
-                repair_result.error.as_deref().unwrap_or("CLI unavailable"),
-            );
-            return Err(repair_result
-                .error
-                .unwrap_or_else(|| "Claude Code CLI is unavailable".into()));
-        }
-
-        processor_missing = ["Source/PluginProcessor.h", "Source/PluginProcessor.cpp"]
-            .into_iter()
-            .filter(|path| !project.directory.join(path).exists())
-            .collect();
-    }
-
-    if !processor_missing.is_empty() {
-        let detail = processor_phase_error
-            .as_deref()
-            .map(|error| format!(" · model error: {}", error))
-            .unwrap_or_default();
-        let message = format!(
-            "DSP pass did not create processor files: {}{}",
-            processor_missing.join(", "),
-            detail
-        );
-        tb.fail("generation", &message);
-        return Err(message);
-    }
-
-    check_cancelled(&cancel_watch)?;
-
-    emit_step(app, "generatingUI");
-    emit_log(
-        app,
-        &format!(
-            "── {} · {}: UI pass ──",
-            agent_display.to_lowercase(),
-            model_flag
-        ),
-        Some("active"),
-    );
-    let parameter_manifest = extract_parameter_manifest(&project.directory);
-    let ui_prompt = build_fast_ui_prompt(
-        &plugin_name,
-        plugin_role,
-        plugin_type,
-        &config.prompt,
-        &config.channel_layout,
-        &creative_profile,
-        &parameter_manifest,
-        debug_context,
-    );
-
-    let app_clone = app.clone();
-    let mut ui_result = agent_service::run(
-        agent_name,
-        &cli_path,
-        &ui_prompt,
-        &project_dir_str,
-        model_flag,
-        "generate_ui",
-        move |event| handle_claude_event(&app_clone, &event),
-        cancel_watch.clone(),
-    )
-    .await;
-
-    if matches!(
-        ui_result.error.as_deref(),
-        Some(message) if message.contains("No write activity detected")
-    ) {
-        emit_log(
-            app,
-            "UI pass stalled before writing files — retrying with emergency prompt...",
-            Some("active"),
-        );
-
-        let emergency_ui_prompt = build_emergency_ui_prompt(
-            &plugin_name,
-            &parameter_manifest,
-            &creative_profile,
-            debug_context,
-        );
-        let app_clone = app.clone();
-        ui_result = agent_service::run(
-            agent_name,
-            &cli_path,
-            &emergency_ui_prompt,
-            &project_dir_str,
-            model_flag,
-            "generate_ui",
-            move |event| handle_claude_event(&app_clone, &event),
-            cancel_watch.clone(),
-        )
-        .await;
-    }
-
-    tb.accumulate_run(&ui_result);
+    tb.accumulate_run(&gen_result);
     tb.end_generation();
     tb.plugin_type = Some(plugin_type.clone());
 
-    if is_infra_failure(&ui_result.error) {
+    if is_infra_failure(&gen_result.error) {
         tb.fail(
             "generation",
-            ui_result.error.as_deref().unwrap_or("CLI unavailable"),
+            gen_result.error.as_deref().unwrap_or("CLI unavailable"),
         );
-        return Err(ui_result
+        return Err(gen_result
             .error
             .unwrap_or_else(|| "Claude Code CLI is unavailable".into()));
     }
 
-    let missing_files = missing_required_source_files(&project.directory);
-    if normalize_generated_editor_size(&project.directory, &plugin_name, &creative_profile) {
-        emit_log(
-            app,
-            "Normalized editor setSize(...) to explicit landscape literals.",
-            Some("active"),
-        );
-    }
-    let validation_issues =
-        validate_generated_source_tree(&project.directory, &plugin_name, &creative_profile);
-
-    if !missing_files.is_empty() || !validation_issues.is_empty() {
-        emit_log(
-            app,
-            &format!(
-                "Generation needs repair — missing files: {} · validation issues: {}",
-                if missing_files.is_empty() {
-                    "none".to_string()
-                } else {
-                    missing_files.join(", ")
-                },
-                if validation_issues.is_empty() {
-                    "none".to_string()
-                } else {
-                    validation_issues.join(" | ")
-                }
-            ),
-            Some("active"),
-        );
-
-        let repair_prompt = if should_run_ui_recovery(&missing_files, &validation_issues) {
-            build_ui_recovery_prompt(
-                &plugin_name,
-                plugin_role,
-                &config.prompt,
-                &config.channel_layout,
-                &creative_profile,
-                &parameter_manifest,
-                debug_context,
-                &missing_files,
-                &validation_issues,
-            )
-        } else {
-            build_generation_repair_prompt(
-                &plugin_name,
-                plugin_role,
-                &config.prompt,
-                &config.channel_layout,
-                &creative_profile,
-                debug_context,
-                &missing_files,
-                &validation_issues,
-            )
-        };
-
-        let app_clone = app.clone();
-        let repair_result = agent_service::run(
-            agent_name,
-            &cli_path,
-            &repair_prompt,
-            &project_dir_str,
-            model_flag,
-            "repair_generation",
-            move |event| handle_claude_event(&app_clone, &event),
-            cancel_watch.clone(),
-        )
-        .await;
-
-        tb.accumulate_run(&repair_result);
-
-        if is_infra_failure(&repair_result.error) {
-            tb.fail(
-                "generation",
-                repair_result.error.as_deref().unwrap_or("CLI unavailable"),
-            );
-            return Err(repair_result
-                .error
-                .unwrap_or_else(|| "Claude Code CLI is unavailable".into()));
-        }
-
-        let missing_files = missing_required_source_files(&project.directory);
-        if normalize_generated_editor_size(&project.directory, &plugin_name, &creative_profile) {
-            emit_log(
-                app,
-                "Normalized editor setSize(...) after recovery.",
-                Some("active"),
-            );
-        }
-        let validation_issues =
-            validate_generated_source_tree(&project.directory, &plugin_name, &creative_profile);
-        if !missing_files.is_empty() || !validation_issues.is_empty() {
-            let message = format!(
-                "Generated source tree is still invalid after recovery. Missing: {}. Validation: {}",
-                if missing_files.is_empty() {
-                    "none".to_string()
-                } else {
-                    missing_files.join(", ")
-                },
-                if validation_issues.is_empty() {
-                    "none".to_string()
-                } else {
-                    validation_issues.join(" | ")
-                }
-            );
-            tb.fail("generation", &message);
-            return Err(message);
-        }
+    // Only hard-fail if the agent produced zero source files — everything
+    // else (missing UI files, style issues, etc.) will surface as compiler
+    // errors and be handled by the build loop.
+    if !project.directory.join("Source/PluginProcessor.cpp").exists()
+        && !project.directory.join("Source/PluginProcessor.h").exists()
+    {
+        let message = gen_result
+            .error
+            .unwrap_or_else(|| "Agent did not create any source files".into());
+        tb.fail("generation", &message);
+        return Err(message);
     }
 
     check_cancelled(&cancel_watch)?;
@@ -888,7 +582,7 @@ async fn execute_refine(
     };
 
     // Generate code
-    emit_step(app, "generatingDSP");
+    emit_step(app, "generating");
     emit_log(app, "START: Modifying code...", Some("active"));
     tb.start_generation();
 
@@ -1400,7 +1094,7 @@ async fn run_build_loop_with_skip(
                 "Build succeeded but smoke test failed — fixing...",
                 Some("active"),
             );
-            emit_step(app, "generatingDSP");
+            emit_step(app, "generating");
 
             let app_clone = app.clone();
             let project_dir_str = project_dir.to_string_lossy().to_string();
@@ -1471,7 +1165,7 @@ async fn run_build_loop_with_skip(
                 emit_log(app, &format!("  {}", trimmed), Some("error"));
             }
         }
-        emit_step(app, "generatingDSP");
+        emit_step(app, "generating");
 
         let app_clone = app.clone();
         let project_dir_str = project_dir.to_string_lossy().to_string();
@@ -1720,64 +1414,26 @@ fn handle_claude_event(app: &AppHandle, event: &claude_code_service::ClaudeEvent
     }
 }
 
-fn build_fast_processor_prompt(
+fn build_unified_generation_prompt(
     plugin_name: &str,
-    plugin_role: &str,
-    plugin_type: &str,
+    _plugin_role: &str,
+    _plugin_type: &str,
     user_prompt: &str,
-    channel_layout: &str,
-    creative_profile: &CreativeProfile,
+    _channel_layout: &str,
+    _creative_profile: &CreativeProfile,
     debug_context: Option<&GenerationDebugContext>,
 ) -> String {
-    let type_rules = plugin_type_prompt_rules(plugin_type);
-    let debug_context_section = render_debug_context_section(debug_context);
+    // Keep the prompt minimal. Everything the agent needs is in CLAUDE.md
+    // which Claude Code reads automatically from the working directory.
+    let debug_section = render_debug_context_section(debug_context);
 
     format!(
-        r#"
-Build the DSP foundation for a JUCE {role} plugin called "{name}".
-
-User brief: {prompt}
-Plugin type: {plugin_type}
-Channel layout: {channels}
-{debug_context_section}
-
-Create only:
-- Source/PluginProcessor.h
-- Source/PluginProcessor.cpp
-
-Creative targets:
-- Signature interaction: {signature_interaction}
-- Sonic hook: {sonic_hook}
-- Sound design focus: {sound_design_focus}
-- Contrast detail: {contrast_detail}
-
-Rules:
-- Implement APVTS parameters and a real processBlock path.
-- No dead controls.
-- Make the default state obviously useful and audible.
-- Make the parameter list reflect the brief; do not fall back to the same stock plugin vocabulary for every build.
-- Prefer at least one discrete mode/state parameter or routable behavior when the brief supports it, so the UI can offer more than cloned knobs.
-- Expose musically meaningful ranges, timbral extremes, and customization that changes the result clearly.
-- Respect these type-specific constraints:
-{type_rules}
-- Use juce:: prefixes everywhere.
-- Include JuceHeader.h in both files.
-- Class name must be exactly {name}Processor.
-- Do not create editor files.
-- Do not read any project source files before writing.
-- Do not touch CMakeLists.txt.
-"#,
-        role = plugin_role,
+        "Build the \"{name}\" plugin. Brief: {prompt}\n\
+        CLAUDE.md has the full spec, creative direction, and expert knowledge.\n\
+        {debug_section}",
         name = plugin_name,
         prompt = user_prompt,
-        plugin_type = plugin_type,
-        channels = channel_layout,
-        debug_context_section = debug_context_section,
-        type_rules = type_rules,
-        signature_interaction = creative_profile.signature_interaction,
-        sonic_hook = creative_profile.sonic_hook,
-        sound_design_focus = creative_profile.sound_design_focus,
-        contrast_detail = creative_profile.contrast_detail,
+        debug_section = debug_section,
     )
 }
 
@@ -1800,171 +1456,6 @@ fn plugin_type_prompt_rules(plugin_type: &str) -> &'static str {
             - A clear input -> effect -> output signal path is the default expectation."
         }
     }
-}
-
-fn build_fast_ui_prompt(
-    plugin_name: &str,
-    plugin_role: &str,
-    plugin_type: &str,
-    user_prompt: &str,
-    channel_layout: &str,
-    creative_profile: &CreativeProfile,
-    parameter_manifest: &[String],
-    debug_context: Option<&GenerationDebugContext>,
-) -> String {
-    let parameter_block = if parameter_manifest.is_empty() {
-        "- Parameter IDs could not be extracted automatically. Reuse the processor's existing IDs exactly and do not invent new ones.".to_string()
-    } else {
-        parameter_manifest
-            .iter()
-            .map(|entry| format!("- {}", entry))
-            .collect::<Vec<_>>()
-            .join("\n")
-    };
-    let debug_context_section = render_debug_context_section(debug_context);
-
-    format!(
-        r#"
-Complete the UI for the existing JUCE {role} plugin "{name}".
-
-User brief: {prompt}
-Plugin type: {plugin_type}
-Channel layout: {channels}
-{debug_context_section}
-
-Skeleton files already exist in Source/. Do NOT create them from scratch — overwrite them with complete implementations:
-- Source/FoundryLookAndFeel.h  (new file — write fresh)
-- Source/PluginEditor.h        (skeleton exists — replace with full implementation)
-- Source/PluginEditor.cpp      (skeleton exists — replace with full implementation)
-
-The skeleton already has the correct structure. Your job: replace it with the full design.
-The skeleton's `setSize(820, 520)` and `getLocalBounds()`-based `resized()` are correct — keep that pattern.
-
-Processor contract:
-- Processor class: {name}Processor
-- Editor class: {name}Editor
-- Use these parameter IDs exactly:
-{parameter_block}
-
-Creative targets:
-- Control strategy: {control_strategy}
-- UI direction: {ui_direction}
-- Contrast detail: {contrast_detail}
-- Visualization focus: {visualization_focus}
-- Control palette: {control_palette}
-- Anti-template warning: {anti_template_warning}
-
-Rules:
-- Every visible control must map to a real parameter with an APVTS attachment.
-- Use FoundryLookAndFeel in the editor.
-- Avoid a flat row of generic knobs; create one hero interaction zone.
-- Prefer showing the 8-12 most important parameters if the processor exposes many internals.
-- Use a generous landscape editor size that fits the whole design without scroll, around {editor_width}x{editor_height} unless the brief strongly justifies another explicit numeric size.
-- Build the layout from `getLocalBounds().reduced(...)` plus `removeFrom*`, or use `juce::Grid` / `juce::FlexBox`; do not scatter arbitrary overlapping coordinates.
-- Keep outer padding around 20-28 px and internal gaps around 12-20 px.
-- Keep rotary controls square and readable, labels aligned, and widgets away from the window edges.
-- Make the interface clean and balanced before it is flashy, but do not make it anonymous or interchangeable.
-- Use at least 3 control families across the editor, chosen from rotary knobs, linear sliders/faders, buttons/toggles, combo boxes/selectors, XY or macro pads, meters, scopes, or curve displays.
-- Choose control types by meaning: knobs for macro sweeps, sliders/faders for ranges and balance, toggles/buttons for states, selectors for algorithms or routing, curves/graphs for time/frequency shaping.
-- Treat any GUI section in the user brief as inspiration, not a literal panel blueprint, unless the user explicitly asks for an exact replica or pixel-perfect clone.
-- Never expose more than about 24 primary controls on one page. If the design needs more, use tabs, page buttons, compact subsections, or mode views. Never use scrolling as the solution.
-- If the processor exposes many parameters, prioritize the hero controls and organize the rest into compact sections, tabs, or a footer strip. Never use scrolling as the solution.
-- Do not use `juce::Viewport`, `juce::ScrollBar`, or any scroll-only layout. Everything important must fit in one window at 100% scale.
-- Build a multi-zone layout with a header/display strip, a hero control region, and secondary sections across the width. Avoid a single vertical column of controls.
-- If the brief implies envelopes, EQ, compression, filtering, modulation, sequencing, or analysis, draw a matching curve, graph, meter, or motion component instead of only numeric labels.
-- In `PluginEditor.cpp`, the constructor must contain an explicit numeric call such as `setSize({editor_width}, {editor_height});`.
-- Do not use named constants, helper variables, or portrait dimensions for that `setSize(...)` call.
-- Keep class name exactly {name}Editor.
-- Use juce:: prefixes everywhere.
-- Do not read any project source files before writing.
-- Do not touch CMakeLists.txt.
-"#,
-        role = plugin_role,
-        name = plugin_name,
-        prompt = user_prompt,
-        plugin_type = plugin_type,
-        channels = channel_layout,
-        debug_context_section = debug_context_section,
-        control_strategy = creative_profile.control_strategy,
-        ui_direction = creative_profile.ui_direction,
-        contrast_detail = creative_profile.contrast_detail,
-        visualization_focus = creative_profile.visualization_focus,
-        control_palette = creative_profile.control_palette,
-        anti_template_warning = creative_profile.anti_template_warning,
-        editor_width = creative_profile.editor_width,
-        editor_height = creative_profile.editor_height,
-        parameter_block = parameter_block,
-    )
-}
-
-fn build_emergency_ui_prompt(
-    plugin_name: &str,
-    parameter_manifest: &[String],
-    creative_profile: &CreativeProfile,
-    debug_context: Option<&GenerationDebugContext>,
-) -> String {
-    let parameter_block = if parameter_manifest.is_empty() {
-        "- Reuse the processor's existing parameter IDs exactly. Do not invent new IDs.".to_string()
-    } else {
-        parameter_manifest
-            .iter()
-            .take(12)
-            .map(|entry| format!("- {}", entry))
-            .collect::<Vec<_>>()
-            .join("\n")
-    };
-    let debug_context_section = render_debug_context_section(debug_context);
-
-    format!(
-        r#"
-Emergency UI pass for JUCE plugin "{name}".
-{debug_context_section}
-
-Skeleton files already exist in Source/. Overwrite them with complete implementations:
-- Source/FoundryLookAndFeel.h  (write fresh)
-- Source/PluginEditor.h        (skeleton exists — complete it)
-- Source/PluginEditor.cpp      (skeleton exists — complete it)
-
-The skeleton already has correct `setSize(820, 520)` and `getLocalBounds()` layout. Keep that structure.
-
-Known contract:
-- Processor class: {name}Processor
-- Editor class: {name}Editor
-- Visible controls must use only these parameter IDs:
-{parameter_block}
-
-UI direction:
-- {ui_direction}
-- {control_strategy}
-- {visualization_focus}
-- {control_palette}
-
-Rules:
-- One short sentence, then write files immediately.
-- No analysis.
-- No explanation after writing.
-- Use FoundryLookAndFeel.
-- Use APVTS attachments for every visible control.
-- Use a generous landscape editor size with a clean, non-overlapping multi-zone layout.
-- In `PluginEditor.cpp`, call `setSize({editor_width}, {editor_height});` or another explicit numeric landscape size in the constructor.
-- Do not use named constants, helper variables, or portrait dimensions for that `setSize(...)` call.
-- Derive geometry from `getLocalBounds()` with consistent padding and gaps.
-- Do not treat GUI details from the brief as a literal wireframe unless the user explicitly requested an exact replica.
-- If the editor needs more than about 24 primary controls, use tabs, pages, or compact alternate views instead of one giant surface.
-- Do not use `juce::Viewport`, `juce::ScrollBar`, or a single long column that would require scrolling.
-- Use more than one control family and include a meaningful display, graph, scope, or meter when the plugin brief warrants it.
-- Keep the UI compact, legible, and compile-safe.
-"#,
-        name = plugin_name,
-        debug_context_section = debug_context_section,
-        parameter_block = parameter_block,
-        ui_direction = creative_profile.ui_direction,
-        control_strategy = creative_profile.control_strategy,
-        visualization_focus = creative_profile.visualization_focus,
-        control_palette = creative_profile.control_palette,
-        editor_width = creative_profile.editor_width,
-        editor_height = creative_profile.editor_height,
-    )
 }
 
 fn build_debug_retry_plan_prompt(
@@ -3133,6 +2624,7 @@ Rules:
 - Treat UI/layout details in the brief as inspiration, not a literal wireframe, unless the user explicitly asked for an exact replica.
 - Every visible control must map to a real APVTS parameter and attachment.
 - All three UI files must exist when you finish.
+- Always reference files with repo-relative paths like `Source/PluginEditor.cpp`; never use bare filenames.
 - In `PluginEditor.cpp`, the constructor must contain `setSize({editor_width}, {editor_height});` or another explicit numeric landscape size of similar generosity.
 - Do not use named constants, helper variables, or portrait dimensions for `setSize(...)`.
 - Use `getLocalBounds()` flow, `juce::Grid`, or `juce::FlexBox`.
@@ -3212,6 +2704,7 @@ Rules:
 - Create or repair only the required Source/ files.
 - Keep class names exactly `{name}Processor` and `{name}Editor`.
 - Keep parameter IDs stable whenever possible.
+- Always reference files with repo-relative paths like `Source/PluginProcessor.h`; never use bare filenames.
 - Every exposed control must have a matching APVTS attachment.
 - Ensure FoundryLookAndFeel is implemented and used by the editor.
 - Keep the creative direction specific:

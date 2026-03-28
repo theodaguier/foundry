@@ -143,6 +143,10 @@ fn parse_errors(raw: &str) -> String {
                 || line.contains("fatal error")
                 || line.contains("undefined reference")
                 || line.contains("linker command failed")
+                // MSVC-specific error patterns
+                || line.contains("error C")
+                || line.contains("error LNK")
+                || line.contains("Cannot find source file")
         })
         .collect();
 
@@ -162,6 +166,12 @@ fn parse_errors(raw: &str) -> String {
 
 fn classify_build_failure(raw: &str, configure_phase: bool) -> BuildFailureStage {
     let lower = raw.to_lowercase();
+
+    // Missing source files are fixable by the agent, even during configure.
+    if lower.contains("cannot find source file") {
+        return BuildFailureStage::CompileSource;
+    }
+
     let environment_markers = [
         "add_subdirectory given source",
         "unknown cmake command \"juce_add_plugin\"",

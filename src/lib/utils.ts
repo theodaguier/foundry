@@ -31,8 +31,7 @@ export function generationStepLabel(step: GenerationStep | null, isRefine = fals
   switch (step) {
     case "preparingEnvironment": return "Preparing environment"
     case "preparingProject": return "Preparing project"
-    case "generatingDSP": return isRefine ? "Applying changes" : "Generating code"
-    case "generatingUI": return "Generating interface"
+    case "generating": return isRefine ? "Applying changes" : "Generating code"
     case "compiling": return "Compiling"
     case "installing": return "Installing"
     default: return "Waiting..."

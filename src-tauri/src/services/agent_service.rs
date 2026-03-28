@@ -23,6 +23,10 @@ pub fn agent_display_name(agent: &str) -> &'static str {
 }
 
 /// Run the agent CLI with the given prompt, dispatching to the correct backend.
+///
+/// For Codex, the AGENTS.md file is prepended to the prompt since Codex
+/// doesn't read project files automatically (unlike Claude Code which reads
+/// CLAUDE.md from the working directory).
 pub async fn run(
     agent: &str,
     cli_path: &str,
@@ -35,9 +39,10 @@ pub async fn run(
 ) -> RunResult {
     match normalized_agent(agent) {
         "codex" => {
+            let enriched_prompt = enrich_prompt_for_codex(prompt, project_dir);
             codex_service::run(
                 cli_path,
-                prompt,
+                &enriched_prompt,
                 project_dir,
                 model_flag,
                 mode,
@@ -58,6 +63,15 @@ pub async fn run(
             )
             .await
         }
+    }
+}
+
+/// Prepend AGENTS.md content to the prompt so Codex has full context.
+fn enrich_prompt_for_codex(prompt: &str, project_dir: &str) -> String {
+    let agents_md_path = std::path::Path::new(project_dir).join("AGENTS.md");
+    match std::fs::read_to_string(&agents_md_path) {
+        Ok(agents_md) => format!("{}\n\n---\n\n{}", agents_md, prompt),
+        Err(_) => prompt.to_string(),
     }
 }
 
