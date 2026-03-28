@@ -164,7 +164,7 @@ async fn inspect_environment(
                 juce_source = Some("managed".to_string());
                 juce_path = Some(managed_path);
             }
-            Err(detail) if auto_repair => {
+            Err(_detail) if auto_repair => {
                 if let Some(app_handle) = app {
                     emit_log(
                         app_handle,
