@@ -3,6 +3,19 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.47.0](https://github.com/theodaguier/foundry/compare/v1.46.0...v1.47.0) (2026-03-28)
+
+
+### Features
+
+* **supabase:** rename macos_version to os_platform — cross-platform support ([e77bf81](https://github.com/theodaguier/foundry/commit/e77bf81d1610e51e36e535264af6150962b0f40a))
+* **telemetry:** replace macos_version with os_platform — macos/windows/linux ([6f1f03a](https://github.com/theodaguier/foundry/commit/6f1f03aa29542f69998741361d93f9d9d984fbac))
+
+
+### Bug Fixes
+
+* **dashboard:** remove macos_version from TelemetryRow — replaced by os_platform ([6ae7701](https://github.com/theodaguier/foundry/commit/6ae77018ac64a11b7abc1e4a91b055dd7bc02865))
+
 ## [1.46.0](https://github.com/theodaguier/foundry/compare/v1.45.3...v1.46.0) (2026-03-28)
 
 
