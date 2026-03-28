@@ -41,6 +41,7 @@ export interface TelemetryRow {
   agent_cli_version: string | null
   juce_version: string | null
   user_rating: number | null
+  os_platform: string | null
 }
 
 export interface Profile {
