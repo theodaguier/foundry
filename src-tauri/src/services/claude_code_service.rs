@@ -1,4 +1,6 @@
 use std::process::Stdio;
+#[cfg(target_os = "windows")]
+use std::path::Path;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
@@ -98,6 +100,19 @@ pub async fn run(
     ];
 
     let env = shell_environment();
+
+    #[cfg(target_os = "windows")]
+    let mut env = env;
+
+    #[cfg(target_os = "windows")]
+    if let Some(git_bash_path) = normalize_windows_git_bash_env(&mut env) {
+        if let Err(error) = ensure_windows_project_settings(project_dir, &git_bash_path) {
+            on_event(ClaudeEvent::Text(format!(
+                "Warning: could not persist Claude Windows settings: {}",
+                error
+            )));
+        }
+    }
 
     let mut child = match Command::new(claude_path)
         .args(&args)
@@ -491,6 +506,82 @@ fn parse_events(line: &str) -> Vec<ClaudeEvent> {
     }
 
     events
+}
+
+#[cfg(target_os = "windows")]
+fn normalize_windows_git_bash_env(env: &mut [(String, String)]) -> Option<String> {
+    let (_, value) = env
+        .iter_mut()
+        .find(|(key, _)| key == "CLAUDE_CODE_GIT_BASH_PATH")?;
+
+    let normalized = normalize_windows_path(value);
+    *value = normalized.clone();
+    Some(normalized)
+}
+
+#[cfg(any(test, target_os = "windows"))]
+fn normalize_windows_path(path: &str) -> String {
+    path.trim()
+        .trim_matches('"')
+        .replace('/', "\\")
+}
+
+#[cfg(target_os = "windows")]
+fn ensure_windows_project_settings(project_dir: &str, git_bash_path: &str) -> Result<(), String> {
+    let claude_dir = Path::new(project_dir).join(".claude");
+    std::fs::create_dir_all(&claude_dir).map_err(|error| error.to_string())?;
+
+    let settings_path = claude_dir.join("settings.local.json");
+    let existing = if settings_path.exists() {
+        std::fs::read_to_string(&settings_path).map_err(|error| error.to_string())?
+    } else {
+        String::new()
+    };
+
+    let mut settings = if existing.trim().is_empty() {
+        serde_json::json!({})
+    } else {
+        serde_json::from_str::<serde_json::Value>(&existing)
+            .map_err(|error| format!("{} is not valid JSON: {}", settings_path.display(), error))?
+    };
+
+    let object = settings.as_object_mut().ok_or_else(|| {
+        format!(
+            "{} must contain a JSON object at the root",
+            settings_path.display()
+        )
+    })?;
+
+    let env = object
+        .entry("env")
+        .or_insert_with(|| serde_json::json!({}));
+    let env_object = env.as_object_mut().ok_or_else(|| {
+        format!(
+            "{} must contain an object in the `env` field",
+            settings_path.display()
+        )
+    })?;
+
+    env_object.insert(
+        "CLAUDE_CODE_GIT_BASH_PATH".into(),
+        serde_json::Value::String(git_bash_path.to_string()),
+    );
+
+    let serialized = serde_json::to_string_pretty(&settings).map_err(|error| error.to_string())?;
+    std::fs::write(settings_path, format!("{}\n", serialized)).map_err(|error| error.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn normalize_windows_path_converts_slashes_and_quotes() {
+        assert_eq!(
+            normalize_windows_path("\"C:/Program Files/Git/bin/bash.exe\""),
+            r"C:\Program Files\Git\bin\bash.exe"
+        );
+    }
 }
 
 fn extract_path(input: &serde_json::Value) -> Option<String> {
