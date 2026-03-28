@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.48.1](https://github.com/theodaguier/foundry/compare/v1.48.0...v1.48.1) (2026-03-28)
+
+
+### Bug Fixes
+
+* **supabase:** make os_platform migrations idempotent ([380a9a1](https://github.com/theodaguier/foundry/commit/380a9a1ce81ffe4b37e45f4e418cea5ac305db6f))
+
 ## [1.48.0](https://github.com/theodaguier/foundry/compare/v1.47.0...v1.48.0) (2026-03-28)
 
 
