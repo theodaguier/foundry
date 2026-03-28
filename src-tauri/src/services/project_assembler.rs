@@ -455,6 +455,8 @@ You must create all five files in Source/:
 - Editor must call `setSize(width, height)` with explicit numeric landscape dimensions.
 - Layout from `getLocalBounds().reduced(...)` — no absolute coordinates, no scrolling.
 - Multi-zone layout: header/display, hero control region, secondary sections. Not a single vertical column.
+- Implement 5 factory presets using JUCE's program API (`getNumPrograms`, `setCurrentProgram`, `getProgramName`). Name them with vibe/character — not "Preset 1". See juce-expert and beatmaker skills for the pattern.
+- Add a preset ComboBox in the editor header zone. See art-director skill for the pattern.
 - Do NOT touch CMakeLists.txt.
 {type_constraints}
 

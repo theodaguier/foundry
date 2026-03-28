@@ -148,6 +148,56 @@ juce::NormalisableRange<float>(0.05f, 10.0f, 0.01f, 0.4f)     // LFO rate (log-i
 // Destructor: setLookAndFeel(nullptr);
 ```
 
+## Factory Presets — mandatory for every plugin
+
+Every plugin ships with 5 factory presets using JUCE's program API. Presets are named with vibe/character (not "Preset 1"). See beatmaker skill for naming.
+
+```cpp
+// ── Header ──────────────────────────────────────────────
+struct FactoryPreset {
+    const char* name;
+    std::vector<std::pair<juce::String, float>> values; // paramID → raw value
+};
+
+int currentPresetIndex = 0;
+static std::vector<FactoryPreset> createFactoryPresets();
+
+int getNumPrograms() override;
+int getCurrentProgram() override;
+void setCurrentProgram(int index) override;
+const juce::String getProgramName(int index) override;
+void changeProgramName(int, const juce::String&) override {}
+
+// ── Implementation ──────────────────────────────────────
+std::vector<MyProcessor::FactoryPreset> MyProcessor::createFactoryPresets()
+{
+    return {
+        { "Default",     { {"drive", 20.0f}, {"mix", 50.0f} } },
+        { "Warm Tape",   { {"drive", 45.0f}, {"mix", 70.0f} } },
+        { "Crispy Edge", { {"drive", 80.0f}, {"mix", 60.0f} } },
+        // ... 5 presets total, one per role: safe default / genre staple / character / creative / extreme
+    };
+}
+
+int MyProcessor::getNumPrograms() { return (int)createFactoryPresets().size(); }
+int MyProcessor::getCurrentProgram() { return currentPresetIndex; }
+const juce::String MyProcessor::getProgramName(int i) {
+    auto presets = createFactoryPresets();
+    return (i >= 0 && i < (int)presets.size()) ? presets[i].name : juce::String();
+}
+void MyProcessor::setCurrentProgram(int index) {
+    auto presets = createFactoryPresets();
+    if (index < 0 || index >= (int)presets.size()) return;
+    currentPresetIndex = index;
+    for (auto& [id, val] : presets[index].values) {
+        if (auto* param = apvts.getParameter(id))
+            param->setValueNotifyingHost(param->getNormalisableRange().convertTo0to1(val));
+    }
+}
+```
+
+The preset ComboBox in the editor header is handled by the UI phase (see art-director skill).
+
 ## State save/load
 
 ```cpp

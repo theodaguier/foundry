@@ -99,6 +99,29 @@ Clip: warnColour only.
 
 ---
 
+## Preset Selector — mandatory in header zone
+
+Every plugin has a preset ComboBox in the top-left of the header. It lists all factory presets from `getNumPrograms()` / `getProgramName()`.
+
+```cpp
+// Editor header — declare:
+juce::ComboBox presetSelector;
+
+// Constructor:
+for (int i = 0; i < processor.getNumPrograms(); ++i)
+    presetSelector.addItem(processor.getProgramName(i), i + 1);
+presetSelector.setSelectedId(processor.getCurrentProgram() + 1, juce::dontSendNotification);
+presetSelector.onChange = [this] {
+    processor.setCurrentProgram(presetSelector.getSelectedId() - 1);
+};
+addAndMakeVisible(presetSelector);
+// Style: surfaceColour background, textColour text, no border or 1px borderColour, 20-24px height, 140-180px width
+```
+
+Place it in the header zone alongside the plugin name. Left-align. It must not float alone or compete with the primary control.
+
+---
+
 ## Hard stops
 
 - Same window size for two plugins → rejected
