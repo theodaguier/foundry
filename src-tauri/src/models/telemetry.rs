@@ -28,6 +28,7 @@ pub struct GenerationTelemetry {
     pub plugin_type: Option<String>,
     pub format: Option<String>,
     pub channel_layout: Option<String>,
+    pub os_platform: Option<String>,
     pub os_version: Option<String>,
     pub cpu_architecture: Option<String>,
     pub agent_cli_version: Option<String>,
@@ -73,7 +74,7 @@ pub struct TelemetryRow {
     pub plugin_type: Option<String>,
     pub format: Option<String>,
     pub channel_layout: Option<String>,
-    pub macos_version: Option<String>,
+    pub os_platform: Option<String>,
     pub cpu_architecture: Option<String>,
     pub agent_cli_version: Option<String>,
     pub juce_version: Option<String>,
@@ -110,7 +111,7 @@ impl TelemetryRow {
             plugin_type: t.plugin_type.clone(),
             format: t.format.clone(),
             channel_layout: t.channel_layout.clone(),
-            macos_version: t.os_version.clone(),
+            os_platform: t.os_platform.clone(),
             cpu_architecture: t.cpu_architecture.clone(),
             agent_cli_version: t.agent_cli_version.clone(),
             juce_version: t.juce_version.clone(),
@@ -298,6 +299,7 @@ impl TelemetryBuilder {
             plugin_type: self.plugin_type,
             format: self.format,
             channel_layout: self.channel_layout,
+            os_platform: Some(detect_os_platform()),
             os_version: Some(os_version),
             cpu_architecture: Some(cpu_arch),
             agent_cli_version: Some(env!("CARGO_PKG_VERSION").to_string()),
@@ -344,6 +346,17 @@ fn detect_os_version() -> String {
             })
             .unwrap_or_else(|| "Linux".into())
     }
+}
+
+fn detect_os_platform() -> String {
+    #[cfg(target_os = "macos")]
+    return "macos".to_string();
+    #[cfg(target_os = "windows")]
+    return "windows".to_string();
+    #[cfg(target_os = "linux")]
+    return "linux".to_string();
+    #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+    return std::env::consts::OS.to_string();
 }
 
 fn detect_cpu_architecture() -> String {
