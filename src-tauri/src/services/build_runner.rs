@@ -24,7 +24,7 @@ pub async fn build(project_dir: &Path, skip_configure: bool) -> Result<BuildResu
         cmake_args.extend(crate::platform::cmake_configure_args());
         let args_refs: Vec<&str> = cmake_args.iter().map(|s| s.as_str()).collect();
 
-        let config_result = run_process("cmake", &args_refs, project_dir, &env, 60).await;
+        let config_result = run_process("cmake", &args_refs, project_dir, &env, 180).await;
 
         if config_result.exit_code != 0 {
             let combined = format!("{}\n{}", config_result.stderr, config_result.stdout);
@@ -43,7 +43,7 @@ pub async fn build(project_dir: &Path, skip_configure: bool) -> Result<BuildResu
         &["--build", "build", "--config", "Debug", "--parallel"],
         project_dir,
         &env,
-        120,
+        300,
     )
     .await;
 
@@ -166,6 +166,11 @@ fn parse_errors(raw: &str) -> String {
 
 fn classify_build_failure(raw: &str, configure_phase: bool) -> BuildFailureStage {
     let lower = raw.to_lowercase();
+
+    // Timeouts are retriable — not an environment config problem.
+    if lower.contains("process timed out") {
+        return BuildFailureStage::CompileSource;
+    }
 
     // Missing source files are fixable by the agent, even during configure.
     if lower.contains("cannot find source file") {
