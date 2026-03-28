@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.48.2](https://github.com/theodaguier/foundry/compare/v1.48.1...v1.48.2) (2026-03-28)
+
+
+### Bug Fixes
+
+* **icons:** add macOS native squircle shape and proper padding to app icon ([8d71738](https://github.com/theodaguier/foundry/commit/8d717383528d214d3476b2f6e7f609172e869766))
+
 ## [1.48.1](https://github.com/theodaguier/foundry/compare/v1.48.0...v1.48.1) (2026-03-28)
 
 
