@@ -191,9 +191,8 @@ fn classify_build_failure(raw: &str, configure_phase: bool) -> BuildFailureStage
     if environment_markers
         .iter()
         .any(|marker| lower.contains(marker))
+        || configure_phase
     {
-        BuildFailureStage::EnvironmentConfig
-    } else if configure_phase {
         BuildFailureStage::EnvironmentConfig
     } else {
         BuildFailureStage::CompileSource

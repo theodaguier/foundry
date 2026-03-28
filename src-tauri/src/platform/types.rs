@@ -17,6 +17,7 @@ pub struct InstallDir {
 /// This lets a platform batch multiple bundle copies/signing steps into one flow.
 #[derive(Debug, Clone)]
 pub struct InstallOperation {
+    #[allow(dead_code)]
     pub format: PluginFormat,
     pub source: PathBuf,
     pub destination: PathBuf,
