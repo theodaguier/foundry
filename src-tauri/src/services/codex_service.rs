@@ -74,13 +74,11 @@ pub async fn run(
             on_event(ClaudeEvent::Error(msg.clone()));
             return RunResult {
                 success: false,
-                output: String::new(),
                 error: Some(msg),
                 input_tokens: None,
                 output_tokens: None,
                 cache_read_tokens: None,
                 cost_usd: None,
-                num_turns: None,
             };
         }
     };
@@ -115,7 +113,6 @@ pub async fn run(
     let mut structured_error: Option<String> = None;
 
     let watchdog_secs: u64 = 1800;
-    let no_write_timeout_secs: Option<u64> = None;
     let watchdog = tokio::time::sleep(std::time::Duration::from_secs(watchdog_secs));
     tokio::pin!(watchdog);
     let mut heartbeat = tokio::time::interval(std::time::Duration::from_secs(IDLE_HEARTBEAT_SECS));
@@ -132,8 +129,12 @@ pub async fn run(
                 if *cancel_rx.borrow() {
                     let _ = child.kill().await;
                     return RunResult {
-                        success: false, output: all_output, error: Some("Cancelled".into()),
-                        input_tokens: None, output_tokens: None, cache_read_tokens: None, cost_usd: None, num_turns: None,
+                        success: false,
+                        error: Some("Cancelled".into()),
+                        input_tokens: None,
+                        output_tokens: None,
+                        cache_read_tokens: None,
+                        cost_usd: None,
                     };
                 }
             }
@@ -145,8 +146,12 @@ pub async fn run(
                 )));
                 let _ = child.kill().await;
                 return RunResult {
-                    success: false, output: all_output, error: Some("Watchdog timeout".into()),
-                    input_tokens: None, output_tokens: None, cache_read_tokens: None, cost_usd: None, num_turns: None,
+                    success: false,
+                    error: Some("Watchdog timeout".into()),
+                    input_tokens: None,
+                    output_tokens: None,
+                    cache_read_tokens: None,
+                    cost_usd: None,
                 };
             }
 
@@ -260,7 +265,6 @@ pub async fn run(
 
     RunResult {
         success: exit_ok && final_success,
-        output: all_output,
         error,
         input_tokens: if total_input_tokens > 0 {
             Some(total_input_tokens)
@@ -278,7 +282,6 @@ pub async fn run(
             None
         },
         cost_usd: None, // Codex JSONL doesn't report cost
-        num_turns: Some(current_turns),
     }
 }
 

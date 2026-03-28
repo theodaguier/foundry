@@ -10,9 +10,7 @@ pub struct DependencySpec {
 
 /// Platform-specific install configuration for a plugin format.
 pub struct InstallDir {
-    pub format: PluginFormat,
     pub path: PathBuf,
-    pub needs_elevation: bool,
 }
 
 /// Single install operation used by platform installers.

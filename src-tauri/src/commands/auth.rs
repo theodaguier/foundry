@@ -1,9 +1,14 @@
 use crate::state::AppState;
+use crate::services::telemetry_service;
 use tauri::{command, State};
 
 #[command]
 pub async fn check_session(state: State<'_, AppState>) -> Result<Option<String>, String> {
-    state.auth.check_session().await
+    let user_id = state.auth.check_session().await?;
+    if user_id.is_some() {
+        telemetry_service::sync_local_backlog(&state.auth);
+    }
+    Ok(user_id)
 }
 
 #[command]
@@ -20,7 +25,9 @@ pub async fn verify_otp(
     state: State<'_, AppState>,
 ) -> Result<(), String> {
     log::info!("Verifying OTP for {} (signup: {})", email, is_signup);
-    state.auth.verify_otp(&email, &code, is_signup).await
+    state.auth.verify_otp(&email, &code, is_signup).await?;
+    telemetry_service::sync_local_backlog(&state.auth);
+    Ok(())
 }
 
 #[command]
@@ -30,7 +37,9 @@ pub async fn sign_up(
     state: State<'_, AppState>,
 ) -> Result<(), String> {
     log::info!("Signing up {}", email);
-    state.auth.sign_up(&email, &password).await
+    state.auth.sign_up(&email, &password).await?;
+    telemetry_service::sync_local_backlog(&state.auth);
+    Ok(())
 }
 
 #[command]

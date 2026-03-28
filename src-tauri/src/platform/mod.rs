@@ -20,7 +20,7 @@ use macos as imp;
 use windows as imp;
 
 use crate::models::plugin::PluginFormat;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use types::{BundleMapping, DependencySpec, InstallDir, InstallOperation};
 
 // ---- Shell & CLI resolution ----
@@ -82,11 +82,7 @@ pub fn default_plugin_install_dir(format: &PluginFormat) -> InstallDir {
 /// Returns the effective install directory, checking user overrides first.
 pub fn plugin_install_dir(format: &PluginFormat) -> InstallDir {
     if let Some(override_path) = crate::services::foundry_paths::install_path_override(format) {
-        return InstallDir {
-            format: format.clone(),
-            path: override_path,
-            needs_elevation: false,
-        };
+        return InstallDir { path: override_path };
     }
     imp::plugin_install_dir(format)
 }
@@ -101,20 +97,12 @@ pub fn smoke_test_extensions() -> Vec<&'static str> {
 
 // ---- Install ----
 
-pub fn install_plugin_bundle(src: &Path, dest: &Path) -> Result<(), String> {
-    imp::install_plugin_bundle(src, dest)
-}
-
 pub fn install_plugin_bundles(operations: &[InstallOperation]) -> Result<(), String> {
     imp::install_plugin_bundles(operations)
 }
 
 pub fn post_install_refresh() -> Result<(), String> {
     imp::post_install_refresh()
-}
-
-pub fn code_sign(bundle_path: &Path) -> Result<(), String> {
-    imp::code_sign(bundle_path)
 }
 
 // ---- Dependencies ----

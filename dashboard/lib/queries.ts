@@ -201,7 +201,7 @@ export async function getRecentGenerations(limit = 50, filters?: {
   let q = supabase()
     .from("generation_telemetry")
     .select(
-      "id, started_at, generation_type, agent, model, plugin_type, original_prompt, outcome, failure_stage, build_attempts, total_duration, generation_duration, build_duration, estimated_cost_usd, user_id, user_rating, os_platform, os_version"
+      "id, started_at, generation_type, agent, model, plugin_type, original_prompt, outcome, failure_stage, build_attempts, total_duration, generation_duration, build_duration, input_tokens, output_tokens, cache_read_tokens, estimated_cost_usd, user_id, user_rating, os_platform, os_version"
     )
     .order("started_at", { ascending: false })
     .limit(limit)

@@ -57,7 +57,7 @@ pub fn resolve_git_bash_path() -> Option<String> {
 
     for candidate in common_git_bash_locations() {
         if candidate.is_file() {
-            return Some(candidate.to_string_lossy().to_string());
+            return Some(candidate.to_string_lossy().replace('/', "\\"));
         }
     }
 
@@ -113,23 +113,12 @@ pub fn plugin_install_dir(format: &PluginFormat) -> InstallDir {
             let common = std::env::var("COMMONPROGRAMFILES")
                 .unwrap_or_else(|_| r"C:\Program Files\Common Files".into());
             InstallDir {
-                format: PluginFormat::Vst3,
                 path: PathBuf::from(common).join("VST3"),
-                needs_elevation: true,
             }
         }
         // AU is not supported on Windows — install to VST3 path as fallback
         PluginFormat::Au => plugin_install_dir(&PluginFormat::Vst3),
     }
-}
-
-/// Install a plugin bundle using robocopy with elevation via PowerShell.
-pub fn install_plugin_bundle(src: &std::path::Path, dest: &std::path::Path) -> Result<(), String> {
-    install_plugin_bundles(&[InstallOperation {
-        format: PluginFormat::Vst3,
-        source: src.to_path_buf(),
-        destination: dest.to_path_buf(),
-    }])
 }
 
 pub fn install_plugin_bundles(operations: &[InstallOperation]) -> Result<(), String> {
@@ -192,11 +181,6 @@ pub fn install_plugin_bundles(operations: &[InstallOperation]) -> Result<(), Str
 
 /// No post-install refresh needed on Windows.
 pub fn post_install_refresh() -> Result<(), String> {
-    Ok(())
-}
-
-/// Code signing on Windows — skip for now (no-op).
-pub fn code_sign(_bundle_path: &std::path::Path) -> Result<(), String> {
     Ok(())
 }
 
@@ -395,10 +379,10 @@ fn git_path_derived_bash() -> Option<String> {
         _ => git_dir,
     };
 
-    for relative in ["bin/bash.exe", "usr/bin/bash.exe"] {
+    for relative in ["bin\\bash.exe", "usr\\bin\\bash.exe"] {
         let candidate = git_root.join(relative);
         if candidate.is_file() {
-            return Some(candidate.to_string_lossy().to_string());
+            return Some(candidate.to_string_lossy().replace('/', "\\"));
         }
     }
 
@@ -419,10 +403,10 @@ fn common_git_bash_locations() -> Vec<PathBuf> {
     let mut candidates = Vec::new();
     for root in roots {
         for relative in [
-            "Git/bin/bash.exe",
-            "Git/usr/bin/bash.exe",
-            "Programs/Git/bin/bash.exe",
-            "Programs/Git/usr/bin/bash.exe",
+            "Git\\bin\\bash.exe",
+            "Git\\usr\\bin\\bash.exe",
+            "Programs\\Git\\bin\\bash.exe",
+            "Programs\\Git\\usr\\bin\\bash.exe",
         ] {
             candidates.push(root.join(relative));
         }

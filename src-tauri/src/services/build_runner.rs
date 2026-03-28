@@ -4,12 +4,10 @@ use std::path::Path;
 pub enum BuildFailureStage {
     EnvironmentConfig,
     CompileSource,
-    SmokeTest,
 }
 
 pub struct BuildResult {
     pub success: bool,
-    pub output: String,
     pub errors: String,
     pub failure_stage: Option<BuildFailureStage>,
 }
@@ -30,7 +28,6 @@ pub async fn build(project_dir: &Path, skip_configure: bool) -> Result<BuildResu
             let combined = format!("{}\n{}", config_result.stderr, config_result.stdout);
             return Ok(BuildResult {
                 success: false,
-                output: config_result.stdout,
                 errors: format!("CMake configuration failed:\n{}", config_result.stderr),
                 failure_stage: Some(classify_build_failure(&combined, true)),
             });
@@ -57,7 +54,6 @@ pub async fn build(project_dir: &Path, skip_configure: bool) -> Result<BuildResu
 
     Ok(BuildResult {
         success,
-        output: build_result.stdout,
         errors,
         failure_stage: if success {
             None

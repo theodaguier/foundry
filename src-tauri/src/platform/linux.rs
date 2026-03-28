@@ -87,9 +87,7 @@ pub fn plugin_install_dir(format: &PluginFormat) -> InstallDir {
         PluginFormat::Vst3 => {
             let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("/tmp"));
             InstallDir {
-                format: PluginFormat::Vst3,
                 path: home.join(".vst3"),
-                needs_elevation: false,
             }
         }
         // AU is not supported on Linux
@@ -114,11 +112,6 @@ pub fn install_plugin_bundles(operations: &[InstallOperation]) -> Result<(), Str
 
 /// No post-install refresh needed on Linux.
 pub fn post_install_refresh() -> Result<(), String> {
-    Ok(())
-}
-
-/// No code signing on Linux.
-pub fn code_sign(_bundle_path: &std::path::Path) -> Result<(), String> {
     Ok(())
 }
 

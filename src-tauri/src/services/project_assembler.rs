@@ -3,7 +3,6 @@ use std::path::{Path, PathBuf};
 
 pub struct AssembledProject {
     pub directory: PathBuf,
-    pub plugin_name: String,
     pub plugin_type: String, // "instrument", "effect", "utility"
 }
 
@@ -246,7 +245,6 @@ pub fn assemble(
 
     Ok(AssembledProject {
         directory: project_dir,
-        plugin_name: plugin_name.to_string(),
         plugin_type,
     })
 }

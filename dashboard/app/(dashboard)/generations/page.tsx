@@ -17,6 +17,18 @@ function OutcomeTag({ outcome }: { outcome: string | null }) {
   return <span className={`text-[11px] ${color}`}>{outcome ?? "—"}</span>
 }
 
+function totalTokens(row: {
+  input_tokens: number | null
+  output_tokens: number | null
+  cache_read_tokens: number | null
+}) {
+  if (row.input_tokens == null && row.output_tokens == null && row.cache_read_tokens == null) {
+    return null
+  }
+
+  return (row.input_tokens ?? 0) + (row.output_tokens ?? 0) + (row.cache_read_tokens ?? 0)
+}
+
 export default async function GenerationsPage({
   searchParams,
 }: {
@@ -61,6 +73,7 @@ export default async function GenerationsPage({
                 <TableHead>Total</TableHead>
                 <TableHead>In</TableHead>
                 <TableHead>Out</TableHead>
+                <TableHead>Tokens</TableHead>
                 <TableHead>Cost</TableHead>
                 <TableHead>Outcome</TableHead>
                 <TableHead>Fail stage</TableHead>
@@ -70,7 +83,7 @@ export default async function GenerationsPage({
             <TableBody>
               {rows.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={14} className="text-center text-muted-foreground py-8">No results</TableCell>
+                  <TableCell colSpan={16} className="text-center text-muted-foreground py-8">No results</TableCell>
                 </TableRow>
               )}
               {rows.map((r) => (
@@ -92,6 +105,12 @@ export default async function GenerationsPage({
                   <TableCell className="whitespace-nowrap text-[11px] font-medium">{fmt(r.total_duration)}</TableCell>
                   <TableCell className="text-[11px]">{fmtTokens(r.input_tokens)}</TableCell>
                   <TableCell className="text-[11px]">{fmtTokens(r.output_tokens)}</TableCell>
+                  <TableCell
+                    className="text-[11px]"
+                    title={`in ${fmtTokens(r.input_tokens)} • out ${fmtTokens(r.output_tokens)} • cache ${fmtTokens(r.cache_read_tokens)}`}
+                  >
+                    {fmtTokens(totalTokens(r))}
+                  </TableCell>
                   <TableCell className="whitespace-nowrap text-[11px]">{fmtCost(r.estimated_cost_usd)}</TableCell>
                   <TableCell><OutcomeTag outcome={r.outcome} /></TableCell>
                   <TableCell className="text-[11px] text-muted-foreground">{r.failure_stage ?? "—"}</TableCell>

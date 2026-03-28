@@ -129,14 +129,10 @@ pub fn available_plugin_formats() -> Vec<PluginFormat> {
 pub fn plugin_install_dir(format: &PluginFormat) -> InstallDir {
     match format {
         PluginFormat::Au => InstallDir {
-            format: PluginFormat::Au,
             path: PathBuf::from("/Library/Audio/Plug-Ins/Components"),
-            needs_elevation: true,
         },
         PluginFormat::Vst3 => InstallDir {
-            format: PluginFormat::Vst3,
             path: PathBuf::from("/Library/Audio/Plug-Ins/VST3"),
-            needs_elevation: true,
         },
     }
 }
@@ -164,20 +160,6 @@ fn run_privileged_script(script: &str) -> Result<(), String> {
     }
 
     Ok(())
-}
-
-/// Install a plugin bundle to the destination with admin elevation.
-/// Handles ditto, xattr, codesign via osascript.
-pub fn install_plugin_bundle(src: &Path, dest: &Path) -> Result<(), String> {
-    install_plugin_bundles(&[InstallOperation {
-        format: if dest.extension().map(|e| e == "component").unwrap_or(false) {
-            PluginFormat::Au
-        } else {
-            PluginFormat::Vst3
-        },
-        source: src.to_path_buf(),
-        destination: dest.to_path_buf(),
-    }])
 }
 
 pub fn install_plugin_bundles(operations: &[InstallOperation]) -> Result<(), String> {
@@ -210,26 +192,6 @@ pub fn install_plugin_bundles(operations: &[InstallOperation]) -> Result<(), Str
 /// The batched installer already performs the registrar refresh in the same
 /// privileged script, so this becomes a no-op to avoid a redundant elevation.
 pub fn post_install_refresh() -> Result<(), String> {
-    Ok(())
-}
-
-/// Code sign a bundle with ad-hoc signature.
-pub fn code_sign(bundle_path: &std::path::Path) -> Result<(), String> {
-    let output = Command::new("codesign")
-        .args([
-            "--deep",
-            "--force",
-            "--sign",
-            "-",
-            &bundle_path.display().to_string(),
-        ])
-        .output()
-        .map_err(|e| format!("Codesign failed: {}", e))?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("Codesign failed: {}", stderr));
-    }
     Ok(())
 }
 

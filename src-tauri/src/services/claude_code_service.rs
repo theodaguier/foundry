@@ -36,13 +36,11 @@ pub enum ClaudeEvent {
 
 pub struct RunResult {
     pub success: bool,
-    pub output: String,
     pub error: Option<String>,
     pub input_tokens: Option<i64>,
     pub output_tokens: Option<i64>,
     pub cache_read_tokens: Option<i64>,
     pub cost_usd: Option<f64>,
-    pub num_turns: Option<i64>,
 }
 
 /// Run Claude Code CLI with stream-json output, parsing events in real time.
@@ -129,13 +127,11 @@ pub async fn run(
             on_event(ClaudeEvent::Error(msg.clone()));
             return RunResult {
                 success: false,
-                output: String::new(),
                 error: Some(msg),
                 input_tokens: None,
                 output_tokens: None,
                 cache_read_tokens: None,
                 cost_usd: None,
-                num_turns: None,
             };
         }
     };
@@ -163,7 +159,6 @@ pub async fn run(
     let mut result_output_tokens: Option<i64> = None;
     let mut result_cache_read_tokens: Option<i64> = None;
     let mut result_cost_usd: Option<f64> = None;
-    let mut result_num_turns: Option<i64> = None;
     let mut result_error_text: Option<String> = None;
 
     // The agent manages its own completion via max-turns. The watchdog is
@@ -186,8 +181,12 @@ pub async fn run(
                 if *cancel_rx.borrow() {
                     let _ = child.kill().await;
                     return RunResult {
-                        success: false, output: all_output, error: Some("Cancelled".into()),
-                        input_tokens: None, output_tokens: None, cache_read_tokens: None, cost_usd: None, num_turns: None,
+                        success: false,
+                        error: Some("Cancelled".into()),
+                        input_tokens: None,
+                        output_tokens: None,
+                        cache_read_tokens: None,
+                        cost_usd: None,
                     };
                 }
             }
@@ -199,8 +198,12 @@ pub async fn run(
                 )));
                 let _ = child.kill().await;
                 return RunResult {
-                    success: false, output: all_output, error: Some("Watchdog timeout".into()),
-                    input_tokens: None, output_tokens: None, cache_read_tokens: None, cost_usd: None, num_turns: None,
+                    success: false,
+                    error: Some("Watchdog timeout".into()),
+                    input_tokens: None,
+                    output_tokens: None,
+                    cache_read_tokens: None,
+                    cost_usd: None,
                 };
             }
 
@@ -234,7 +237,6 @@ pub async fn run(
                                     .or_else(|| json["usage"]["cache_read_input_tokens"].as_i64());
                                 result_cost_usd = json["total_cost_usd"].as_f64()
                                     .or_else(|| json["cost_usd"].as_f64());
-                                result_num_turns = json["num_turns"].as_i64();
                                 if json["is_error"].as_bool().unwrap_or(false) {
                                     result_error_text = json["result"]
                                         .as_str()
@@ -308,13 +310,11 @@ pub async fn run(
 
     RunResult {
         success: exit_ok && final_success,
-        output: all_output,
         error,
         input_tokens: result_input_tokens,
         output_tokens: result_output_tokens,
         cache_read_tokens: result_cache_read_tokens,
         cost_usd: result_cost_usd,
-        num_turns: result_num_turns,
     }
 }
 

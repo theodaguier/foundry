@@ -123,6 +123,7 @@ pub async fn run_generation(
         &telemetry_agent,
         &telemetry_model,
     );
+    tb.plugin_type = Some(plugin_type_to_str(&plugin_type_from_config(&config)).to_string());
     tb.format = Some(config.format.clone());
     tb.channel_layout = Some(config.channel_layout.clone());
 
@@ -241,7 +242,6 @@ async fn execute_generation(
         );
         project_assembler::AssembledProject {
             directory: existing_dir,
-            plugin_name: plugin_name.clone(),
             plugin_type: plugin_type_to_str(&build_entry.plugin_type).to_string(),
         }
     } else {
@@ -488,6 +488,13 @@ pub async fn run_refine(
     let mut tb = TelemetryBuilder::new("refine", &config.modification, &refine_agent, &model_str);
     tb.plugin_id = Some(config.plugin.id.clone());
     tb.version_number = Some(config.plugin.current_version + 1);
+    tb.plugin_type = Some(plugin_type_to_str(&config.plugin.plugin_type).to_string());
+    tb.format = telemetry_format_for_plugin(&config.plugin);
+    tb.channel_layout = config
+        .plugin
+        .generation_config
+        .as_ref()
+        .map(|generation| generation.channel_layout.clone());
 
     match execute_refine(config, &app, cancel_watch, &mut tb).await {
         Ok(plugin) => {
@@ -853,6 +860,24 @@ fn plugin_type_to_str(plugin_type: &PluginType) -> &'static str {
         PluginType::Instrument => "instrument",
         PluginType::Utility => "utility",
         PluginType::Effect => "effect",
+    }
+}
+
+fn telemetry_format_for_plugin(plugin: &Plugin) -> Option<String> {
+    let has_au = plugin
+        .formats
+        .iter()
+        .any(|format| matches!(format, PluginFormat::Au));
+    let has_vst3 = plugin
+        .formats
+        .iter()
+        .any(|format| matches!(format, PluginFormat::Vst3));
+
+    match (has_au, has_vst3) {
+        (true, true) => Some("both".to_string()),
+        (true, false) => Some("au".to_string()),
+        (false, true) => Some("vst3".to_string()),
+        (false, false) => None,
     }
 }
 
@@ -1437,6 +1462,7 @@ fn build_unified_generation_prompt(
     )
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 fn plugin_type_prompt_rules(plugin_type: &str) -> &'static str {
     match plugin_type {
         "instrument" => {
@@ -1458,6 +1484,7 @@ fn plugin_type_prompt_rules(plugin_type: &str) -> &'static str {
     }
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 fn build_debug_retry_plan_prompt(
     plugin_name: &str,
     plugin_role: &str,
@@ -1562,6 +1589,7 @@ fn check_cancelled(cancel_watch: &tokio::sync::watch::Receiver<bool>) -> Result<
     }
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 fn missing_required_source_files(project_dir: &Path) -> Vec<&'static str> {
     [
         "Source/PluginProcessor.h",
@@ -2151,6 +2179,7 @@ fn choose_variant<'a>(seed: u64, variants: &'a [&'a str]) -> &'a str {
     variants[index]
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 fn extract_parameter_manifest(project_dir: &Path) -> Vec<String> {
     let processor_cpp = read_project_file(project_dir, "Source/PluginProcessor.cpp");
     let mut parameters = Vec::new();
@@ -2225,6 +2254,7 @@ fn generate_local_plugin_name(prompt: &str, existing_names: &[String]) -> String
     format!("Mix{}", &uuid::Uuid::new_v4().to_string()[..4])
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 fn validate_generated_source_tree(
     project_dir: &Path,
     plugin_name: &str,
@@ -2351,10 +2381,12 @@ fn validate_generated_source_tree(
     issues
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 fn editor_size_is_valid(width: i32, height: i32) -> bool {
     (820..=1400).contains(&width) && (520..=900).contains(&height) && width > height
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 fn normalize_generated_editor_size(
     project_dir: &Path,
     plugin_name: &str,
@@ -2384,6 +2416,7 @@ fn normalize_generated_editor_size(
     std::fs::write(path, normalized).is_ok()
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 fn rewrite_editor_size(
     editor_source: &str,
     plugin_name: &str,
@@ -2418,6 +2451,7 @@ fn rewrite_editor_size(
     ))
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 fn replace_first_set_size_call(editor_source: &str, replacement: &str) -> Option<String> {
     let call_start = editor_source.find("setSize")?;
     let open_paren = editor_source[call_start..].find('(')? + call_start;
@@ -2451,6 +2485,7 @@ fn replace_first_set_size_call(editor_source: &str, replacement: &str) -> Option
     ))
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 fn extract_editor_size(editor_source: &str) -> Option<(i32, i32)> {
     let set_size_index = editor_source.find("setSize")?;
     let after_call = &editor_source[set_size_index + "setSize".len()..];
@@ -2471,6 +2506,7 @@ fn extract_editor_size(editor_source: &str) -> Option<(i32, i32)> {
     Some((width.parse().ok()?, height.parse().ok()?))
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 fn uses_structured_editor_layout(editor_source: &str) -> bool {
     let uses_bounds_flow = editor_source.contains("getLocalBounds()")
         && (editor_source.contains("reduced(") || editor_source.contains("removeFrom"));
@@ -2480,6 +2516,7 @@ fn uses_structured_editor_layout(editor_source: &str) -> bool {
         || editor_source.contains("juce::FlexBox")
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 fn uses_multi_zone_editor_layout(editor_source: &str) -> bool {
     let uses_horizontal_split =
         editor_source.contains("removeFromLeft") || editor_source.contains("removeFromRight");
@@ -2490,6 +2527,7 @@ fn uses_multi_zone_editor_layout(editor_source: &str) -> bool {
     uses_horizontal_split || uses_layout_system
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 fn uses_scrolling_ui(editor_source: &str) -> bool {
     editor_source.contains("juce::Viewport")
         || editor_source.contains("juce::ScrollBar")
@@ -2498,6 +2536,7 @@ fn uses_scrolling_ui(editor_source: &str) -> bool {
         || editor_source.contains("setScrollBarThickness")
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 fn visible_control_count(editor_source: &str) -> usize {
     [
         "setupKnob",
@@ -2512,6 +2551,7 @@ fn visible_control_count(editor_source: &str) -> usize {
     .sum()
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 fn uses_control_paging(editor_source: &str) -> bool {
     editor_source.contains("juce::TabbedComponent")
         || editor_source.contains("juce::ButtonBar")
@@ -2523,6 +2563,7 @@ fn uses_control_paging(editor_source: &str) -> bool {
         || editor_source.contains("currentPage")
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 fn should_run_ui_recovery(missing_files: &[&str], validation_issues: &[String]) -> bool {
     missing_files
         .iter()
@@ -2537,6 +2578,7 @@ fn should_run_ui_recovery(missing_files: &[&str], validation_issues: &[String]) 
         })
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 fn build_ui_recovery_prompt(
     plugin_name: &str,
     plugin_role: &str,
@@ -2654,6 +2696,7 @@ Finish only when the UI source tree is complete and valid.
     )
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 fn build_generation_repair_prompt(
     plugin_name: &str,
     plugin_role: &str,
@@ -2739,6 +2782,7 @@ Finish only when all required files exist and the source tree is consistent.
     )
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 fn read_project_file(project_dir: &Path, relative: &str) -> String {
     std::fs::read_to_string(project_dir.join(relative)).unwrap_or_default()
 }
