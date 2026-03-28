@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.49.1](https://github.com/theodaguier/foundry/compare/v1.49.0...v1.49.1) (2026-03-28)
+
+
+### Bug Fixes
+
+* show top nav on Windows where titlebar inset is 0 ([f7586c4](https://github.com/theodaguier/foundry/commit/f7586c4480fe1f2dd96b497331e3ad9e2f49b30f))
+
 ## [1.49.0](https://github.com/theodaguier/foundry/compare/v1.48.2...v1.49.0) (2026-03-28)
 
 
