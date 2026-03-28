@@ -77,7 +77,7 @@ pub async fn launch_claude_auth() -> Result<bool, String> {
             .args(["-e", &script])
             .spawn()
             .map_err(|e| format!("Could not open Terminal: {}", e))?;
-        return Ok(true);
+        Ok(true)
     }
 
     #[cfg(target_os = "windows")]
