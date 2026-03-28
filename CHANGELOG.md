@@ -3,6 +3,15 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.46.0](https://github.com/theodaguier/foundry/compare/v1.45.3...v1.46.0) (2026-03-28)
+
+
+### Features
+
+* **dashboard:** add os_platform to TelemetryRow type ([4273ae4](https://github.com/theodaguier/foundry/commit/4273ae4f66362ab4f1244f09e9c69faa819541e5))
+* **dashboard:** add Platform column to generations table ([2b1c5e0](https://github.com/theodaguier/foundry/commit/2b1c5e03093aa54c309205ddce0d561222cdb929))
+* **dashboard:** include os_platform in getRecentGenerations query ([443e2a2](https://github.com/theodaguier/foundry/commit/443e2a2f3a7d26b889980d729bb33aeb6692100b))
+
 ## [1.45.3](https://github.com/theodaguier/foundry/compare/v1.45.2...v1.45.3) (2026-03-28)
 
 
