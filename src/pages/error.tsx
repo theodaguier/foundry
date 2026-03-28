@@ -21,9 +21,11 @@ function classifyFailure(message: string) {
     lower.includes("desktop c++ workload") ||
     lower.includes("ninja is required") ||
     lower.includes("cmake is required") ||
-    lower.includes("claude code cli")
+    lower.includes("claude code cli") ||
+    lower.includes("claude_code_git_bash_path") ||
+    lower.includes("git bash")
   ) {
-    return { title: "Environment Not Ready", subtitle: "JUCE or the local build toolchain is not configured correctly.", kind: "environment" }
+    return { title: "Environment Not Ready", subtitle: "JUCE, Git Bash, or the local build toolchain is not configured correctly.", kind: "environment" }
   }
 
   if (lower.includes("did not create the required source files") || lower.includes("missing source")) {
