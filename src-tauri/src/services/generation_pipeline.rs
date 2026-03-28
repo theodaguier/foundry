@@ -396,6 +396,7 @@ async fn execute_generation(
     .await;
 
     tb.accumulate_run(&processor_result);
+    let mut processor_phase_error = processor_result.error.clone();
 
     if is_infra_failure(&processor_result.error) {
         tb.fail(
@@ -451,6 +452,7 @@ async fn execute_generation(
         .await;
 
         tb.accumulate_run(&repair_result);
+        processor_phase_error = repair_result.error.clone().or(processor_phase_error);
 
         if is_infra_failure(&repair_result.error) {
             tb.fail(
@@ -469,9 +471,14 @@ async fn execute_generation(
     }
 
     if !processor_missing.is_empty() {
+        let detail = processor_phase_error
+            .as_deref()
+            .map(|error| format!(" · model error: {}", error))
+            .unwrap_or_default();
         let message = format!(
-            "DSP pass did not create processor files: {}",
-            processor_missing.join(", ")
+            "DSP pass did not create processor files: {}{}",
+            processor_missing.join(", "),
+            detail
         );
         tb.fail("generation", &message);
         return Err(message);

@@ -250,6 +250,7 @@ pub async fn run(
     let mut result_cache_read_tokens: Option<i64> = None;
     let mut result_cost_usd: Option<f64> = None;
     let mut result_num_turns: Option<i64> = None;
+    let mut result_error_text: Option<String> = None;
 
     let watchdog_secs = match mode {
         "generate" => 360,
@@ -346,6 +347,20 @@ pub async fn run(
                                 result_cost_usd = json["total_cost_usd"].as_f64()
                                     .or_else(|| json["cost_usd"].as_f64());
                                 result_num_turns = json["num_turns"].as_i64();
+                                if json["is_error"].as_bool().unwrap_or(false) {
+                                    result_error_text = json["result"]
+                                        .as_str()
+                                        .map(str::trim)
+                                        .filter(|text| !text.is_empty())
+                                        .map(ToOwned::to_owned)
+                                        .or_else(|| {
+                                            json["error"]
+                                                .as_str()
+                                                .map(str::trim)
+                                                .filter(|text| !text.is_empty())
+                                                .map(ToOwned::to_owned)
+                                        });
+                                }
                             }
                         }
 
@@ -402,10 +417,12 @@ pub async fn run(
     let status = child.wait().await;
     let exit_ok = status.map(|s| s.success()).unwrap_or(false);
 
-    let error = if exit_ok {
+    let error = if exit_ok && final_success {
         None
     } else if !stderr_output.trim().is_empty() {
         Some(stderr_output.trim().to_string())
+    } else if let Some(message) = result_error_text {
+        Some(message)
     } else if !all_output.trim().is_empty() {
         Some("Claude Code exited with error; see stdout for details".into())
     } else {

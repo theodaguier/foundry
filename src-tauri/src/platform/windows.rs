@@ -1,6 +1,7 @@
 use super::types::{BundleMapping, DependencySpec, InstallDir, InstallOperation};
 use crate::models::plugin::PluginFormat;
 use std::os::windows::process::CommandExt;
+use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
 
@@ -8,38 +9,59 @@ const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 /// On Windows, inherit the system environment directly (no login shell).
 pub fn shell_environment() -> Vec<(String, String)> {
-    std::env::vars().collect()
+    let mut env_vars: Vec<(String, String)> = std::env::vars().collect();
+
+    let has_valid_git_bash = env_vars
+        .iter()
+        .find(|(key, _)| key == "CLAUDE_CODE_GIT_BASH_PATH")
+        .map(|(_, value)| Path::new(value).is_file())
+        .unwrap_or(false);
+
+    if !has_valid_git_bash {
+        if let Some(path) = resolve_git_bash_path() {
+            if let Some(existing) = env_vars
+                .iter_mut()
+                .find(|(key, _)| key == "CLAUDE_CODE_GIT_BASH_PATH")
+            {
+                existing.1 = path;
+            } else {
+                env_vars.push(("CLAUDE_CODE_GIT_BASH_PATH".into(), path));
+            }
+        }
+    }
+
+    env_vars
 }
 
 /// Resolve Claude CLI path using `where` on Windows.
 pub fn resolve_claude_path() -> Option<String> {
-    let output = Command::new("cmd")
-        .args(["/C", "where", "claude"])
-        .creation_flags(CREATE_NO_WINDOW)
-        .output()
-        .ok()?;
-    if output.status.success() {
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        // `where` may return multiple lines — take the first
-        stdout.lines().next().map(|s| s.trim().to_string())
-    } else {
-        None
-    }
+    resolve_known_cli("claude")
 }
 
 /// Resolve Codex CLI path using `where` on Windows.
 pub fn resolve_codex_path() -> Option<String> {
-    let output = Command::new("cmd")
-        .args(["/C", "where", "codex"])
-        .creation_flags(CREATE_NO_WINDOW)
-        .output()
-        .ok()?;
-    if output.status.success() {
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        stdout.lines().next().map(|s| s.trim().to_string())
-    } else {
-        None
+    resolve_known_cli("codex")
+}
+
+/// Resolve the Git Bash executable required by Claude Code on native Windows.
+pub fn resolve_git_bash_path() -> Option<String> {
+    if let Ok(path) = std::env::var("CLAUDE_CODE_GIT_BASH_PATH") {
+        if Path::new(&path).is_file() {
+            return Some(path);
+        }
     }
+
+    if let Some(path) = git_path_derived_bash() {
+        return Some(path);
+    }
+
+    for candidate in common_git_bash_locations() {
+        if candidate.is_file() {
+            return Some(candidate.to_string_lossy().to_string());
+        }
+    }
+
+    None
 }
 
 /// Resolve a command path using `where`.
@@ -324,4 +346,87 @@ fn copy_dir_all(src: &std::path::Path, dst: &std::path::Path) -> std::io::Result
         }
     }
     Ok(())
+}
+
+fn resolve_known_cli(cmd: &str) -> Option<String> {
+    let candidates = where_results(cmd);
+
+    candidates
+        .iter()
+        .find(|path| path.to_ascii_lowercase().ends_with(".cmd"))
+        .cloned()
+        .or_else(|| {
+            candidates
+                .iter()
+                .find(|path| path.to_ascii_lowercase().ends_with(".exe"))
+                .cloned()
+        })
+        .or_else(|| candidates.into_iter().next())
+}
+
+fn where_results(cmd: &str) -> Vec<String> {
+    let output = match Command::new("cmd")
+        .args(["/C", "where", cmd])
+        .creation_flags(CREATE_NO_WINDOW)
+        .output()
+    {
+        Ok(output) if output.status.success() => output,
+        _ => return Vec::new(),
+    };
+
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .map(ToOwned::to_owned)
+        .collect()
+}
+
+fn git_path_derived_bash() -> Option<String> {
+    let git_path = resolve_command("git");
+    let git_path = PathBuf::from(git_path);
+    if !git_path.is_file() {
+        return None;
+    }
+
+    let git_dir = git_path.parent()?;
+    let git_root = match git_dir.file_name().and_then(|name| name.to_str()) {
+        Some("cmd") | Some("bin") => git_dir.parent()?,
+        _ => git_dir,
+    };
+
+    for relative in ["bin/bash.exe", "usr/bin/bash.exe"] {
+        let candidate = git_root.join(relative);
+        if candidate.is_file() {
+            return Some(candidate.to_string_lossy().to_string());
+        }
+    }
+
+    None
+}
+
+fn common_git_bash_locations() -> Vec<PathBuf> {
+    let mut roots = Vec::new();
+
+    for env_key in ["ProgramFiles", "ProgramFiles(x86)", "LocalAppData"] {
+        if let Ok(value) = std::env::var(env_key) {
+            if !value.is_empty() {
+                roots.push(PathBuf::from(value));
+            }
+        }
+    }
+
+    let mut candidates = Vec::new();
+    for root in roots {
+        for relative in [
+            "Git/bin/bash.exe",
+            "Git/usr/bin/bash.exe",
+            "Programs/Git/bin/bash.exe",
+            "Programs/Git/usr/bin/bash.exe",
+        ] {
+            candidates.push(root.join(relative));
+        }
+    }
+
+    candidates
 }

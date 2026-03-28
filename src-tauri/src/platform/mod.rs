@@ -37,6 +37,11 @@ pub fn resolve_codex_path() -> Option<String> {
     imp::resolve_codex_path()
 }
 
+#[cfg(target_os = "windows")]
+pub fn resolve_git_bash_path() -> Option<String> {
+    imp::resolve_git_bash_path()
+}
+
 pub fn resolve_command(cmd: &str) -> String {
     imp::resolve_command(cmd)
 }

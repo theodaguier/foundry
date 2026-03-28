@@ -112,6 +112,7 @@ pub async fn run(
     let mut total_output_tokens: i64 = 0;
     let mut total_cached_tokens: i64 = 0;
     let mut final_success = true; // Codex doesn't have explicit success/failure in events
+    let mut structured_error: Option<String> = None;
 
     let watchdog_secs = match mode {
         "generate" => 360,
@@ -197,6 +198,29 @@ pub async fn run(
                         all_output.push_str(&text);
                         all_output.push('\n');
 
+                        if let Ok(json) = serde_json::from_str::<serde_json::Value>(&text) {
+                            match json["type"].as_str() {
+                                Some("turn.failed") => {
+                                    structured_error = json["error"]["message"]
+                                        .as_str()
+                                        .map(str::trim)
+                                        .filter(|message| !message.is_empty())
+                                        .map(ToOwned::to_owned)
+                                        .or_else(|| structured_error.take());
+                                }
+                                Some("error") => {
+                                    structured_error = json["message"]
+                                        .as_str()
+                                        .or_else(|| json["error"].as_str())
+                                        .map(str::trim)
+                                        .filter(|message| !message.is_empty())
+                                        .map(ToOwned::to_owned)
+                                        .or_else(|| structured_error.take());
+                                }
+                                _ => {}
+                            }
+                        }
+
                         for event in parse_codex_events(&text, &mut current_turns, &mut total_input_tokens, &mut total_output_tokens, &mut total_cached_tokens, &mut final_success) {
                             on_event(event);
                         }
@@ -251,10 +275,12 @@ pub async fn run(
     let status = child.wait().await;
     let exit_ok = status.map(|s| s.success()).unwrap_or(false);
 
-    let error = if exit_ok {
+    let error = if exit_ok && final_success {
         None
     } else if !stderr_output.trim().is_empty() {
         Some(stderr_output.trim().to_string())
+    } else if let Some(message) = structured_error {
+        Some(message)
     } else if !all_output.trim().is_empty() {
         Some("Codex CLI exited with error; see stdout for details".into())
     } else {

@@ -82,9 +82,21 @@ pub async fn launch_claude_auth() -> Result<bool, String> {
 
     #[cfg(target_os = "windows")]
     {
-        // Open a new CMD window running claude
+        // Find Git Bash — Claude Code on Windows requires it
+        let git_bash = platform::resolve_git_bash_path();
+
+        // Build a command that sets the env var if needed, then runs claude
+        let cmd_line = if let Some(bash_path) = &git_bash {
+            format!(
+                "set \"CLAUDE_CODE_GIT_BASH_PATH={}\" && \"{}\"",
+                bash_path, claude_path
+            )
+        } else {
+            format!("\"{}\"", claude_path)
+        };
+
         Command::new("cmd")
-            .args(["/c", "start", "cmd", "/k", &claude_path])
+            .args(["/c", "start", "cmd", "/k", &cmd_line])
             .spawn()
             .map_err(|e| format!("Could not open terminal: {}", e))?;
         return Ok(true);
