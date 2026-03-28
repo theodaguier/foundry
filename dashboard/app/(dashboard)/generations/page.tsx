@@ -64,6 +64,7 @@ export default async function GenerationsPage({
                 <TableHead>Cost</TableHead>
                 <TableHead>Outcome</TableHead>
                 <TableHead>Fail stage</TableHead>
+                <TableHead>Platform</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -94,6 +95,7 @@ export default async function GenerationsPage({
                   <TableCell className="whitespace-nowrap text-[11px]">{fmtCost(r.estimated_cost_usd)}</TableCell>
                   <TableCell><OutcomeTag outcome={r.outcome} /></TableCell>
                   <TableCell className="text-[11px] text-muted-foreground">{r.failure_stage ?? "—"}</TableCell>
+                  <TableCell className="text-[11px] text-muted-foreground whitespace-nowrap">{r.os_platform ?? "—"}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
