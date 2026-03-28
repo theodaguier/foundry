@@ -74,6 +74,9 @@ export const resetInstallPath = (format: string) =>
 export const rateGeneration = (id: string, rating: 1 | -1) =>
   invoke<void>("rate_generation", { id, rating });
 
+export const submitPluginFeedback = (pluginId: string, speed: number, quality: number, design: number) =>
+  invoke<void>("submit_plugin_feedback", { pluginId, speed, quality, design });
+
 export const loadTelemetry = (id: string) =>
   invoke<GenerationTelemetry | null>("load_telemetry", { id });
 export const loadAllTelemetry = () => invoke<GenerationTelemetry[]>("load_all_telemetry");

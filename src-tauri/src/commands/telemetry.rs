@@ -21,3 +21,15 @@ pub async fn rate_generation(
     crate::services::telemetry_service::rate(&id, rating, &state.auth);
     Ok(())
 }
+
+#[command]
+pub async fn submit_plugin_feedback(
+    plugin_id: String,
+    speed: u8,
+    quality: u8,
+    design: u8,
+    state: tauri::State<'_, crate::state::AppState>,
+) -> Result<(), String> {
+    telemetry_service::submit_feedback(&plugin_id, speed, quality, design, &state.auth);
+    Ok(())
+}

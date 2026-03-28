@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useLayoutEffect } from "react"
 import { useAppStore } from "@/stores/app-store"
 import { useBuildStore } from "@/stores/build-store"
-import { formatTime, generationStepLabel } from "@/lib/utils"
+import { cn, formatTime, generationStepLabel } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -11,7 +11,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog"
-import { CheckCircle2, Circle, Loader2 } from "lucide-react"
+import { CheckCircle2, Circle, Loader2, Terminal, ArrowLeft, X } from "lucide-react"
 import type { AgentModel, GenerationStep } from "@/lib/types"
 import { GenerationFeedback } from "@/components/app/generation-feedback"
 
@@ -86,15 +86,83 @@ function NameScramble({ targetName }: { targetName: string | null }) {
   }, [targetName])
 
   return (
-    <div className="flex gap-0.5 h-[52px] items-center justify-center">
+    <div className="flex gap-[2px] h-[44px] items-center justify-center">
       {slots.map((slot, i) => (
         <span
           key={i}
-          className={`text-[42px] font-[ArchitypeStedelijk] transition-all duration-200 ${slot.locked ? "text-foreground" : "text-muted-foreground/40 blur-[0.8px]"}`}
+          className={cn(
+            "text-[36px] font-[ArchitypeStedelijk] transition-all duration-300",
+            slot.locked ? "text-foreground" : "text-muted-foreground/20 blur-[1px]",
+          )}
         >
           {slot.char}
         </span>
       ))}
+    </div>
+  )
+}
+
+function ConsolePanel({
+  logLines,
+  streamingText,
+  modelMeta,
+  buildAttempt,
+  elapsedSeconds,
+  logStyleClass,
+}: {
+  logLines: { timestamp: string; message: string; style?: string }[]
+  streamingText: string
+  modelMeta: { agentLabel: string; modelLabel: string; stepLabel: string }
+  buildAttempt: number
+  elapsedSeconds: number
+  logStyleClass: (style?: string) => string
+}) {
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const isAtBottom = useRef(true)
+
+  const handleScroll = () => {
+    const el = scrollRef.current
+    if (!el) return
+    isAtBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40
+  }
+
+  useLayoutEffect(() => {
+    const el = scrollRef.current
+    if (el && isAtBottom.current) {
+      el.scrollTop = el.scrollHeight
+    }
+  }, [logLines, streamingText])
+
+  return (
+    <div className="flex-1 flex flex-col bg-card/50">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-border/50">
+        <div className="flex items-center gap-2 text-[9px] text-muted-foreground/40">
+          <span>{modelMeta.agentLabel}</span>
+          <span>·</span>
+          <span>{modelMeta.modelLabel}</span>
+          <span>·</span>
+          <span>{modelMeta.stepLabel}</span>
+          {buildAttempt > 0 && <><span>·</span><span>attempt {buildAttempt}</span></>}
+        </div>
+        <span className="text-[9px] text-muted-foreground/30 tabular-nums">{formatTime(elapsedSeconds)}</span>
+      </div>
+      <div
+        ref={scrollRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto px-3 py-2 space-y-1"
+      >
+        {streamingText && (
+          <div className="text-[10px] text-foreground/70 whitespace-pre-wrap break-words leading-relaxed pb-2 mb-2 border-b border-border/30">
+            {streamingText}
+          </div>
+        )}
+        {logLines.map((line, i) => (
+          <div key={i} className="flex gap-2 text-[9px] leading-4">
+            <span className="text-muted-foreground/20 shrink-0 tabular-nums">{line.timestamp}</span>
+            <span className={cn("break-words whitespace-pre-wrap", logStyleClass(line.style))}>{line.message}</span>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
@@ -141,98 +209,110 @@ export default function GenerationProgress({ mode }: Props) {
     switch (style) {
       case "success": return "text-success"
       case "error": return "text-destructive"
-      case "active": return "text-primary"
-      default: return "text-muted-foreground"
+      case "active": return "text-foreground"
+      default: return "text-muted-foreground/70"
     }
   }
 
   return (
     <div className="flex h-full">
-      <div className="flex-1 flex flex-col items-center justify-center p-8">
-        <div className="flex flex-col gap-8 max-w-[360px] w-full">
-          {!isRefine && <NameScramble targetName={generatedPluginName} />}
+      <div className="flex-1 flex flex-col">
+        {/* Top bar — actions */}
+        <div className="flex items-center justify-end gap-1 px-2 pt-1.5 shrink-0">
+          <Button variant="secondary" size="icon" onClick={() => setShowConsole(!showConsole)}>
+            <Terminal />
+          </Button>
+          <Button variant="secondary" size="icon" onClick={() => setMainView({ kind: "empty" })}>
+            <ArrowLeft />
+          </Button>
+          <Button variant="secondary" size="icon" onClick={() => setShowCancel(true)} className="text-destructive/70 hover:text-destructive">
+            <X />
+          </Button>
+        </div>
 
-          <div className="flex flex-col">
-            {steps.map((step) => {
-              const isDone = completedSteps.has(STEP_ORDER[step])
-              const isActive = currentStep === step
-              const isPending = !isDone && !isActive
-              return (
-                <div key={step} className="flex items-center gap-2.5 py-1.5">
-                  <div className="w-5 flex items-center justify-center">
-                    {isDone ? (
-                      <CheckCircle2 className="size-3.5 text-success" />
-                    ) : isActive ? (
-                      <Loader2 className="size-3.5 text-muted-foreground animate-spin" />
-                    ) : (
-                      <Circle className="size-3.5 text-muted-foreground/25" />
+        {/* Center content */}
+        <div className="flex-1 flex flex-col items-center justify-center p-6">
+          <div className="flex flex-col gap-8 w-full max-w-sm">
+            {!isRefine ? (
+              <NameScramble targetName={generatedPluginName} />
+            ) : (
+              <div className="text-center">
+                <span className="text-[10px] uppercase tracking-[2px] text-muted-foreground/50">
+                  Refining
+                </span>
+              </div>
+            )}
+
+            <div className="flex flex-col gap-0.5">
+              {steps.map((step) => {
+                const isDone = completedSteps.has(STEP_ORDER[step])
+                const isActive = currentStep === step
+                const isPending = !isDone && !isActive
+                return (
+                  <div key={step} className="flex items-center gap-2.5 py-1.5">
+                    <div className="w-4 flex items-center justify-center">
+                      {isDone ? (
+                        <CheckCircle2 className="size-3.5 text-success" />
+                      ) : isActive ? (
+                        <Loader2 className="size-3.5 text-muted-foreground animate-spin" />
+                      ) : (
+                        <Circle className="size-3.5 text-muted-foreground/20" />
+                      )}
+                    </div>
+                    <span className={cn(
+                      "text-[12px]",
+                      isPending && "text-muted-foreground/40",
+                      isActive && "text-foreground",
+                      isDone && "text-foreground",
+                    )}>
+                      {generationStepLabel(step, isRefine)}
+                    </span>
+                    <span className="flex-1" />
+                    {isDone && (
+                      <span className="text-[10px] text-muted-foreground/40">Done</span>
                     )}
                   </div>
-                  <span className={`text-sm font-mono ${isPending ? "text-muted-foreground/60" : "text-foreground"}`}>
-                    {generationStepLabel(step, isRefine)}
-                  </span>
-                  <span className="flex-1" />
-                  {isDone && <span className="text-xs text-muted-foreground">Done</span>}
-                </div>
-              )
-            })}
-          </div>
-
-          <div className="w-full h-1 bg-muted rounded-full overflow-hidden">
-            <div className="h-full bg-primary transition-all duration-300 rounded-full" style={{ width: `${progress * 100}%` }} />
-          </div>
-
-          {!isRunning && lastCompletedTelemetryId && (
-            <div className="flex justify-center">
-              <GenerationFeedback />
+                )
+              })}
             </div>
-          )}
 
-          <div className="flex items-center gap-4 justify-center">
-            <Button variant="ghost" size="sm" onClick={() => setShowConsole(!showConsole)}>
-              {showConsole ? "Hide Log" : "Show Log"}
-            </Button>
-            <Button variant="ghost" size="sm" onClick={() => setMainView({ kind: "empty" })}>
-              Minimize
-            </Button>
-            <Button variant="ghost" onClick={() => setShowCancel(true)}>
-              Cancel
-            </Button>
+            <div className="flex flex-col gap-1.5">
+              <div className="w-full h-1 bg-muted rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-primary rounded-full transition-all duration-500 ease-out"
+                  style={{ width: `${progress * 100}%` }}
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-muted-foreground/40 tabular-nums">
+                  {Math.round(progress * 100)}%
+                </span>
+                <span className="text-[10px] text-muted-foreground/40 tabular-nums">
+                  {formatTime(elapsedSeconds)}
+                </span>
+              </div>
+            </div>
+
+            {!isRunning && lastCompletedTelemetryId && (
+              <div className="flex justify-center">
+                <GenerationFeedback />
+              </div>
+            )}
           </div>
         </div>
       </div>
 
       {showConsole && (
         <>
-          <div className="w-px bg-muted" />
-          <div className="flex-1 flex flex-col bg-muted">
-            <div className="flex items-center justify-between px-4 py-2">
-              <div className="flex flex-col gap-1">
-                <span className="text-[10px] tracking-[1px] text-muted-foreground/60">BUILD LOG</span>
-                <span className="text-[10px] text-muted-foreground/60 font-mono uppercase">
-                  {modelMeta.agentLabel} · {modelMeta.modelLabel} · {modelMeta.stepLabel}
-                  {buildAttempt > 0 ? ` · attempt ${buildAttempt}` : ""}
-                </span>
-              </div>
-              <span className="text-[10px] text-muted-foreground/60 font-mono">{formatTime(elapsedSeconds)}</span>
-            </div>
-            <div className="flex-1 overflow-y-auto p-3 font-mono text-xs space-y-3">
-              {streamingText && (
-                <div className="rounded-md bg-card/60 overflow-hidden">
-                  <div className="px-3 py-2 text-[10px] tracking-[1px] text-muted-foreground/60">LIVE AGENT MESSAGE</div>
-                  <div className="px-3 py-2 text-primary whitespace-pre-wrap break-words leading-5">{streamingText}</div>
-                </div>
-              )}
-              <div className="space-y-1">
-                {logLines.map((line, i) => (
-                  <div key={i} className="flex gap-2 leading-5">
-                    <span className="text-muted-foreground/60 mr-2 shrink-0">{line.timestamp}</span>
-                    <span className={`break-words whitespace-pre-wrap ${logStyleClass(line.style)}`}>{line.message}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
+          <div className="w-px bg-border" />
+          <ConsolePanel
+            logLines={logLines}
+            streamingText={streamingText}
+            modelMeta={modelMeta}
+            buildAttempt={buildAttempt}
+            elapsedSeconds={elapsedSeconds}
+            logStyleClass={logStyleClass}
+          />
         </>
       )}
 

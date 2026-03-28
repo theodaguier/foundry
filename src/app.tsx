@@ -3,11 +3,13 @@ import { useAppStore } from "@/stores/app-store"
 import { useSettingsStore } from "@/stores/settings-store"
 import { useBuildStore } from "@/stores/build-store"
 import { useTauriEvent } from "@/hooks/use-tauri-event"
+import { cn } from "@/lib/utils"
 import { FoundryLogo } from "@/components/app/foundry-logo"
 import { AppSidebar } from "@/components/app/sidebar"
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
 import { Button } from "@/components/ui/button"
 import { PluginDetailView } from "@/components/app/plugin-detail-view"
+import { User, Bell, Hammer, Settings as SettingsIcon } from "lucide-react"
 import AuthContainer from "@/pages/auth/auth-container"
 import Onboarding from "@/pages/onboarding"
 import Prompt from "@/pages/prompt"
@@ -23,11 +25,11 @@ function LaunchScreen() {
   const appVersion = useSettingsStore((s) => s.appVersion)
 
   return (
-    <div className="flex flex-col items-center justify-center h-full gap-4">
-      <FoundryLogo height={48} className="text-muted-foreground" />
-      <div className="w-4 h-4 border-2 border-muted-foreground/60 border-t-transparent rounded-full animate-spin" />
+    <div className="flex flex-col items-center justify-center h-full gap-5">
+      <FoundryLogo height={44} className="text-muted-foreground" />
+      <div className="w-4 h-4 border-2 border-muted-foreground/40 border-t-transparent rounded-full animate-spin" />
       {appVersion && (
-        <span className="text-[11px] text-muted-foreground/40 font-mono absolute bottom-4">
+        <span className="text-[10px] text-muted-foreground/30 font-mono absolute bottom-4">
           v{appVersion}
         </span>
       )}
@@ -36,35 +38,40 @@ function LaunchScreen() {
 }
 
 function EmptyState() {
-  const plugins = useAppStore((s) => s.plugins)
-  const setMainView = useAppStore((s) => s.setMainView)
+  return <Prompt />
+}
 
-  if (plugins.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full gap-5">
-        <FoundryLogo height={48} className="text-muted-foreground" />
-        <div className="flex flex-col items-center gap-1.5">
-          <h2 className="text-xl font-medium">Welcome to Foundry</h2>
-          <p className="text-sm text-muted-foreground text-center">
-            AI-powered audio plugin generator.<br />Describe it, build it, play it.
-          </p>
-        </div>
-        <Button
-          onClick={() => setMainView({ kind: "prompt" })}
-          size="sm"
-        >
-          Build Your First Plugin
-        </Button>
-      </div>
-    )
-  }
+function TopNav() {
+  const mainView = useAppStore((s) => s.mainView)
+  const setMainView = useAppStore((s) => s.setMainView)
+  const isRunning = useBuildStore((s) => s.isRunning)
 
   return (
-    <div className="flex flex-col items-center justify-center h-full gap-3">
-      <FoundryLogo height={36} className="text-muted-foreground/30" />
-      <p className="text-sm text-muted-foreground/50">
-        Select a plugin from the sidebar
-      </p>
+    <div className="flex items-center gap-1 px-2 pb-1">
+      <Button
+        variant="secondary"
+        size="icon"
+        onClick={() => setMainView({ kind: "build-queue" })}
+        className={cn(mainView.kind === "build-queue" && "bg-accent")}
+      >
+        <Hammer className={cn(isRunning && "animate-pulse")} />
+      </Button>
+      <Button
+        variant="secondary"
+        size="icon"
+        onClick={() => setMainView({ kind: "profile" })}
+        className={cn(mainView.kind === "profile" && "bg-accent")}
+      >
+        <User />
+      </Button>
+      <Button
+        variant="secondary"
+        size="icon"
+        onClick={() => setMainView({ kind: "settings" })}
+        className={cn(mainView.kind === "settings" && "bg-accent")}
+      >
+        <SettingsIcon />
+      </Button>
     </div>
   )
 }
@@ -269,14 +276,16 @@ export default function App() {
       <GlobalPipelineListener />
       <GlobalAppUpdateManager />
       <AppSidebar />
-      <SidebarInset>
-        {/* Drag region for main content area */}
+      <SidebarInset className="min-w-0 overflow-hidden">
+        {/* Drag region + top nav */}
         <div
           data-tauri-drag-region
-          className="shrink-0 select-none"
+          className="shrink-0 select-none flex items-end justify-end"
           style={{ height: titlebarInset }}
-        />
-        <div className="flex-1 overflow-hidden">
+        >
+          <TopNav />
+        </div>
+        <div className="flex-1 min-w-0 overflow-hidden">
           <MainContent />
         </div>
       </SidebarInset>

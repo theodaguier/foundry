@@ -3,7 +3,8 @@ import type { Plugin, PluginVersion } from "@/lib/types"
 import { installVersion, clearBuildCache } from "@/lib/commands"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Label } from "@/components/ui/label"
+
+
 import { Separator } from "@/components/ui/separator"
 import {
   DropdownMenu,
@@ -53,7 +54,7 @@ export function VersionHistoryView({ plugin, onVersionRestored }: Props) {
 
   return (
     <div className="flex flex-col gap-3">
-      <Label>Versions</Label>
+      <div className="text-[10px] font-medium tracking-[1.5px] uppercase text-muted-foreground/50">Versions</div>
       {error && (
         <span className="text-xs font-mono text-destructive">{error}</span>
       )}

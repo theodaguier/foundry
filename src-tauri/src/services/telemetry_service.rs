@@ -121,6 +121,66 @@ pub fn rate(id: &str, rating: i16, auth: &SupabaseAuth) {
     });
 }
 
+/// Submit plugin feedback (speed, quality, design ratings 1–5) to Supabase.
+pub fn submit_feedback(plugin_id: &str, speed: u8, quality: u8, design: u8, auth: &SupabaseAuth) {
+    let plugin_id = plugin_id.to_string();
+    let session = auth.get_session();
+    tokio::spawn(async move {
+        if let Some(session) = session {
+            sync_feedback_to_supabase(
+                &plugin_id,
+                speed,
+                quality,
+                design,
+                &session.user_id,
+                &session.access_token,
+            )
+            .await;
+        } else {
+            log::info!("[Feedback] Not authenticated — skipping Supabase sync");
+        }
+    });
+}
+
+async fn sync_feedback_to_supabase(
+    plugin_id: &str,
+    speed: u8,
+    quality: u8,
+    design: u8,
+    user_id: &str,
+    access_token: &str,
+) {
+    let url = format!("{}/rest/v1/plugin_feedback", *SUPABASE_URL);
+    let body = serde_json::json!({
+        "plugin_id": plugin_id,
+        "user_id": user_id,
+        "speed": speed,
+        "quality": quality,
+        "design": design,
+    });
+    let client = reqwest::Client::new();
+    let result = client
+        .post(&url)
+        .header("apikey", SUPABASE_ANON_KEY.as_str())
+        .header("Authorization", format!("Bearer {}", access_token))
+        .header("Content-Type", "application/json")
+        .header("Prefer", "resolution=merge-duplicates,return=minimal")
+        .json(&body)
+        .send()
+        .await;
+    match result {
+        Ok(resp) if resp.status().is_success() => {
+            log::info!("[Feedback] Synced for plugin {}", plugin_id);
+        }
+        Ok(resp) => {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            log::error!("[Feedback] Sync failed ({}): {}", status, body);
+        }
+        Err(e) => log::error!("[Feedback] Sync request failed: {}", e),
+    }
+}
+
 async fn sync_rating_to_supabase(id: &str, rating: i16, access_token: &str) {
     let url = format!(
         "{}/rest/v1/generation_telemetry?id=eq.{}",

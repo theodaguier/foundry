@@ -53,6 +53,7 @@ pub fn run() {
             commands::telemetry::load_telemetry,
             commands::telemetry::load_all_telemetry,
             commands::telemetry::rate_generation,
+            commands::telemetry::submit_plugin_feedback,
             commands::filesystem::show_in_finder,
             commands::onboarding::get_onboarding_state,
             commands::onboarding::complete_onboarding,

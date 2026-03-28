@@ -1,7 +1,9 @@
 import { useState, useMemo } from "react"
 import { useAppStore } from "@/stores/app-store"
 import { useBuildStore } from "@/stores/build-store"
+import { useSettingsStore } from "@/stores/settings-store"
 import { showInFinder } from "@/lib/commands"
+import { cn } from "@/lib/utils"
 import { FoundryLogo } from "@/components/app/foundry-logo"
 import { FilterTabBar } from "@/components/app/filter-tab-bar"
 import { SidebarPluginRow } from "@/components/app/sidebar-plugin-row"
@@ -13,9 +15,6 @@ import {
   SidebarGroupContent,
   SidebarHeader,
   SidebarInput,
-  SidebarMenu,
-  SidebarMenuItem,
-  SidebarMenuButton,
 } from "@/components/ui/sidebar"
 import {
   Dialog,
@@ -28,7 +27,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Plus, Settings, Search, Hammer, User } from "lucide-react"
+import { Plus, Search, ArrowDownToLine } from "lucide-react"
 import type { Plugin } from "@/lib/types"
 
 export function AppSidebar() {
@@ -42,11 +41,17 @@ export function AppSidebar() {
   const isRunning = useBuildStore((s) => s.isRunning)
   const buildProgress = useBuildStore((s) => s.progress)
   const refineConfig = useBuildStore((s) => s.refineConfig)
+  const updateStatus = useSettingsStore((s) => s.updateStatus)
+  const availableUpdate = useSettingsStore((s) => s.availableUpdate)
+
+  const installAppUpdate = useSettingsStore((s) => s.installAppUpdate)
+  const isBuildRunning = useBuildStore((s) => s.isRunning)
 
   const [pluginToDelete, setPluginToDelete] = useState<string | null>(null)
   const [pluginToRename, setPluginToRename] = useState<Plugin | null>(null)
   const [renameText, setRenameText] = useState("")
   const [search, setSearch] = useState("")
+  const [showUpdate, setShowUpdate] = useState(false)
 
   const filteredPlugins = useMemo(() => {
     let result = plugins
@@ -92,43 +97,31 @@ export function AppSidebar() {
   return (
     <SidebarRoot collapsible="none">
       <SidebarHeader>
-        {/* Drag region — space for macOS traffic lights */}
-        <div data-tauri-drag-region className="h-[52px] shrink-0" />
-
-        {/* Logo */}
-        <div className="flex items-center">
+        <div data-tauri-drag-region className="h-[52px] shrink-0 flex items-end justify-between pb-1 px-2">
           <FoundryLogo
-            height={36}
-            className="text-sidebar-foreground/70 shrink-0"
+            height={24}
+            className="text-sidebar-foreground/50 shrink-0"
           />
+          <Button
+            size="icon-sm"
+            variant="secondary"
+            onClick={() => setMainView({ kind: "prompt" })}
+          >
+            <Plus className="size-3.5" />
+          </Button>
         </div>
 
-        {/* New Plugin */}
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              tooltip="New Plugin"
-              onClick={() => setMainView({ kind: "prompt" })}
-            >
-              <Plus className="size-4" />
-              <span>New Plugin</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
-
-        {/* Search */}
         <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3 text-sidebar-foreground/50 pointer-events-none" />
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3 text-sidebar-foreground/40 pointer-events-none" />
           <SidebarInput
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search..."
-            className="pl-7 text-[12px] h-7"
+            placeholder="Search plugins..."
+            className="pl-7 text-[11px] h-6"
           />
         </div>
 
-        {/* Filters */}
         <div>
           <FilterTabBar activeFilter={filter} onTap={setFilter} />
         </div>
@@ -157,8 +150,8 @@ export function AppSidebar() {
                   />
                 ))}
                 {filteredPlugins.length === 0 && (
-                  <div className="px-3 py-6 text-center text-[11px] text-sidebar-foreground/40">
-                    No plugins
+                  <div className="px-3 py-8 text-center text-[11px] text-sidebar-foreground/30">
+                    {search.trim() ? "No matches" : "No plugins yet"}
                   </div>
                 )}
               </div>
@@ -167,39 +160,18 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              isActive={mainView.kind === "build-queue"}
-              onClick={() => setMainView({ kind: "build-queue" })}
-            >
-              <Hammer className={`size-4 ${isRunning ? "animate-pulse" : ""}`} />
-              <span>Builds</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              isActive={mainView.kind === "profile"}
-              onClick={() => setMainView({ kind: "profile" })}
-            >
-              <User className="size-4" />
-              <span>Profile</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              isActive={mainView.kind === "settings"}
-              onClick={() => setMainView({ kind: "settings" })}
-            >
-              <Settings className="size-4" />
-              <span>Settings</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
+      <SidebarFooter className="py-2">
+        {updateStatus === "available" && availableUpdate && (
+          <button
+            onClick={() => setShowUpdate(true)}
+            className="flex items-center gap-2 mx-2 px-2.5 py-1.5 rounded-md bg-primary/10 text-[10px] text-primary hover:bg-primary/15 transition-colors cursor-default"
+          >
+            <ArrowDownToLine className="size-3 shrink-0" />
+            <span>Update {availableUpdate.version} available</span>
+          </button>
+        )}
       </SidebarFooter>
 
-      {/* Delete dialog */}
       <Dialog open={!!pluginToDelete} onOpenChange={(v) => { if (!v) setPluginToDelete(null) }}>
         <DialogContent showCloseButton={false}>
           <DialogHeader>
@@ -213,7 +185,6 @@ export function AppSidebar() {
         </DialogContent>
       </Dialog>
 
-      {/* Rename dialog */}
       <Dialog open={!!pluginToRename} onOpenChange={(v) => { if (!v) setPluginToRename(null) }}>
         <DialogContent showCloseButton={false}>
           <DialogHeader>
@@ -229,6 +200,33 @@ export function AppSidebar() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setPluginToRename(null)}>Cancel</Button>
             <Button onClick={handleRename} disabled={!renameText.trim()}>Rename</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Update dialog */}
+      <Dialog open={showUpdate} onOpenChange={(v) => { if (!v) setShowUpdate(false) }}>
+        <DialogContent showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>Update available</DialogTitle>
+            <DialogDescription>
+              Version {availableUpdate?.version} is ready to install.
+            </DialogDescription>
+          </DialogHeader>
+          {availableUpdate?.notes && (
+            <div className="max-h-32 overflow-y-auto rounded-md bg-muted/40 px-2.5 py-2 text-[10px] text-muted-foreground/50 whitespace-pre-wrap break-words">
+              {availableUpdate.notes}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowUpdate(false)}>Later</Button>
+            <Button
+              onClick={() => { setShowUpdate(false); void installAppUpdate() }}
+              disabled={isBuildRunning}
+            >
+              <ArrowDownToLine className="size-3" />
+              Install now
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

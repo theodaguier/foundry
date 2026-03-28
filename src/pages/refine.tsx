@@ -13,7 +13,7 @@ import {
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu"
 import { AgentIcon } from "@/components/app/agent-icon"
-import { Wrench } from "lucide-react"
+import { ArrowUp } from "lucide-react"
 import type { Plugin } from "@/lib/types"
 
 interface Props {
@@ -38,28 +38,43 @@ export default function Refine({ plugin }: Props) {
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="max-w-[520px] mx-auto flex flex-col py-8 px-6">
-        <div className="flex flex-col items-center gap-2.5 mb-8">
-          <Wrench className="size-12 text-muted-foreground" strokeWidth={1} />
-          <span className="text-sm text-muted-foreground">Modify {plugin.name}</span>
+      <div className="w-full flex flex-col py-8 px-6">
+        <div className="flex flex-col items-center gap-2 mb-8">
+          <span className="text-[10px] uppercase tracking-[2px] text-muted-foreground/40">Refine</span>
+          <h1 className="text-xl font-[ArchitypeStedelijk] tracking-[0.5px] uppercase text-foreground">
+            {plugin.name}
+          </h1>
+          <p className="text-[12px] text-muted-foreground text-center max-w-xs">
+            Describe what to change. Foundry will modify the source code and rebuild.
+          </p>
         </div>
 
         <div className="mb-6">
-          <Textarea
-            value={modification}
-            onChange={(e) => setModification(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter" && e.metaKey) refine() }}
-            placeholder="Add a low-pass filter with resonance control..."
-            autoFocus
-            rows={5}
-            className="min-h-[100px] resize-none font-mono text-[14px]"
-          />
+          <div className="relative">
+            <Textarea
+              value={modification}
+              onChange={(e) => setModification(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && e.metaKey) refine() }}
+              placeholder="Add a low-pass filter with resonance control..."
+              autoFocus
+              rows={4}
+              className="min-h-[100px] resize-none pr-12 rounded-xl"
+            />
+            <Button
+              size="icon-sm"
+              onClick={refine}
+              disabled={isEmpty}
+              className="absolute right-2.5 bottom-2.5 rounded-lg disabled:bg-muted disabled:text-muted-foreground"
+            >
+              <ArrowUp className="size-4" />
+            </Button>
+          </div>
 
-          <div className="flex items-center gap-1.5 mt-2.5">
+          <div className="flex items-center gap-1.5 mt-2">
             <DropdownMenu>
               <DropdownMenuTrigger
                 render={
-                  <Button variant="secondary" size="sm" className="gap-1.5 text-[12px]">
+                  <Button variant="ghost" size="sm" className="gap-1.5 text-[11px] text-muted-foreground hover:text-foreground">
                     <AgentIcon agent={selectedAgent} className="size-3.5" />
                     <span>{selectedModel}</span>
                   </Button>
@@ -67,7 +82,7 @@ export default function Refine({ plugin }: Props) {
               />
               <DropdownMenuContent align="start" className="min-w-[200px] w-auto">
                 {modelCatalog.length === 0 ? (
-                  <div className="px-3 py-3 text-xs text-muted-foreground">
+                  <div className="px-3 py-3 text-[11px] text-muted-foreground">
                     No agent CLI installed.
                   </div>
                 ) : modelCatalog.map((provider) => (
@@ -80,10 +95,10 @@ export default function Refine({ plugin }: Props) {
                       <DropdownMenuItem
                         key={model.id}
                         onClick={() => { setSelectedAgent(provider.name); setSelectedModel(model.flag || model.id) }}
-                        className={selectedModel === (model.flag || model.id) ? "text-primary" : ""}
+                        className={model.flag === selectedModel || model.id === selectedModel ? "text-foreground" : ""}
                       >
-                        <span>{model.name}</span>
-                        <span className="text-muted-foreground/60 text-[10px]">— {model.subtitle}</span>
+                        <span className="text-[12px]">{model.name}</span>
+                        <span className="text-muted-foreground/50 text-[10px] ml-1">{model.subtitle}</span>
                       </DropdownMenuItem>
                     ))}
                   </DropdownMenuGroup>
@@ -93,11 +108,13 @@ export default function Refine({ plugin }: Props) {
 
             <div className="flex-1" />
 
-            <Button variant="ghost" size="sm" onClick={() => setMainView({ kind: "detail", pluginId: plugin.id })}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setMainView({ kind: "detail", pluginId: plugin.id })}
+              className="text-[11px] text-muted-foreground"
+            >
               Cancel
-            </Button>
-            <Button size="sm" onClick={refine} disabled={isEmpty}>
-              Refine
             </Button>
           </div>
         </div>

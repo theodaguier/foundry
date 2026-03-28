@@ -4,6 +4,8 @@ import { useAppStore } from "@/stores/app-store"
 import { useBuildStore } from "@/stores/build-store"
 import { useSettingsStore } from "@/stores/settings-store"
 import { checkDependencies } from "@/lib/commands"
+import { cn } from "@/lib/utils"
+import { AgentIcon } from "@/components/app/agent-icon"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Label } from "@/components/ui/label"
@@ -82,9 +84,9 @@ function getUpdateStatusLabel(status: ReturnType<typeof useSettingsStore.getStat
 export default function Settings() {
   return (
     <div className="h-full overflow-y-auto">
-      <div className="max-w-[520px] mx-auto py-8 px-6">
+      <div className="w-full py-8 px-6">
         <div className="mb-6">
-          <h2 className="text-base font-[ArchitypeStedelijk] uppercase tracking-[0.5px]">Settings</h2>
+          <h2 className="text-lg font-[ArchitypeStedelijk] uppercase tracking-[1px]">Settings</h2>
         </div>
 
         <Tabs defaultValue="general">
@@ -151,9 +153,9 @@ function GeneralTab() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-3">
-        <Label>Appearance</Label>
+    <div className="flex flex-col gap-5">
+      <div className="flex flex-col gap-2">
+        <Label className="text-[10px]">Appearance</Label>
         <Select value={appearance} onValueChange={(v) => v && setAppearance(v as typeof appearance)}>
           <SelectTrigger className="w-full">
             <SelectValue />
@@ -168,28 +170,28 @@ function GeneralTab() {
 
       <Separator />
 
-      <div className="flex flex-col gap-3">
-        <Label>Plugin install paths</Label>
-        <p className="text-xs text-muted-foreground -mt-1">
-          Choose where Foundry installs compiled plugins. DAWs scan these directories to discover your plugins.
+      <div className="flex flex-col gap-2">
+        <Label className="text-[10px]">Plugin install paths</Label>
+        <p className="text-[10px] text-muted-foreground/60 -mt-0.5">
+          Where Foundry installs compiled plugins. DAWs scan these directories.
         </p>
 
         <div className="flex flex-col gap-2">
           {supportsAu && (
-            <div className="flex flex-col gap-1.5">
-              <Label className="text-xs text-muted-foreground">AU Components</Label>
-              <div className="flex items-center gap-2">
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] text-muted-foreground/50">AU Components</span>
+              <div className="flex items-center gap-1.5">
                 <Input
                   readOnly
                   value={installPaths?.auPath ?? ""}
-                  className="flex-1 cursor-default"
+                  className="flex-1 cursor-default text-[10px]"
                 />
-                <Button variant="outline" size="sm" onClick={() => chooseFolder("AU")}>
-                  <FolderOpen className="size-3.5" />
+                <Button variant="outline" size="xs" onClick={() => chooseFolder("AU")}>
+                  <FolderOpen className="size-3" />
                 </Button>
                 {installPaths && !installPaths.auIsDefault && (
-                  <Button variant="ghost" size="sm" onClick={() => resetInstallPath("AU")}>
-                    <RotateCcw className="size-3.5" />
+                  <Button variant="ghost" size="xs" onClick={() => resetInstallPath("AU")}>
+                    <RotateCcw className="size-3" />
                   </Button>
                 )}
               </div>
@@ -197,20 +199,20 @@ function GeneralTab() {
           )}
 
           {supportsVst3 && (
-            <div className="flex flex-col gap-1.5">
-              <Label className="text-xs text-muted-foreground">VST3 Plugins</Label>
-              <div className="flex items-center gap-2">
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] text-muted-foreground/50">VST3 Plugins</span>
+              <div className="flex items-center gap-1.5">
                 <Input
                   readOnly
                   value={installPaths?.vst3Path ?? ""}
-                  className="flex-1 cursor-default"
+                  className="flex-1 cursor-default text-[10px]"
                 />
-                <Button variant="outline" size="sm" onClick={() => chooseFolder("VST3")}>
-                  <FolderOpen className="size-3.5" />
+                <Button variant="outline" size="xs" onClick={() => chooseFolder("VST3")}>
+                  <FolderOpen className="size-3" />
                 </Button>
                 {installPaths && !installPaths.vst3IsDefault && (
-                  <Button variant="ghost" size="sm" onClick={() => resetInstallPath("VST3")}>
-                    <RotateCcw className="size-3.5" />
+                  <Button variant="ghost" size="xs" onClick={() => resetInstallPath("VST3")}>
+                    <RotateCcw className="size-3" />
                   </Button>
                 )}
               </div>
@@ -221,95 +223,93 @@ function GeneralTab() {
 
       <Separator />
 
-      <div className="flex flex-col gap-3">
-        <Label>About</Label>
+      <div className="flex flex-col gap-2">
+        <Label className="text-[10px]">About</Label>
         <Card size="sm">
-          <CardContent className="flex flex-col gap-1 text-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Version</span>
-              <span>{appVersion || "—"}</span>
+          <CardContent>
+            <div className="flex items-center justify-between py-1">
+              <span className="text-xs text-muted-foreground">Version</span>
+              <span className="text-xs">{appVersion || "—"}</span>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      <div className="flex flex-col gap-3">
-        <Label>App updates</Label>
+      <div className="flex flex-col gap-2">
+        <Label className="text-[10px]">App updates</Label>
         <Card size="sm">
-          <CardContent className="flex flex-col gap-3 text-sm">
+          <CardContent className="flex flex-col gap-2">
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <div>Desktop updater</div>
-                <div className="text-xs text-muted-foreground">
+                <div className="text-xs">Desktop updater</div>
+                <div className="text-[10px] text-muted-foreground/60">
                   Last checked {formatDateTime(lastUpdateCheck)}
                 </div>
               </div>
-              <Badge variant={getUpdateBadgeVariant(updateStatus)}>
+              <span className="text-[9px] text-muted-foreground/50">
                 {getUpdateStatusLabel(updateStatus)}
-              </Badge>
+              </span>
             </div>
 
             {availableUpdate ? (
-              <div className="rounded-lg border border-border/60 bg-muted/30 p-3">
+              <div className="min-w-0">
                 <div className="flex items-center justify-between gap-3">
-                  <div className="text-sm">Version {availableUpdate.version}</div>
-                  <div className="text-[11px] text-muted-foreground">
+                  <div className="text-xs">Version {availableUpdate.version}</div>
+                  <div className="text-[10px] text-muted-foreground/60 shrink-0">
                     {formatDateTime(availableUpdate.date)}
                   </div>
                 </div>
                 {availableUpdate.notes && (
-                  <p className="mt-2 text-xs text-muted-foreground whitespace-pre-wrap">
+                  <p className="mt-1 text-[10px] text-muted-foreground/50 whitespace-pre-wrap break-all overflow-hidden max-h-20 line-clamp-5">
                     {availableUpdate.notes}
                   </p>
                 )}
               </div>
             ) : (
-              <div className="text-xs text-muted-foreground">
+              <div className="text-[10px] text-muted-foreground/60">
                 {updateStatus === "not-available"
-                  ? "Foundry is already on the latest published version."
-                  : "Checks GitHub Releases for signed desktop updates."}
+                  ? "Up to date."
+                  : "Checks GitHub Releases for signed updates."}
               </div>
             )}
 
             {downloadProgress && (
-              <div className="rounded-lg border border-border/60 bg-muted/30 p-3 text-xs text-muted-foreground">
+              <div className="text-[10px] text-muted-foreground/60">
                 Downloaded {formatBytes(downloadProgress.downloaded)}
-                {downloadProgress.total
-                  ? ` of ${formatBytes(downloadProgress.total)}`
-                  : ""}
+                {downloadProgress.total ? ` of ${formatBytes(downloadProgress.total)}` : ""}
               </div>
             )}
 
             {isBuildRunning && availableUpdate && (
-              <div className="rounded-lg border border-border/60 bg-muted/30 p-3 text-xs text-muted-foreground">
-                Finish the current build before installing the app update.
+              <div className="text-[10px] text-muted-foreground/60">
+                Finish the current build before installing.
               </div>
             )}
 
             {updateError && (
-              <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-xs text-destructive">
+              <div className="text-[10px] text-destructive break-words">
                 {updateError}
               </div>
             )}
           </CardContent>
-          <CardFooter className="flex flex-wrap justify-end gap-2">
+          <CardFooter className="flex flex-wrap justify-end gap-1.5">
             <Button
               variant="outline"
-              size="sm"
+              size="xs"
               onClick={() => void handleCheckForUpdates()}
               disabled={isCheckingForUpdates || isInstallingUpdate}
             >
-              <RefreshCw className="size-3.5" />
+              <RefreshCw className="size-3" />
               {isCheckingForUpdates ? "Checking..." : "Check for updates"}
             </Button>
 
             {availableUpdate && (
               <Button
-                size="sm"
+                size="xs"
                 onClick={() => void handleInstallUpdate()}
                 disabled={isBuildRunning || isInstallingUpdate}
               >
-                <Download className="size-3.5" />
+                <Download className="size-3" />
                 {updateStatus === "downloading"
                   ? "Downloading..."
                   : updateStatus === "installing"
@@ -326,25 +326,33 @@ function GeneralTab() {
 
 function ModelsTab() {
   const { modelCatalog, loadCatalog, refreshModels, isRefreshing } = useSettingsStore()
+  const [deps, setDeps] = useState<DependencyStatus[]>([])
   useEffect(() => { loadCatalog() }, [loadCatalog])
+  useEffect(() => { checkDependencies().then(setDeps).catch(() => {}) }, [])
+
+  const hasClaudeCode = modelCatalog.some((p) => p.name.toLowerCase().includes("claude"))
+  const hasCodex = modelCatalog.some((p) => p.name.toLowerCase().includes("codex"))
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-4">
       {modelCatalog.map((provider) => (
         <div key={provider.id} className="flex flex-col gap-2">
-          <Label>{provider.name}</Label>
+          <div className="flex items-center gap-1.5">
+            <AgentIcon agent={provider.name} className="size-3 text-muted-foreground/60" />
+            <Label className="text-[10px]">{provider.name}</Label>
+          </div>
           <Card size="sm">
             <CardContent className="flex flex-col">
               {provider.models.map((model, i) => (
                 <div key={model.id}>
                   {i > 0 && <Separator />}
-                  <div className="flex items-center gap-3 py-2.5">
+                  <div className="flex items-center gap-3 py-2">
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm">{model.name}</div>
-                      <div className="text-xs text-muted-foreground">{model.subtitle}</div>
+                      <div className="text-xs">{model.name}</div>
+                      <div className="text-[10px] text-muted-foreground/60">{model.subtitle}</div>
                     </div>
                     {model.default && <Badge variant="secondary">Default</Badge>}
-                    <span className="text-[10px] font-mono text-muted-foreground/60">{model.flag}</span>
+                    <span className="text-[10px] text-muted-foreground/40">{model.flag}</span>
                   </div>
                 </div>
               ))}
@@ -352,7 +360,28 @@ function ModelsTab() {
           </Card>
         </div>
       ))}
-      <Button variant="outline" size="sm" onClick={refreshModels} disabled={isRefreshing} className="self-start">
+
+      {!hasClaudeCode && (
+        <div className="flex items-center gap-2 px-1 py-2">
+          <AgentIcon agent="Claude Code" className="size-3 text-muted-foreground/40" />
+          <span className="text-[10px] text-muted-foreground/50 flex-1">Claude Code CLI not installed</span>
+          <Button variant="outline" size="xs" onClick={() => window.open("https://docs.anthropic.com/en/docs/claude-code/overview")}>
+            Install
+          </Button>
+        </div>
+      )}
+
+      {!hasCodex && (
+        <div className="flex items-center gap-2 px-1 py-2">
+          <AgentIcon agent="Codex" className="size-3 text-muted-foreground/40" />
+          <span className="text-[10px] text-muted-foreground/50 flex-1">Codex CLI not installed</span>
+          <Button variant="outline" size="xs" onClick={() => window.open("https://github.com/openai/codex")}>
+            Install
+          </Button>
+        </div>
+      )}
+
+      <Button variant="outline" size="xs" onClick={refreshModels} disabled={isRefreshing} className="self-start">
         {isRefreshing ? "Refreshing..." : "Refresh Models"}
       </Button>
     </div>
@@ -407,86 +436,82 @@ function DependenciesTab() {
   }, [loadBuildEnvironment, refreshDeps])
 
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-col gap-3">
-        <Label>Build Environment</Label>
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-2">
+        <Label className="text-[10px]">Build Environment</Label>
         <Card size="sm">
-          <CardContent className="flex flex-col gap-3">
+          <CardContent className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-sm">JUCE SDK</div>
-                <div className="text-xs text-muted-foreground">
+                <div className="text-xs">JUCE SDK</div>
+                <div className="text-[10px] text-muted-foreground/60">
                   {buildEnvironment?.jucePath
                     ? `${buildEnvironment.juceVersion} · ${buildEnvironment.juceSource === "override" ? "custom path" : "managed copy"}`
                     : "Not configured"}
                 </div>
               </div>
-              <Badge variant={buildEnvironment?.state === "ready" ? "default" : "destructive"}>
+              <span className={cn("text-[10px]", buildEnvironment?.state === "ready" ? "text-success" : "text-destructive")}>
                 {isLoadingBuildEnvironment ? "Checking..." : buildEnvironment?.state === "ready" ? "Ready" : "Blocked"}
-              </Badge>
+              </span>
             </div>
-
-            {buildEnvironment?.jucePath && (
-              <div className="text-xs font-mono text-muted-foreground break-all">
-                {buildEnvironment.jucePath}
-              </div>
-            )}
 
             {buildEnvironment?.issues.length ? (
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-1.5">
                 {buildEnvironment.issues.map((issue) => (
-                  <div key={issue.code} className="rounded-lg border border-border/60 bg-muted/40 p-3">
-                    <div className="text-sm">{issue.title}</div>
-                    <div className="text-xs text-muted-foreground mt-1">{issue.detail}</div>
+                  <div key={issue.code} className="bg-muted/40 rounded-md px-2.5 py-2">
+                    <div className="text-xs">{issue.title}</div>
+                    <div className="text-[10px] text-muted-foreground/60 mt-0.5">{issue.detail}</div>
                   </div>
                 ))}
+                <div className="flex flex-wrap gap-1.5">
+                  <Button variant="outline" size="xs" onClick={recheckEnvironment} disabled={isPreparingEnvironment}>
+                    Re-check
+                  </Button>
+                  <Button size="xs" onClick={installManagedCopy} disabled={isPreparingEnvironment}>
+                    {isPreparingEnvironment ? "Preparing..." : "Install Managed JUCE"}
+                  </Button>
+                  <Button variant="secondary" size="xs" onClick={chooseJuceFolder} disabled={isPreparingEnvironment}>
+                    Choose JUCE Folder
+                  </Button>
+                </div>
               </div>
             ) : (
-              <div className="text-xs text-muted-foreground">
-                The build toolchain and managed JUCE copy are ready.
+              <div className="text-[10px] text-muted-foreground/60">
+                {buildEnvironment?.jucePath && (
+                  <span className="text-muted-foreground/40 break-all">{buildEnvironment.jucePath}</span>
+                )}
               </div>
             )}
-
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" onClick={recheckEnvironment} disabled={isPreparingEnvironment}>
-                Re-check
+            {buildEnvironment?.juceSource === "override" && (
+              <Button variant="ghost" size="xs" onClick={restoreManagedCopy} disabled={isPreparingEnvironment} className="self-start">
+                Use Managed Copy
               </Button>
-              <Button size="sm" onClick={installManagedCopy} disabled={isPreparingEnvironment}>
-                {isPreparingEnvironment ? "Preparing..." : "Install Managed JUCE"}
-              </Button>
-              <Button variant="secondary" size="sm" onClick={chooseJuceFolder} disabled={isPreparingEnvironment}>
-                Choose JUCE Folder
-              </Button>
-              {buildEnvironment?.juceSource === "override" && (
-                <Button variant="ghost" size="sm" onClick={restoreManagedCopy} disabled={isPreparingEnvironment}>
-                  Use Managed Copy
-                </Button>
-              )}
-            </div>
+            )}
           </CardContent>
         </Card>
       </div>
 
-      <div className="flex flex-col gap-3">
-        <Label>Required</Label>
+      <div className="flex flex-col gap-2">
+        <Label className="text-[10px]">Required</Label>
         <Card size="sm">
           <CardContent className="flex flex-col">
             {deps.map((dep, i) => (
               <div key={dep.name}>
                 {i > 0 && <Separator />}
-                <div className="flex items-center gap-3 py-2.5">
-                  <span className={`size-2 rounded-full shrink-0 ${dep.installed ? "bg-emerald-500" : "bg-destructive"}`} />
+                <div className="flex items-center gap-2.5 py-2">
+                  <span className={cn("size-1.5 rounded-full shrink-0", dep.installed ? "bg-green-400" : "bg-destructive")} />
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm">{dep.name}</div>
-                    {dep.detail && <div className="text-xs text-muted-foreground truncate">{dep.detail}</div>}
+                    <div className="text-xs">{dep.name}</div>
+                    {dep.detail && <div className="text-[10px] text-muted-foreground/60 truncate">{dep.detail}</div>}
                   </div>
-                  {optionalDeps.has(dep.name) && !dep.installed ? (
-                    <Badge variant="secondary">Optional</Badge>
-                  ) : (
-                    <Badge variant={dep.installed ? "default" : "destructive"}>
-                      {dep.installed ? "Installed" : "Missing"}
-                    </Badge>
-                  )}
+                  <span className={cn(
+                    "text-[9px] shrink-0",
+                    optionalDeps.has(dep.name) && !dep.installed
+                      ? "text-muted-foreground/40"
+                      : dep.installed ? "text-success" : "text-destructive",
+                  )}>
+                    {optionalDeps.has(dep.name) && !dep.installed ? "Optional" : dep.installed ? "Installed" : "Missing"}
+                  </span>
                 </div>
               </div>
             ))}
@@ -502,13 +527,13 @@ function AccountTab() {
   const userProfile = useAppStore((s) => s.userProfile)
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-3">
       {userProfile && (
-        <p className="text-sm text-muted-foreground">
+        <p className="text-xs text-muted-foreground">
           Signed in as {userProfile.email || userProfile.displayName || userProfile.id}
         </p>
       )}
-      <Button variant="outline" size="sm" onClick={signOut} className="self-start text-destructive">
+      <Button variant="outline" size="xs" onClick={signOut} className="self-start text-destructive">
         Sign Out
       </Button>
     </div>

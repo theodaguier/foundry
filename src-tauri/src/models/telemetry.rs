@@ -75,6 +75,7 @@ pub struct TelemetryRow {
     pub format: Option<String>,
     pub channel_layout: Option<String>,
     pub os_platform: Option<String>,
+    pub os_version: Option<String>,
     pub cpu_architecture: Option<String>,
     pub agent_cli_version: Option<String>,
     pub juce_version: Option<String>,
@@ -93,7 +94,6 @@ impl TelemetryRow {
             model: t.model.clone(),
             original_prompt: t.original_prompt.clone(),
             started_at: t.started_at.clone(),
-            // Supabase columns are NOT NULL — default to 0.0 when missing
             generation_duration: t.generation_duration.or(Some(0.0)),
             build_duration: t.build_duration.or(Some(0.0)),
             install_duration: t.install_duration.or(Some(0.0)),
@@ -112,6 +112,7 @@ impl TelemetryRow {
             format: t.format.clone(),
             channel_layout: t.channel_layout.clone(),
             os_platform: t.os_platform.clone(),
+            os_version: t.os_version.clone(),
             cpu_architecture: t.cpu_architecture.clone(),
             agent_cli_version: t.agent_cli_version.clone(),
             juce_version: t.juce_version.clone(),

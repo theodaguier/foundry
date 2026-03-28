@@ -30,7 +30,7 @@ export function FilterTabBar({ activeFilter, onTap }: Props) {
         <ToggleGroupItem
           key={tab.filter}
           value={tab.filter}
-          className="flex-1 text-[10px] font-mono tracking-[0.5px]"
+          className="flex-1 text-[9px] tracking-[0.5px]"
         >
           {tab.label}
         </ToggleGroupItem>

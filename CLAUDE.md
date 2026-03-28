@@ -37,7 +37,9 @@ accra/
 │   │   │   ├── plugin-artwork-view.tsx
 │   │   │   ├── version-history-view.tsx
 │   │   │   ├── filter-tab-bar.tsx
-│   │   │   └── foundry-logo.tsx
+│   │   │   ├── foundry-logo.tsx
+│   │   │   ├── plugin-feedback.tsx
+│   │   │   └── agent-icon.tsx
 │   │   └── ui/                 # shadcn/ui primitives
 │   ├── pages/                  # Route-level views
 │   │   ├── Prompt.tsx
@@ -226,7 +228,7 @@ All frontend–backend communication goes through Tauri `invoke()` calls. Regist
 | `generation`   | `start_generation`, `start_refine`, `cancel_build`                                                                                               |
 | `dependencies` | `check_dependencies`, `get_build_environment`, `prepare_build_environment`, `set_juce_override_path`, `clear_juce_override_path`, `install_juce` |
 | `settings`     | `get_model_catalog`, `refresh_model_catalog`, `get_install_paths`, `set_install_path`, `reset_install_path`                                      |
-| `telemetry`    | `load_telemetry`, `load_all_telemetry`                                                                                                           |
+| `telemetry`    | `load_telemetry`, `load_all_telemetry`, `rate_generation`, `submit_plugin_feedback`                                                              |
 | `filesystem`   | `show_in_finder`                                                                                                                                 |
 | `onboarding`   | `get_onboarding_state`, `complete_onboarding`, `install_dependency`                                                                              |
 
@@ -339,10 +341,11 @@ Codex CLI is optional — its absence does not block the build environment.
 
 ## Supabase Schema (relevant tables)
 
-| Table                  | Key columns                                                        |
-| ---------------------- | ------------------------------------------------------------------ |
-| `profiles`             | `id` (user_id), `email`, `onboarding_completed_at`, `card_variant` |
-| `generation_telemetry` | All `TelemetryRow` fields — one row per generate/refine run        |
+| Table                  | Key columns                                                                   |
+| ---------------------- | ----------------------------------------------------------------------------- |
+| `profiles`             | `id` (user_id), `email`, `onboarding_completed_at`, `card_variant`            |
+| `generation_telemetry` | All `TelemetryRow` fields — one row per generate/refine run (includes `os_version`) |
+| `plugin_feedback`      | `id`, `plugin_id` (uuid), `user_id`, `speed`, `quality`, `design` (1–5 each), unique on `(plugin_id, user_id)` |
 
 ## CI/CD — Desktop Release Workflow
 
@@ -384,6 +387,46 @@ macOS and Windows code signing are **optional** — if the certificate import fa
 
 - `scripts/prepare-tauri-signing-key.mjs` — validates and normalizes `RAW_TAURI_SIGNING_PRIVATE_KEY`, writes the base64 key to a temp file, then exports it as `TAURI_SIGNING_PRIVATE_KEY` (the env var Tauri reads during bundling)
 - The workflow checks out the **release tag**, not `main` — fixes to CI only take effect starting with the next tag after the fix lands on `main`
+
+## UI Design System
+
+### Typography
+- **Display font:** `ArchitypeStedelijk` — used only for page titles and plugin names (`font-[ArchitypeStedelijk]`)
+- **Body font:** `Azeret Mono` — primary font for all UI text (`--font-sans`)
+- **Code/technical data:** `Azeret Mono` via `font-mono` for timestamps, paths, model flags
+- **Base font size:** 11px (body)
+
+### Text size hierarchy
+- Page titles: `text-lg` / `text-base` in ArchitypeStedelijk uppercase
+- Section labels: `text-[10px]` tracking-wide uppercase muted
+- Body/row text: `text-xs` (12px)
+- Secondary/detail text: `text-[10px]`
+- Micro labels: `text-[9px]`
+
+### Color system
+- **Pure monochrome** — all theme colors use `oklch(x 0 0)` (zero chroma)
+- Dark mode default: `--background: oklch(0.13 0 0)`, `--foreground: oklch(0.93 0 0)`
+- Borders at `8%` opacity, inputs at `12%`
+- Status colors: `--success` (green), `--destructive` (red), `--warning` (amber) are the only chromatic colors
+
+### Component sizing (shadcn/ui overrides)
+- **Buttons:** default h-7, sm h-6, xs h-5, icon size-7, icon-sm size-6, icon-xs size-5
+- **Badges:** h-4, text-[9px], minimal padding
+- **Tabs:** h-6, text-[10px]
+- **Select:** trigger h-6, items text-[10px]
+- **Dialog:** max-w-sm, gap-3, text-xs body, text-[11px] description
+- **Cards:** `size="sm"` variant used throughout
+
+### Layout patterns
+- **Sidebar:** collapsible=none, logo+plus button in drag region area, search h-6, filter tabs 9px, plugin rows h-10 with 28px artwork
+- **Top nav:** 3 icon buttons (Builds, Profile, Settings) in `variant="secondary" size="icon"` at top-right of main content area, inside the drag region
+- **Content pages:** `w-full px-6 py-8` (no max-width, fills available space)
+- **Generation progress:** icon buttons (Log, Back, Cancel) at top-right in `variant="secondary" size="icon"`, console panel with auto-scroll
+
+### New components
+- **`PluginFeedback`** — 3-criteria star rating (speed, quality, design) 1–5, shown on installed plugin detail view, persists to `plugin_feedback` Supabase table
+- **`ConsolePanel`** — auto-scrolling build log with `useLayoutEffect` scroll-to-bottom, extracted from generation-progress
+- **Update notification** — sidebar footer shows update banner when `updateStatus === "available"`, opens dialog with release notes and Install/Later buttons
 
 ## Known Issues / Open Items
 
