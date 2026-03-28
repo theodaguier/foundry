@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.49.2](https://github.com/theodaguier/foundry/compare/v1.49.1...v1.49.2) (2026-03-28)
+
+
+### Bug Fixes
+
+* Windows CMake timeout and classification ([#160](https://github.com/theodaguier/foundry/issues/160)) ([d661e9d](https://github.com/theodaguier/foundry/commit/d661e9dae30edee1289adb04021e8a4b072c220e))
+
 ## [1.49.1](https://github.com/theodaguier/foundry/compare/v1.49.0...v1.49.1) (2026-03-28)
 
 
