@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.57.0](https://github.com/theodaguier/foundry/compare/v1.56.2...v1.57.0) (2026-03-29)
+
+
+### Features
+
+* **landing:** step 1 = email only, step 2 = name + platform first + full qualification ([4d4497f](https://github.com/theodaguier/foundry/commit/4d4497fa5ed7532a4a9d7291d17cee3d11b4e263))
+
 ## [1.56.2](https://github.com/theodaguier/foundry/compare/v1.56.1...v1.56.2) (2026-03-29)
 
 
