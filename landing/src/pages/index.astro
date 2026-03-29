@@ -25,7 +25,10 @@ import Layout from "../layouts/Layout.astro";
 
       <div id="step-email" class="step">
         <form class="form" id="email-form" novalidate>
-          <label for="email" class="sr-only">Email address</label>
+          <div class="input-row">
+            <input type="text" id="name" name="name" class="email-input"
+              placeholder="Your first name" autocomplete="given-name" required />
+          </div>
           <div class="input-row" id="input-row">
             <input type="email" id="email" name="email" class="email-input"
               placeholder="your@email.com" autocomplete="email" inputmode="email" required />
@@ -107,16 +110,20 @@ import Layout from "../layouts/Layout.astro";
 
 <script>
   let savedEmail = ""
+  let savedName = ""
   const emailForm = document.getElementById("email-form") as HTMLFormElement
   const emailInput = document.getElementById("email") as HTMLInputElement
+  const nameInput = document.getElementById("name") as HTMLInputElement
   const inputRow = document.getElementById("input-row") as HTMLDivElement
   emailInput.addEventListener("focus", () => inputRow.classList.add("focused"))
   emailInput.addEventListener("blur", () => inputRow.classList.remove("focused"))
   emailForm.addEventListener("submit", (e) => {
     e.preventDefault()
     const email = emailInput.value.trim()
-    if (!email) return
+    const name = nameInput.value.trim()
+    if (!email || !name) return
     savedEmail = email
+    savedName = name
     show("step-qualify")
   })
   const qualifyForm = document.getElementById("qualify-form") as HTMLFormElement
@@ -127,7 +134,7 @@ import Layout from "../layouts/Layout.astro";
     btn.disabled = true
     btn.textContent = "Sending…"
     const fd = new FormData(qualifyForm)
-    const payload: Record<string, unknown> = { email: savedEmail }
+    const payload: Record<string, unknown> = { email: savedEmail, name: savedName }
     fd.forEach((v, k) => { if (v) payload[k] = (k === "ram_gb" || k === "storage_gb") ? Number(v) : v })
     try {
       const res = await fetch("/api/waitlist", {
