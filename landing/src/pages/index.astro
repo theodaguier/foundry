@@ -23,12 +23,10 @@ import Layout from "../layouts/Layout.astro";
         No code. No boilerplate.
       </p>
 
+      <!-- Step 1: email only -->
       <div id="step-email" class="step">
         <form class="form" id="email-form" novalidate>
-          <div class="input-row">
-            <input type="text" id="name" name="name" class="email-input"
-              placeholder="Your first name" autocomplete="given-name" required />
-          </div>
+          <label for="email" class="sr-only">Email address</label>
           <div class="input-row" id="input-row">
             <input type="email" id="email" name="email" class="email-input"
               placeholder="your@email.com" autocomplete="email" inputmode="email" required />
@@ -38,17 +36,27 @@ import Layout from "../layouts/Layout.astro";
         </form>
       </div>
 
+      <!-- Step 2: full qualification (name, platform first, then rest) -->
       <div id="step-qualify" class="step hidden">
-        <p class="qualify-intro">One more thing &mdash; help us pick the right people.</p>
+        <p class="qualify-intro">Tell us about yourself.</p>
         <form id="qualify-form" class="qualify-form">
+
           <div class="field-group">
-            <label class="field-label">Platform</label>
+            <label class="field-label">First name *</label>
+            <div class="input-row-sm">
+              <input type="text" name="name" class="text-input" placeholder="Your first name" required />
+            </div>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label">Platform *</label>
             <div class="radio-group">
-              <label class="radio-option"><input type="radio" name="platform" value="macos" /> macOS</label>
+              <label class="radio-option"><input type="radio" name="platform" value="macos" required /> macOS</label>
               <label class="radio-option"><input type="radio" name="platform" value="windows" /> Windows</label>
               <label class="radio-option"><input type="radio" name="platform" value="both" /> Both</label>
             </div>
           </div>
+
           <div class="field-group">
             <label class="field-label">RAM</label>
             <div class="radio-group">
@@ -57,6 +65,7 @@ import Layout from "../layouts/Layout.astro";
               <label class="radio-option"><input type="radio" name="ram_gb" value="32" /> 32 GB+</label>
             </div>
           </div>
+
           <div class="field-group">
             <label class="field-label">Free storage</label>
             <div class="radio-group">
@@ -65,6 +74,7 @@ import Layout from "../layouts/Layout.astro";
               <label class="radio-option"><input type="radio" name="storage_gb" value="100" /> 100 GB+</label>
             </div>
           </div>
+
           <div class="field-group">
             <label class="field-label">Primary DAW</label>
             <div class="radio-group">
@@ -75,6 +85,7 @@ import Layout from "../layouts/Layout.astro";
               <label class="radio-option"><input type="radio" name="daw" value="other" /> Other</label>
             </div>
           </div>
+
           <div class="field-group">
             <label class="field-label">You are</label>
             <div class="radio-group">
@@ -83,10 +94,12 @@ import Layout from "../layouts/Layout.astro";
               <label class="radio-option"><input type="radio" name="profile" value="both" /> Both</label>
             </div>
           </div>
+
           <div class="field-group">
             <label class="field-label">Why Foundry?</label>
             <textarea name="use_case" class="textarea" placeholder="What would you build?" rows="2"></textarea>
           </div>
+
           <div class="field-group">
             <label class="field-label">How did you hear about us?</label>
             <div class="radio-group">
@@ -96,11 +109,13 @@ import Layout from "../layouts/Layout.astro";
               <label class="radio-option"><input type="radio" name="source" value="other" /> Other</label>
             </div>
           </div>
+
           <button type="submit" class="submit-btn-full">Submit &rarr;</button>
           <p id="qualify-message" class="disclaimer"></p>
         </form>
       </div>
 
+      <!-- Step 3: done -->
       <div id="step-done" class="step hidden">
         <p class="done-msg">You&rsquo;re on the list.<br />We&rsquo;ll be in touch.</p>
       </div>
@@ -110,22 +125,21 @@ import Layout from "../layouts/Layout.astro";
 
 <script>
   let savedEmail = ""
-  let savedName = ""
+
   const emailForm = document.getElementById("email-form") as HTMLFormElement
   const emailInput = document.getElementById("email") as HTMLInputElement
-  const nameInput = document.getElementById("name") as HTMLInputElement
   const inputRow = document.getElementById("input-row") as HTMLDivElement
   emailInput.addEventListener("focus", () => inputRow.classList.add("focused"))
   emailInput.addEventListener("blur", () => inputRow.classList.remove("focused"))
+
   emailForm.addEventListener("submit", (e) => {
     e.preventDefault()
     const email = emailInput.value.trim()
-    const name = nameInput.value.trim()
-    if (!email || !name) return
+    if (!email) return
     savedEmail = email
-    savedName = name
     show("step-qualify")
   })
+
   const qualifyForm = document.getElementById("qualify-form") as HTMLFormElement
   qualifyForm.addEventListener("submit", async (e) => {
     e.preventDefault()
@@ -133,23 +147,35 @@ import Layout from "../layouts/Layout.astro";
     const msg = document.getElementById("qualify-message") as HTMLParagraphElement
     btn.disabled = true
     btn.textContent = "Sending…"
+
     const fd = new FormData(qualifyForm)
-    const payload: Record<string, unknown> = { email: savedEmail, name: savedName }
-    fd.forEach((v, k) => { if (v) payload[k] = (k === "ram_gb" || k === "storage_gb") ? Number(v) : v })
+    const payload: Record<string, unknown> = { email: savedEmail }
+    fd.forEach((v, k) => {
+      if (v) payload[k] = (k === "ram_gb" || k === "storage_gb") ? Number(v) : v
+    })
+
     try {
       const res = await fetch("/api/waitlist", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       })
-      if (res.ok) { show("step-done") }
-      else { msg.textContent = "Something went wrong. Try again."; btn.disabled = false; btn.textContent = "Submit →" }
+      if (res.ok) {
+        show("step-done")
+      } else {
+        msg.textContent = "Something went wrong. Try again."
+        btn.disabled = false
+        btn.textContent = "Submit →"
+      }
     } catch {
-      msg.textContent = "Something went wrong. Try again."; btn.disabled = false; btn.textContent = "Submit →"
+      msg.textContent = "Something went wrong. Try again."
+      btn.disabled = false
+      btn.textContent = "Submit →"
     }
   })
+
   function show(id: string) {
-    ["step-email","step-qualify","step-done"].forEach(s => {
+    ["step-email", "step-qualify", "step-done"].forEach(s => {
       const el = document.getElementById(s)
       if (el) el.classList.toggle("hidden", s !== id)
     })
@@ -168,6 +194,9 @@ import Layout from "../layouts/Layout.astro";
   .form { display:flex; flex-direction:column; align-items:center; gap:0.875rem; }
   .input-row { display:flex; align-items:center; width:100%; border-bottom:1px solid #2c2c2a; padding-bottom:0.5rem; transition:border-color 0.2s ease; }
   .input-row.focused { border-color:#3e3e3a; }
+  .input-row-sm { width:100%; border-bottom:1px solid #2c2c2a; padding-bottom:0.5rem; margin-bottom:0.25rem; }
+  .text-input { width:100%; background:transparent; border:none; outline:none; font-family:"AzeretMono",monospace; font-size:0.8125rem; color:#646460; caret-color:#c8c8c0; padding:0; }
+  .text-input::placeholder { color:#323230; }
   .email-input { flex:1; min-width:0; background:transparent; border:none; outline:none; font-family:"AzeretMono",monospace; font-size:0.8125rem; color:#646460; caret-color:#c8c8c0; padding:0; }
   .email-input::placeholder { color:#323230; }
   .email-input:focus { color:#a8a8a0; }
