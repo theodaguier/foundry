@@ -62,5 +62,8 @@ export interface WaitlistEntry {
   use_case: string | null
   source: string | null
   status: string | null
+  music_genre: string | null
+  prior_attempt: string | null
+  prior_attempt_detail: string | null
   created_at: string
 }
