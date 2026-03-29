@@ -3,6 +3,14 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.50.0](https://github.com/theodaguier/foundry/compare/v1.49.2...v1.50.0) (2026-03-29)
+
+
+### Features
+
+* **dashboard:** extend WaitlistEntry type with qualification fields ([f415f98](https://github.com/theodaguier/foundry/commit/f415f989f4fd816a72235df4849d3186eecaf5d9))
+* **supabase:** extend waitlist with qualification fields — platform, RAM, storage, DAW, profile ([f3fbd2a](https://github.com/theodaguier/foundry/commit/f3fbd2a2c757ef6af56c74c2d7458d8b9a559c66))
+
 ## [1.49.2](https://github.com/theodaguier/foundry/compare/v1.49.1...v1.49.2) (2026-03-28)
 
 
