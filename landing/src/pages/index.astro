@@ -19,7 +19,7 @@ import Layout from "../layouts/Layout.astro";
       <p class="tagline">
         You describe the sound. Foundry writes the C++,<br />
         builds it with JUCE, and installs it in your DAW&thinsp;&mdash;<br />
-        AU and VST3 on macOS, VST3 on Windows.<br />
+        AU and VST3 on macOS.<br />
         No code. No boilerplate.
       </p>
 
@@ -52,7 +52,7 @@ import Layout from "../layouts/Layout.astro";
             <label class="field-label">Platform *</label>
             <div class="radio-group">
               <label class="radio-option"><input type="radio" name="platform" value="macos" required /> macOS</label>
-              <label class="radio-option"><input type="radio" name="platform" value="windows" /> Windows</label>
+              <label class="radio-option"><input type="radio" name="platform" value="windows" disabled style="opacity:0.4;cursor:not-allowed" /> Windows <span class="optional">(coming soon)</span></label>
               <label class="radio-option"><input type="radio" name="platform" value="both" /> Both</label>
             </div>
           </div>
@@ -257,3 +257,4 @@ import Layout from "../layouts/Layout.astro";
   .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
   .optional { font-size:0.625rem; color:#323230; text-transform:none; letter-spacing:0; }
 </style>
+
