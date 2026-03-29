@@ -54,6 +54,13 @@ export interface Profile {
 export interface WaitlistEntry {
   id: string
   email: string
+  platform: string | null
+  ram_gb: number | null
+  storage_gb: number | null
+  daw: string | null
+  profile: string | null
+  use_case: string | null
+  source: string | null
+  status: string | null
   created_at: string
-  status?: string | null
 }
