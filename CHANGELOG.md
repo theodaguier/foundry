@@ -3,6 +3,14 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.55.0](https://github.com/theodaguier/foundry/compare/v1.54.0...v1.55.0) (2026-03-29)
+
+
+### Features
+
+* **landing:** add deploy script ([4f80c30](https://github.com/theodaguier/foundry/commit/4f80c30502598273d0a1f647363929639447e048))
+* **landing:** add wrangler.toml for Cloudflare Pages deploy ([3b08b7b](https://github.com/theodaguier/foundry/commit/3b08b7b9b452bbc6d431a7019d07c8575e9b5b29))
+
 ## [1.54.0](https://github.com/theodaguier/foundry/compare/v1.53.1...v1.54.0) (2026-03-29)
 
 
