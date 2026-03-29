@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.53.1](https://github.com/theodaguier/foundry/compare/v1.53.0...v1.53.1) (2026-03-29)
+
+
+### Bug Fixes
+
+* **landing:** pass NAME and PLATFORM variables to beta-waitlist-1 Resend template ([6d17990](https://github.com/theodaguier/foundry/commit/6d179906cfe6f116af32d1812074ab511f6d2d5b))
+
 ## [1.53.0](https://github.com/theodaguier/foundry/compare/v1.52.0...v1.53.0) (2026-03-29)
 
 
