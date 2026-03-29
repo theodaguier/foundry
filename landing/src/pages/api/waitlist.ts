@@ -34,7 +34,7 @@ async function sendWaitlistEmail(email: string) {
 export const POST: APIRoute = async ({ request }) => {
   try {
     const body = await request.json()
-    const { email, name, platform, ram_gb, storage_gb, daw, profile, use_case, source } = body
+    const { email, name, platform, ram_gb, storage_gb, daw, profile, use_case, source, music_genre, prior_attempt, prior_attempt_detail } = body
 
     if (!email || !email.includes("@")) {
       return new Response(JSON.stringify({ error: "Invalid email" }), {
@@ -53,6 +53,9 @@ export const POST: APIRoute = async ({ request }) => {
         profile: profile ?? null,
         use_case: use_case ?? null,
         source: source ?? null,
+        music_genre: music_genre ?? null,
+        prior_attempt: prior_attempt ?? null,
+        prior_attempt_detail: prior_attempt_detail ?? null,
         status: "pending",
       },
       { onConflict: "email", ignoreDuplicates: false }
