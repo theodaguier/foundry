@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.60.1](https://github.com/theodaguier/foundry/compare/v1.60.0...v1.60.1) (2026-03-29)
+
+
+### Bug Fixes
+
+* **landing:** remove Windows mention from tagline, mark as coming soon in form ([e1739e1](https://github.com/theodaguier/foundry/commit/e1739e1d110c18cb6f7f074338e44c8f5f4b2bbe))
+
 ## [1.60.0](https://github.com/theodaguier/foundry/compare/v1.59.0...v1.60.0) (2026-03-29)
 
 
