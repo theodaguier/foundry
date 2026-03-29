@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.59.0](https://github.com/theodaguier/foundry/compare/v1.58.0...v1.59.0) (2026-03-29)
+
+
+### Features
+
+* **landing:** add Zod validation to waitlist API endpoint ([b9826a1](https://github.com/theodaguier/foundry/commit/b9826a1698675fbb9c0a6047783568e76ef8e61f))
+
 ## [1.58.0](https://github.com/theodaguier/foundry/compare/v1.57.1...v1.58.0) (2026-03-29)
 
 
