@@ -96,19 +96,29 @@ import Layout from "../layouts/Layout.astro";
           </div>
 
           <div class="field-group">
+            <label class="field-label">AI subscription</label>
+            <div class="radio-group">
+              <label class="radio-option"><input type="radio" name="ai_subscription" value="claude" /> Claude</label>
+              <label class="radio-option"><input type="radio" name="ai_subscription" value="chatgpt" /> ChatGPT</label>
+              <label class="radio-option"><input type="radio" name="ai_subscription" value="both" /> Both</label>
+              <label class="radio-option"><input type="radio" name="ai_subscription" value="none" /> None</label>
+            </div>
+          </div>
+
+          <div class="field-group">
             <label class="field-label">Why Foundry?</label>
             <textarea name="use_case" class="textarea" placeholder="What would you build?" rows="2"></textarea>
           </div>
 
           <div class="field-group">
-            <label class="field-label">What kind of music do you make? <span class="optional">(optional)</span></label>
+            <label class="field-label">What kind of music do you make?</label>
             <div class="input-row-sm">
               <input type="text" name="music_genre" class="text-input" placeholder="e.g. techno, jazz, ambient, hip-hop&hellip;" />
             </div>
           </div>
 
           <div class="field-group">
-            <label class="field-label">Have you ever tried to build a plugin or code something audio-related? <span class="optional">(optional)</span></label>
+            <label class="field-label">Have you ever tried to build a plugin or code something audio-related?</label>
             <div class="radio-group">
               <label class="radio-option"><input type="radio" name="prior_attempt" value="yes" /> Yes</label>
               <label class="radio-option"><input type="radio" name="prior_attempt" value="no" /> No</label>

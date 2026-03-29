@@ -22,6 +22,7 @@ const waitlistSchema = z.object({
   use_case: z.string().max(2000).optional(),
   source: z.enum(["twitter", "reddit", "friend", "other"]).optional(),
   music_genre: z.string().max(200).optional(),
+  ai_subscription: z.enum(["claude", "chatgpt", "both", "none"]).optional(),
   prior_attempt: z.enum(["yes", "no"]).optional(),
   prior_attempt_detail: z.string().max(1000).optional(),
 })
@@ -72,6 +73,7 @@ export const POST: APIRoute = async ({ request }) => {
         profile: data.profile ?? null,
         use_case: data.use_case ?? null,
         source: data.source ?? null,
+        ai_subscription: data.ai_subscription ?? null,
         music_genre: data.music_genre ?? null,
         prior_attempt: data.prior_attempt ?? null,
         prior_attempt_detail: data.prior_attempt_detail ?? null,
