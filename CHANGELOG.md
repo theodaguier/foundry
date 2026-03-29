@@ -3,6 +3,14 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.53.0](https://github.com/theodaguier/foundry/compare/v1.52.0...v1.53.0) (2026-03-29)
+
+
+### Features
+
+* **landing:** add RESEND_API_KEY to .env.example ([6f676ee](https://github.com/theodaguier/foundry/commit/6f676ee333fc1c89812187be8a87b29bbdb804f3))
+* **landing:** send beta-waitlist-1 Resend template on signup ([cd31f64](https://github.com/theodaguier/foundry/commit/cd31f649e9fa2d7125fe0f0e684252c129f1d2a6))
+
 ## [1.52.0](https://github.com/theodaguier/foundry/compare/v1.51.0...v1.52.0) (2026-03-29)
 
 
