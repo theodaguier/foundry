@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.60.0](https://github.com/theodaguier/foundry/compare/v1.59.0...v1.60.0) (2026-03-29)
+
+
+### Features
+
+* **landing:** add AI subscription field and clean up form labels ([c6de421](https://github.com/theodaguier/foundry/commit/c6de4219f45bb3f23c1dbe2a18806396c935da62))
+
 ## [1.59.0](https://github.com/theodaguier/foundry/compare/v1.58.0...v1.59.0) (2026-03-29)
 
 
