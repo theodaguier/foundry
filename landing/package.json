@@ -9,7 +9,7 @@
     "deploy": "astro build && npx wrangler pages deploy dist --project-name=foundry-landing"
   },
   "dependencies": {
-    "astro": "^4.15.0",
+    "astro": "^5.0.0",
     "@supabase/supabase-js": "^2.0.0",
     "@astrojs/cloudflare": "^12.0.0"
   }
