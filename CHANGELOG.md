@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.56.2](https://github.com/theodaguier/foundry/compare/v1.56.1...v1.56.2) (2026-03-29)
+
+
+### Bug Fixes
+
+* **landing:** use output: static (Astro 5) instead of deprecated hybrid ([3e1dbc4](https://github.com/theodaguier/foundry/commit/3e1dbc462788a0200cd96f384e81c301df58f063))
+
 ## [1.56.1](https://github.com/theodaguier/foundry/compare/v1.56.0...v1.56.1) (2026-03-29)
 
 
