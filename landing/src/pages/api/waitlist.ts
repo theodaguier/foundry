@@ -23,7 +23,10 @@ async function sendWaitlistEmail(email: string) {
       to: [email],
       subject: "You're on the Foundry waitlist",
       template: "beta-waitlist-1",
-      variables: { email },
+      variables: {
+        NAME: email.trim().split("@")[0],
+        PLATFORM: platform ?? "unknown",
+      },
     }),
   })
 }
