@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.56.1](https://github.com/theodaguier/foundry/compare/v1.56.0...v1.56.1) (2026-03-29)
+
+
+### Bug Fixes
+
+* **landing:** upgrade astro to v5 for @astrojs/cloudflare compatibility ([32ab05b](https://github.com/theodaguier/foundry/commit/32ab05b1e4d4f450fd3b1f30618630eb4f963714))
+
 ## [1.56.0](https://github.com/theodaguier/foundry/compare/v1.55.0...v1.56.0) (2026-03-29)
 
 
