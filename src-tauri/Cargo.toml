@@ -1,6 +1,6 @@
 [package]
 name = "foundry"
-version = "1.57.1"
+version = "1.58.0"
 description = "Foundry - AI Audio Plugin Generator"
 authors = ["Foundry"]
 license = "MIT"

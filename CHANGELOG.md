@@ -3,6 +3,14 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.58.0](https://github.com/theodaguier/foundry/compare/v1.57.1...v1.58.0) (2026-03-29)
+
+
+### Features
+
+* **landing:** add music genre and prior plugin attempt fields (optional) ([34bfefa](https://github.com/theodaguier/foundry/commit/34bfefaea97b654dd85561fd7d344963c236b74e))
+* **supabase:** add music_genre and prior_attempt fields to waitlist ([a2fa3f9](https://github.com/theodaguier/foundry/commit/a2fa3f92469e55391d3d8e543c214c29bc59e026))
+
 ## [1.57.1](https://github.com/theodaguier/foundry/compare/v1.57.0...v1.57.1) (2026-03-29)
 
 
