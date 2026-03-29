@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.57.1](https://github.com/theodaguier/foundry/compare/v1.57.0...v1.57.1) (2026-03-29)
+
+
+### Bug Fixes
+
+* **landing:** ask for full name instead of first name ([1e40bfe](https://github.com/theodaguier/foundry/commit/1e40bfe38ffada4b3be1552d61779c345b955e73))
+
 ## [1.57.0](https://github.com/theodaguier/foundry/compare/v1.56.2...v1.57.0) (2026-03-29)
 
 
