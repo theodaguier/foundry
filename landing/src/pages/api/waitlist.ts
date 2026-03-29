@@ -24,8 +24,8 @@ async function sendWaitlistEmail(email: string) {
       subject: "You're on the Foundry waitlist",
       template: "beta-waitlist-1",
       variables: {
-        NAME: email.trim().split("@")[0],
-        PLATFORM: platform ?? "unknown",
+        NAME: (name ?? email.trim().split("@")[0]).trim(),
+        PLATFORM: (platform ?? "unknown").toUpperCase(),
       },
     }),
   })
@@ -34,7 +34,7 @@ async function sendWaitlistEmail(email: string) {
 export const POST: APIRoute = async ({ request }) => {
   try {
     const body = await request.json()
-    const { email, platform, ram_gb, storage_gb, daw, profile, use_case, source } = body
+    const { email, name, platform, ram_gb, storage_gb, daw, profile, use_case, source } = body
 
     if (!email || !email.includes("@")) {
       return new Response(JSON.stringify({ error: "Invalid email" }), {
