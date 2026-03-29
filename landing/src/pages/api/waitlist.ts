@@ -1,5 +1,6 @@
 import type { APIRoute } from "astro"
 import { createClient } from "@supabase/supabase-js"
+import { z } from "zod"
 
 const supabase = createClient(
   import.meta.env.SUPABASE_URL,
@@ -10,7 +11,22 @@ const RESEND_KEY = import.meta.env.RESEND_API_KEY
 
 export const prerender = false
 
-async function sendWaitlistEmail(email: string) {
+const waitlistSchema = z.object({
+  email: z.string().email("Invalid email address"),
+  name: z.string().min(1, "Name is required").max(200),
+  platform: z.enum(["macos", "windows", "both"]),
+  ram_gb: z.number().optional(),
+  storage_gb: z.number().optional(),
+  daw: z.enum(["ableton", "logic", "fl", "bitwig", "other"]).optional(),
+  profile: z.enum(["producer", "developer", "both"]).optional(),
+  use_case: z.string().max(2000).optional(),
+  source: z.enum(["twitter", "reddit", "friend", "other"]).optional(),
+  music_genre: z.string().max(200).optional(),
+  prior_attempt: z.enum(["yes", "no"]).optional(),
+  prior_attempt_detail: z.string().max(1000).optional(),
+})
+
+async function sendWaitlistEmail(email: string, name?: string, platform?: string) {
   if (!RESEND_KEY) return
   await fetch("https://api.resend.com/emails", {
     method: "POST",
@@ -34,28 +50,31 @@ async function sendWaitlistEmail(email: string) {
 export const POST: APIRoute = async ({ request }) => {
   try {
     const body = await request.json()
-    const { email, name, platform, ram_gb, storage_gb, daw, profile, use_case, source, music_genre, prior_attempt, prior_attempt_detail } = body
+    const result = waitlistSchema.safeParse(body)
 
-    if (!email || !email.includes("@")) {
-      return new Response(JSON.stringify({ error: "Invalid email" }), {
+    if (!result.success) {
+      const errors = result.error.flatten().fieldErrors
+      return new Response(JSON.stringify({ error: "Validation failed", fields: errors }), {
         status: 400,
         headers: { "Content-Type": "application/json" },
       })
     }
 
+    const data = result.data
+
     const { error } = await supabase.from("waitlist").upsert(
       {
-        email: email.trim().toLowerCase(),
-        platform: platform ?? null,
-        ram_gb: ram_gb ? Number(ram_gb) : null,
-        storage_gb: storage_gb ? Number(storage_gb) : null,
-        daw: daw ?? null,
-        profile: profile ?? null,
-        use_case: use_case ?? null,
-        source: source ?? null,
-        music_genre: music_genre ?? null,
-        prior_attempt: prior_attempt ?? null,
-        prior_attempt_detail: prior_attempt_detail ?? null,
+        email: data.email.trim().toLowerCase(),
+        platform: data.platform,
+        ram_gb: data.ram_gb ?? null,
+        storage_gb: data.storage_gb ?? null,
+        daw: data.daw ?? null,
+        profile: data.profile ?? null,
+        use_case: data.use_case ?? null,
+        source: data.source ?? null,
+        music_genre: data.music_genre ?? null,
+        prior_attempt: data.prior_attempt ?? null,
+        prior_attempt_detail: data.prior_attempt_detail ?? null,
         status: "pending",
       },
       { onConflict: "email", ignoreDuplicates: false }
@@ -70,7 +89,7 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     // Fire-and-forget confirmation email
-    sendWaitlistEmail(email.trim().toLowerCase()).catch(console.error)
+    sendWaitlistEmail(data.email.trim().toLowerCase(), data.name, data.platform).catch(console.error)
 
     return new Response(JSON.stringify({ ok: true }), {
       status: 200,
