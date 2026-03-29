@@ -3,6 +3,16 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.52.0](https://github.com/theodaguier/foundry/compare/v1.51.0...v1.52.0) (2026-03-29)
+
+
+### Features
+
+* **landing:** add .env.example ([d351f20](https://github.com/theodaguier/foundry/commit/d351f2097a9519e518e5df7437847a2eb76d0b1b))
+* **landing:** add @supabase/supabase-js ([eb0e5da](https://github.com/theodaguier/foundry/commit/eb0e5daaf23515b7aaf11f51e7fe8282a825fbef))
+* **landing:** enable hybrid SSR for API routes ([4fe31ad](https://github.com/theodaguier/foundry/commit/4fe31add5b71db5728af52742d1c237f3fd574dd))
+* **landing:** multi-step waitlist form — email + qualification ([91a9fc8](https://github.com/theodaguier/foundry/commit/91a9fc81783e6beb30efdc9135014ca13c7ebbd4))
+
 ## [1.51.0](https://github.com/theodaguier/foundry/compare/v1.50.0...v1.51.0) (2026-03-29)
 
 
