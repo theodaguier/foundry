@@ -3,6 +3,18 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.54.0](https://github.com/theodaguier/foundry/compare/v1.53.1...v1.54.0) (2026-03-29)
+
+
+### Features
+
+* **landing:** add first name field to waitlist form step 1 ([29b837b](https://github.com/theodaguier/foundry/commit/29b837bb23babdeb30fdc28dc81d7e4052617160))
+
+
+### Bug Fixes
+
+* **landing:** pass user NAME from form input to Resend template ([24d3db7](https://github.com/theodaguier/foundry/commit/24d3db7dfb91fd375091cb66f9425c3c6a700b7f))
+
 ## [1.53.1](https://github.com/theodaguier/foundry/compare/v1.53.0...v1.53.1) (2026-03-29)
 
 
