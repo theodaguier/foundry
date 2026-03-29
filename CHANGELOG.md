@@ -3,6 +3,14 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.56.0](https://github.com/theodaguier/foundry/compare/v1.55.0...v1.56.0) (2026-03-29)
+
+
+### Features
+
+* **landing:** add @astrojs/cloudflare adapter ([ba7833c](https://github.com/theodaguier/foundry/commit/ba7833c90722d650964402eda9816e5dc0e34dd6))
+* **landing:** configure @astrojs/cloudflare adapter for SSR ([301906c](https://github.com/theodaguier/foundry/commit/301906c5933d59decc734eade313e3110daa6930))
+
 ## [1.55.0](https://github.com/theodaguier/foundry/compare/v1.54.0...v1.55.0) (2026-03-29)
 
 
