@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.51.0](https://github.com/theodaguier/foundry/compare/v1.50.0...v1.51.0) (2026-03-29)
+
+
+### Features
+
+* **landing:** add /api/waitlist endpoint — saves to Supabase waitlist table ([b4b1454](https://github.com/theodaguier/foundry/commit/b4b14540f7c8a05f80a88de7e58c4294cb83c4d0))
+
 ## [1.50.0](https://github.com/theodaguier/foundry/compare/v1.49.2...v1.50.0) (2026-03-29)
 
 
