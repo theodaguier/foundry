@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.60.4](https://github.com/theodaguier/foundry/compare/v1.60.3...v1.60.4) (2026-03-30)
+
+
+### Bug Fixes
+
+* **telemetry:** stop infinite backlog retry loop on startup ([#185](https://github.com/theodaguier/foundry/issues/185)) ([15cc254](https://github.com/theodaguier/foundry/commit/15cc2541555a591a1220412976125c24a5817d41))
+
 ## [1.60.3](https://github.com/theodaguier/foundry/compare/v1.60.2...v1.60.3) (2026-03-30)
 
 
