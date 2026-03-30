@@ -871,10 +871,20 @@ pub fn install_codex() -> DependencyInstallResult {
         .output();
 
     match result {
-        Ok(o) if o.status.success() => DependencyInstallResult {
-            success: true,
-            message: "Codex installed successfully.".into(),
-        },
+        Ok(o) if o.status.success() => {
+            platform::invalidate_shell_cache();
+            if platform::resolve_codex_path().is_some() {
+                DependencyInstallResult {
+                    success: true,
+                    message: "Codex installed successfully.".into(),
+                }
+            } else {
+                DependencyInstallResult {
+                    success: false,
+                    message: "npm install succeeded but the codex binary was not found on PATH. Try restarting your shell.".into(),
+                }
+            }
+        }
         Ok(o) => {
             let stderr = String::from_utf8_lossy(&o.stderr);
             DependencyInstallResult {

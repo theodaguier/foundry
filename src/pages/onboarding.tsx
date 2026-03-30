@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button"
 import { FoundryLogo } from "@/components/app/foundry-logo"
 import { useAppStore } from "@/stores/app-store"
 import * as commands from "@/lib/commands"
+import * as analytics from "@/lib/analytics"
 
 // ---------------------------------------------------------------------------
 // Types
@@ -267,6 +268,7 @@ export default function Onboarding() {
   const [deps, setDeps] = useState<Dep[]>([])
   const [appeared, setAppeared] = useState(false)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const authPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const abortedRef = useRef(false)
 
   const installProgress = useInstallProgress(deps)
@@ -277,11 +279,12 @@ export default function Onboarding() {
     return () => clearTimeout(t)
   }, [])
 
-  // Clean up Xcode CLT poll on unmount
+  // Clean up polls on unmount
   useEffect(() => {
     return () => {
       abortedRef.current = true
       if (pollRef.current) clearInterval(pollRef.current)
+      if (authPollRef.current) clearInterval(authPollRef.current)
     }
   }, [])
 
@@ -323,17 +326,18 @@ export default function Onboarding() {
         ? "Approve the Windows admin prompt if it appears."
         : undefined,
     })
+    analytics.trackDependencyInstallStarted({ dependency: dep.key })
 
     try {
       if (dep.key === "juce") {
         const env = await commands.installJuce()
         if (env.jucePath) {
           updateDep(dep.key, { status: "installed", message: undefined })
+          analytics.trackDependencyInstallCompleted({ dependency: dep.key, success: true })
         } else {
-          updateDep(dep.key, {
-            status: "failed",
-            message: env.issues[0]?.detail ?? "Could not download audio framework.",
-          })
+          const msg = env.issues[0]?.detail ?? "Could not download audio framework."
+          updateDep(dep.key, { status: "failed", message: msg })
+          analytics.trackDependencyInstallCompleted({ dependency: dep.key, success: false, message: msg })
         }
         return
       }
@@ -375,12 +379,53 @@ export default function Onboarding() {
       }
 
       if (result.success) {
+        // For provider CLIs: re-check auth state and auto-launch auth if needed
+        const providerAuth: Record<string, { depName: string; launch: () => Promise<unknown> }> = {
+          claude_code: { depName: "Claude Code CLI", launch: commands.launchClaudeAuth },
+          codex: { depName: "Codex CLI", launch: commands.launchCodexAuth },
+        }
+        const auth = providerAuth[dep.key]
+        if (auth) {
+          const freshResults = await commands.checkDependencies()
+          const providerStatus = freshResults.find(r => r.name === auth.depName)
+          if (providerStatus?.installed && providerStatus.authRequired) {
+            updateDep(dep.key, { status: "auth_required", message: "Opening browser to sign in…" })
+            analytics.trackDependencyInstallCompleted({ dependency: dep.key, success: true })
+            analytics.trackDependencyAuthStarted({ provider: dep.key })
+            try { await auth.launch() } catch {}
+            // Poll for auth completion (separate ref from Xcode CLT poll)
+            if (authPollRef.current) clearInterval(authPollRef.current)
+            authPollRef.current = setInterval(async () => {
+              try {
+                const results = await commands.checkDependencies()
+                const found = results.find(r => r.name === auth.depName)
+                if (found?.installed && !found.authRequired) {
+                  if (authPollRef.current) clearInterval(authPollRef.current)
+                  authPollRef.current = null
+                  updateDep(dep.key, { status: "installed", message: undefined })
+                  analytics.trackDependencyAuthCompleted({ provider: dep.key })
+                }
+              } catch { /* keep polling */ }
+            }, 5000)
+            // Timeout after 5 minutes
+            setTimeout(() => {
+              if (authPollRef.current) {
+                clearInterval(authPollRef.current)
+                authPollRef.current = null
+              }
+            }, 300_000)
+            return
+          }
+        }
         updateDep(dep.key, { status: "installed", message: undefined })
+        analytics.trackDependencyInstallCompleted({ dependency: dep.key, success: true })
       } else {
         updateDep(dep.key, { status: "failed", message: result.message })
+        analytics.trackDependencyInstallCompleted({ dependency: dep.key, success: false, message: result.message })
       }
     } catch (e) {
       updateDep(dep.key, { status: "failed", message: String(e) })
+      analytics.trackDependencyInstallCompleted({ dependency: dep.key, success: false, message: String(e) })
     }
   }, [updateDep])
 
@@ -388,6 +433,7 @@ export default function Onboarding() {
 
   const installAll = useCallback(async () => {
     setPhase("installing")
+    analytics.trackOnboardingStarted()
 
     // Re-check first to get latest state
     const fresh = await checkDeps()
@@ -457,6 +503,7 @@ export default function Onboarding() {
   // ---- Finish ----
 
   const finish = async () => {
+    analytics.trackOnboardingCompleted()
     await commands.completeOnboarding()
     useAppStore.getState().checkOnboarding()
   }
@@ -633,13 +680,13 @@ export default function Onboarding() {
 
             {/* Actions */}
             <div className="flex flex-col items-center gap-3">
-              {phase === "ready_to_setup" && (
+              {phase === "ready_to_setup" && !allReady && (
                 <Button size="lg" onClick={installAll} className="w-full">
                   Set Up Foundry
                 </Button>
               )}
 
-              {phase === "installing" && !allReady && !hasFailed && (
+              {phase === "installing" && !allReady && !hasFailed && !hasAuthRequired && (
                 <Button size="lg" disabled className="w-full">
                   <div className="w-3.5 h-3.5 border-[1.5px] border-current border-t-transparent rounded-full animate-spin mr-2" />
                   Setting up…
@@ -667,7 +714,7 @@ export default function Onboarding() {
               {hasAuthRequired && !isInstalling && (
                 <div className="flex flex-col items-center gap-2 w-full">
                   <p className="text-[12px] text-muted-foreground text-center">
-                    Open a terminal and run <code className="text-[11px] bg-muted px-1.5 py-0.5 rounded font-mono">claude</code> to sign in, then click Re-check.
+                    Complete the sign-in in your browser, then click Re-check.
                   </p>
                   <Button
                     variant="secondary"

@@ -151,29 +151,14 @@ export interface RawUserProfile extends Partial<UserProfile> {
   card_variant?: CardVariant;
 }
 
-export interface DependencyStatus {
-  name: string;
-  installed: boolean;
-  authRequired: boolean;
-  detail?: string;
-  version?: string;
-}
-
-export interface BuildEnvironmentIssue {
-  code: string;
-  title: string;
-  detail: string;
-  recoverable: boolean;
-  actionLabel?: string;
-}
-
-export interface BuildEnvironmentStatus {
-  state: "ready" | "repairing" | "blocked";
-  issues: BuildEnvironmentIssue[];
-  juceSource?: "managed" | "override";
-  jucePath?: string;
-  juceVersion: string;
-}
+// Dependency & onboarding types — single source of truth in schemas.ts
+export type {
+  DependencyStatus,
+  BuildEnvironmentIssue,
+  BuildEnvironmentStatus,
+  OnboardingState,
+  DependencyInstallResult,
+} from "@/lib/schemas"
 
 export type PluginFilter = "ALL" | "INSTRUMENTS" | "EFFECTS" | "UTILITIES";
 
@@ -207,14 +192,4 @@ export interface BuildAttemptLog {
   success: boolean;
   duration: number;
   errorSnippet?: string;
-}
-
-export interface OnboardingState {
-  completed: boolean;
-  completedAt?: string;
-}
-
-export interface DependencyInstallResult {
-  success: boolean;
-  message: string;
 }

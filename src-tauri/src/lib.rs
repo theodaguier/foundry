@@ -41,6 +41,7 @@ pub fn run() {
             commands::generation::start_refine,
             commands::generation::cancel_build,
             commands::dependencies::check_dependencies,
+            commands::dependencies::invalidate_and_check_dependencies,
             commands::dependencies::get_build_environment,
             commands::dependencies::prepare_build_environment,
             commands::dependencies::set_juce_override_path,
@@ -60,6 +61,7 @@ pub fn run() {
             commands::onboarding::complete_onboarding,
             commands::onboarding::install_dependency,
             commands::onboarding::launch_claude_auth,
+            commands::onboarding::launch_codex_auth,
         ])
         .setup(|app| {
             let handle = app.handle().clone();

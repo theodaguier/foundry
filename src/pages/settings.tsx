@@ -3,7 +3,7 @@ import { open } from "@tauri-apps/plugin-dialog"
 import { useAppStore } from "@/stores/app-store"
 import { useBuildStore } from "@/stores/build-store"
 import { useSettingsStore } from "@/stores/settings-store"
-import { checkDependencies } from "@/lib/commands"
+import { invalidateAndCheckDependencies, installDependency, launchClaudeAuth, launchCodexAuth } from "@/lib/commands"
 import { cn } from "@/lib/utils"
 import { AgentIcon } from "@/components/app/agent-icon"
 import { Button } from "@/components/ui/button"
@@ -328,7 +328,7 @@ function ModelsTab() {
   const { modelCatalog, loadCatalog, refreshModels, isRefreshing } = useSettingsStore()
   const [deps, setDeps] = useState<DependencyStatus[]>([])
   useEffect(() => { loadCatalog() }, [loadCatalog])
-  useEffect(() => { checkDependencies().then(setDeps).catch(() => {}) }, [])
+  useEffect(() => { invalidateAndCheckDependencies().then(setDeps).catch(() => {}) }, [])
 
   const hasClaudeCode = modelCatalog.some((p) => p.name.toLowerCase().includes("claude"))
   const hasCodex = modelCatalog.some((p) => p.name.toLowerCase().includes("codex"))
@@ -388,8 +388,18 @@ function ModelsTab() {
   )
 }
 
+const DEP_INSTALL_KEY: Record<string, string> = {
+  "Xcode Command Line Tools": "xcode_clt",
+  "CMake": "cmake",
+  "Claude Code CLI": "claude_code",
+  "Codex CLI": "codex",
+}
+
+const AI_PROVIDER_NAMES = new Set(["Claude Code CLI", "Codex CLI"])
+
 function DependenciesTab() {
   const [deps, setDeps] = useState<DependencyStatus[]>([])
+  const [installing, setInstalling] = useState<string | null>(null)
   const buildEnvironment = useSettingsStore((s) => s.buildEnvironment)
   const loadBuildEnvironment = useSettingsStore((s) => s.loadBuildEnvironment)
   const installManagedJuce = useSettingsStore((s) => s.installManagedJuce)
@@ -398,11 +408,9 @@ function DependenciesTab() {
   const isPreparingEnvironment = useSettingsStore((s) => s.isPreparingEnvironment)
   const isLoadingBuildEnvironment = useSettingsStore((s) => s.isLoadingBuildEnvironment)
 
-  const optionalDeps = new Set(["Codex CLI"])
-
   const refreshDeps = useCallback(async () => {
     try {
-      const next = await checkDependencies()
+      const next = await invalidateAndCheckDependencies()
       setDeps(next)
     } catch {
       setDeps([])
@@ -413,6 +421,24 @@ function DependenciesTab() {
     void refreshDeps()
     void loadBuildEnvironment()
   }, [refreshDeps, loadBuildEnvironment])
+
+  const handleInstall = useCallback(async (dep: DependencyStatus) => {
+    const key = DEP_INSTALL_KEY[dep.name]
+    if (!key) return
+    setInstalling(key)
+    try {
+      await installDependency(key)
+    } catch {}
+    await refreshDeps()
+    setInstalling(null)
+  }, [refreshDeps])
+
+  const handleAuth = useCallback(async (depName: string) => {
+    try {
+      if (depName === "Codex CLI") await launchCodexAuth()
+      else await launchClaudeAuth()
+    } catch {}
+  }, [])
 
   const chooseJuceFolder = useCallback(async () => {
     const selection = await open({ directory: true, multiple: false })
@@ -434,6 +460,51 @@ function DependenciesTab() {
   const recheckEnvironment = useCallback(async () => {
     await Promise.all([refreshDeps(), loadBuildEnvironment()])
   }, [loadBuildEnvironment, refreshDeps])
+
+  // Filter out JUCE (handled by Build Environment card) and split into groups
+  const filteredDeps = deps.filter(d => d.name !== "JUCE SDK")
+  const buildToolDeps = filteredDeps.filter(d => !AI_PROVIDER_NAMES.has(d.name))
+  const providerDeps = filteredDeps.filter(d => AI_PROVIDER_NAMES.has(d.name))
+
+  const renderDepRow = (dep: DependencyStatus, i: number) => {
+    const key = DEP_INSTALL_KEY[dep.name]
+    const isProvider = AI_PROVIDER_NAMES.has(dep.name)
+    return (
+      <div key={dep.name}>
+        {i > 0 && <Separator />}
+        <div className="flex items-center gap-2.5 py-2">
+          <span className={cn("size-1.5 rounded-full shrink-0", dep.installed && !dep.authRequired ? "bg-green-400" : dep.authRequired ? "bg-amber-400" : "bg-destructive")} />
+          <div className="flex-1 min-w-0">
+            <div className="text-xs">{dep.name}</div>
+            {dep.detail && <div className="text-[10px] text-muted-foreground/60 truncate">{dep.detail}</div>}
+          </div>
+          {dep.installed && !dep.authRequired && (
+            <span className="text-[9px] shrink-0 text-success">Installed</span>
+          )}
+          {dep.installed && dep.authRequired && (
+            <Button variant="outline" size="xs" onClick={() => handleAuth(dep.name)} disabled={installing !== null}>
+              Sign in
+            </Button>
+          )}
+          {!dep.installed && key && (
+            <Button
+              variant="outline"
+              size="xs"
+              disabled={installing !== null}
+              onClick={() => handleInstall(dep)}
+            >
+              {installing === key ? "Installing…" : "Install"}
+            </Button>
+          )}
+          {!dep.installed && !key && (
+            <span className={cn("text-[9px] shrink-0", isProvider ? "text-muted-foreground/40" : "text-destructive")}>
+              {isProvider ? "Optional" : "Missing"}
+            </span>
+          )}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -491,33 +562,32 @@ function DependenciesTab() {
         </Card>
       </div>
 
-      <div className="flex flex-col gap-2">
-        <Label className="text-[10px]">Required</Label>
-        <Card size="sm">
-          <CardContent className="flex flex-col">
-            {deps.map((dep, i) => (
-              <div key={dep.name}>
-                {i > 0 && <Separator />}
-                <div className="flex items-center gap-2.5 py-2">
-                  <span className={cn("size-1.5 rounded-full shrink-0", dep.installed ? "bg-green-400" : "bg-destructive")} />
-                  <div className="flex-1 min-w-0">
-                    <div className="text-xs">{dep.name}</div>
-                    {dep.detail && <div className="text-[10px] text-muted-foreground/60 truncate">{dep.detail}</div>}
-                  </div>
-                  <span className={cn(
-                    "text-[9px] shrink-0",
-                    optionalDeps.has(dep.name) && !dep.installed
-                      ? "text-muted-foreground/40"
-                      : dep.installed ? "text-success" : "text-destructive",
-                  )}>
-                    {optionalDeps.has(dep.name) && !dep.installed ? "Optional" : dep.installed ? "Installed" : "Missing"}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      </div>
+      {buildToolDeps.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <Label className="text-[10px]">Build Tools</Label>
+          <Card size="sm">
+            <CardContent className="flex flex-col">
+              {buildToolDeps.map(renderDepRow)}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {providerDeps.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <Label className="text-[10px]">AI Providers</Label>
+          <Card size="sm">
+            <CardContent className="flex flex-col">
+              {providerDeps.map(renderDepRow)}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      <Button variant="outline" size="xs" onClick={refreshDeps} disabled={installing !== null} className="self-start">
+        <RefreshCw className="size-3" />
+        Re-check dependencies
+      </Button>
     </div>
   )
 }
