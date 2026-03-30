@@ -71,7 +71,7 @@ jobs:
         shell: bash
         env:
           TAURI_SIGNING_KEY_OUTPUT_PATH: ${{ runner.temp }}/tauri-updater.key
-          TAURI_SIGNING_KEY_REQUIRED: "true"
+          TAURI_SIGNING_KEY_REQUIRED: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' && 'true' || 'false' }}
         run: |
           node scripts/prepare-tauri-signing-key.mjs
           echo "TAURI_SIGNING_PRIVATE_KEY=$(cat "$TAURI_SIGNING_KEY_OUTPUT_PATH")" >> "$GITHUB_ENV"
@@ -215,7 +215,7 @@ jobs:
         shell: pwsh
         env:
           TAURI_SIGNING_KEY_OUTPUT_PATH: ${{ runner.temp }}\tauri-updater.key
-          TAURI_SIGNING_KEY_REQUIRED: "true"
+          TAURI_SIGNING_KEY_REQUIRED: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' && 'true' || 'false' }}
         run: |
           node scripts/prepare-tauri-signing-key.mjs
           $keyContent = (Get-Content $env:TAURI_SIGNING_KEY_OUTPUT_PATH -Raw).Trim()
