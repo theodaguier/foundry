@@ -13,6 +13,7 @@ import {
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu"
 import { AgentIcon } from "@/components/app/agent-icon"
+import { FoundryLogo } from "@/components/app/foundry-logo"
 import { ArrowUp, Plus } from "lucide-react"
 import type { FormatOption } from "@/lib/types"
 
@@ -122,22 +123,22 @@ export default function Prompt() {
     <div className="h-full overflow-y-auto">
       <div className="w-full flex flex-col py-8 px-6">
         {/* Hero */}
-        <div className="flex flex-col items-center gap-2 mb-8">
-          <h1 className="text-xl font-[ArchitypeStedelijk] tracking-[1px] uppercase text-foreground">
-            What will you build?
-          </h1>
-          <p className="text-[12px] text-muted-foreground text-center leading-relaxed max-w-xs">
+        <div className="flex flex-col items-center gap-3 mb-8">
+          <div className="stagger-item" style={{ animationDelay: "0ms" }}>
+            <FoundryLogo height={40} className="text-foreground" />
+          </div>
+          <p className="stagger-item text-[12px] text-muted-foreground text-center leading-relaxed max-w-xs" style={{ animationDelay: "60ms" }}>
             Describe your audio plugin. Foundry writes the C++, compiles it, and installs it in your DAW.
           </p>
           {installPaths?.supportedFormats.length === 1 && (
-            <span className="text-[10px] uppercase tracking-[1.5px] text-muted-foreground/50">
+            <span className="stagger-item text-[10px] uppercase tracking-[1.5px] text-muted-foreground/50" style={{ animationDelay: "120ms" }}>
               {installPaths.supportedFormats[0]} only
             </span>
           )}
         </div>
 
         {/* Prompt input */}
-        <div className="mb-8">
+        <div className="stagger-item mb-8" style={{ animationDelay: "100ms" }}>
           <div className="relative">
             <Textarea
               value={prompt}
@@ -201,13 +202,13 @@ export default function Prompt() {
 
         {/* Suggestions */}
         <div className="flex flex-col gap-5">
-          {suggestions.map((cat) => {
+          {suggestions.map((cat, catIndex) => {
             const isExpanded = expanded[cat.title] ?? false
             const visible = isExpanded ? cat.items : cat.items.slice(0, INITIAL_VISIBLE)
             const hasMore = cat.items.length > INITIAL_VISIBLE
 
             return (
-              <div key={cat.title} className="flex flex-col gap-2">
+              <div key={cat.title} className="stagger-item flex flex-col gap-2" style={{ animationDelay: `${180 + catIndex * 60}ms` }}>
                 <span className="text-[10px] tracking-[1.5px] uppercase text-muted-foreground/40">
                   {cat.title}
                 </span>
