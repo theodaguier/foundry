@@ -269,6 +269,9 @@ jobs:
 
       - name: Build Windows artifacts
         shell: pwsh
+        env:
+          VITE_PUBLIC_POSTHOG_PROJECT_TOKEN: ${{ secrets.VITE_PUBLIC_POSTHOG_PROJECT_TOKEN }}
+          VITE_PUBLIC_POSTHOG_HOST: https://e.byfoundry.app
         run: npm run tauri -- build --target x86_64-pc-windows-msvc --config $env:TAURI_WINDOWS_RELEASE_CONFIG
 
       - name: Collect Windows artifacts
