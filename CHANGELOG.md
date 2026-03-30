@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.60.2](https://github.com/theodaguier/foundry/compare/v1.60.1...v1.60.2) (2026-03-30)
+
+
+### Bug Fixes
+
+* **ci:** inject VITE_PUBLIC_POSTHOG_PROJECT_TOKEN in release builds ([63bf3b4](https://github.com/theodaguier/foundry/commit/63bf3b4b6617ce7254c393d179a9860835570053))
+
 ## [1.60.1](https://github.com/theodaguier/foundry/compare/v1.60.0...v1.60.1) (2026-03-29)
 
 
