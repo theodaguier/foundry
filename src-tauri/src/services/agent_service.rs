@@ -27,6 +27,7 @@ pub fn agent_display_name(agent: &str) -> &'static str {
 /// For Codex, the AGENTS.md file is prepended to the prompt since Codex
 /// doesn't read project files automatically (unlike Claude Code which reads
 /// CLAUDE.md from the working directory).
+#[allow(clippy::too_many_arguments)]
 pub async fn run(
     agent: &str,
     cli_path: &str,
@@ -76,6 +77,7 @@ fn enrich_prompt_for_codex(prompt: &str, project_dir: &str) -> String {
 }
 
 /// Run a fix pass for build errors, dispatching to the correct backend.
+#[allow(clippy::too_many_arguments)]
 pub async fn fix(
     agent: &str,
     cli_path: &str,
