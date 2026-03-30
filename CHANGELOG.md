@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.61.0](https://github.com/theodaguier/foundry/compare/v1.60.5...v1.61.0) (2026-03-30)
+
+
+### Features
+
+* add wt worktree manager CLI for cmux ([058dd39](https://github.com/theodaguier/foundry/commit/058dd39a1ac85f2fb9616c560c2ef196c987d31e))
+
 ## [1.60.5](https://github.com/theodaguier/foundry/compare/v1.60.4...v1.60.5) (2026-03-30)
 
 
