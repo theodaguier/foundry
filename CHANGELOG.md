@@ -3,6 +3,15 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.61.1](https://github.com/theodaguier/foundry/compare/v1.61.0...v1.61.1) (2026-03-30)
+
+
+### Bug Fixes
+
+* prevent deformed UI in Codex-generated plugins ([4d1c0a7](https://github.com/theodaguier/foundry/commit/4d1c0a7f70fe7a45e43af9dda13ab0b62d85cff2))
+* prevent deformed UI in Codex-generated plugins ([02b5c65](https://github.com/theodaguier/foundry/commit/02b5c65563a31a13de5f18bd95abc4c2c038ee09))
+* resolve clippy too-many-arguments and unused variables ([4cb1b41](https://github.com/theodaguier/foundry/commit/4cb1b41f878a6d21bc2d7fd9db4026486bb0b000))
+
 ## [1.61.0](https://github.com/theodaguier/foundry/compare/v1.60.5...v1.61.0) (2026-03-30)
 
 
