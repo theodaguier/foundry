@@ -65,9 +65,9 @@ pub fn run() {
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 services::build_directory_cleaner::sweep_stale_directories(&handle).await;
+                let state = handle.state::<AppState>();
+                services::telemetry_service::sync_local_backlog(&state.auth);
             });
-
-            services::telemetry_service::sync_local_backlog(&app.state::<AppState>().auth);
 
             Ok(())
         })

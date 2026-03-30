@@ -21,3 +21,4 @@ src-tauri/target/
 
 # Logs
 *.log
+pnpm-lock.yaml

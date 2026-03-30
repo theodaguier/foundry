@@ -3,6 +3,9 @@ use crate::models::telemetry::{GenerationTelemetry, TelemetryRow};
 use crate::services::auth_service::{SupabaseAuth, SUPABASE_ANON_KEY, SUPABASE_URL};
 use crate::services::{foundry_paths, plugin_manager, project_assembler};
 use std::fs;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+static BACKLOG_SYNC_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
 
 /// Save telemetry locally + sync to Supabase (fire-and-forget).
 pub fn save(telemetry: &GenerationTelemetry, auth: &SupabaseAuth) {
@@ -15,7 +18,9 @@ pub fn save(telemetry: &GenerationTelemetry, auth: &SupabaseAuth) {
     let session = auth.get_session();
     tokio::spawn(async move {
         if let Some(session) = session {
-            sync_to_supabase(&telemetry, &session.user_id, &session.access_token).await;
+            if let SyncOutcome::PermanentError = sync_to_supabase(&telemetry, &session.user_id, &session.access_token).await {
+                mark_sync_skip(&telemetry.id);
+            }
         } else {
             log::info!("[Telemetry] Not authenticated — skipping Supabase sync");
         }
@@ -40,9 +45,18 @@ fn save_local(telemetry: &GenerationTelemetry) {
 }
 
 pub fn sync_local_backlog(auth: &SupabaseAuth) {
+    if BACKLOG_SYNC_IN_PROGRESS
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_err()
+    {
+        log::info!("[Telemetry] Backlog sync already in progress, skipping.");
+        return;
+    }
+
     let session = match auth.get_session() {
         Some(session) => session,
         None => {
+            BACKLOG_SYNC_IN_PROGRESS.store(false, Ordering::SeqCst);
             log::info!("[Telemetry] Backlog sync skipped: not authenticated");
             return;
         }
@@ -53,32 +67,44 @@ pub fn sync_local_backlog(auth: &SupabaseAuth) {
             Ok(rows) => rows,
             Err(e) => {
                 log::error!("[Telemetry] Failed to load backlog: {}", e);
+                BACKLOG_SYNC_IN_PROGRESS.store(false, Ordering::SeqCst);
                 return;
             }
         };
-        if telemetries.is_empty() {
+
+        let pending: Vec<_> = telemetries.into_iter().filter(|t| !t.sync_skip).collect();
+        if pending.is_empty() {
+            BACKLOG_SYNC_IN_PROGRESS.store(false, Ordering::SeqCst);
             return;
         }
 
         let plugins = plugin_manager::load_plugins().unwrap_or_default();
         let mut synced = 0usize;
+        let mut skipped = 0usize;
         let mut failed = 0usize;
 
-        for telemetry in telemetries {
+        for telemetry in pending {
             let telemetry = normalize_telemetry(telemetry, &plugins);
             save_local(&telemetry);
-            if sync_to_supabase(&telemetry, &session.user_id, &session.access_token).await {
-                synced += 1;
-            } else {
-                failed += 1;
+            match sync_to_supabase(&telemetry, &session.user_id, &session.access_token).await {
+                SyncOutcome::Success => synced += 1,
+                SyncOutcome::AuthExpired => {
+                    log::warn!("[Telemetry] Backlog sync aborted: JWT expired. Will retry after re-auth.");
+                    break;
+                }
+                SyncOutcome::PermanentError => {
+                    mark_sync_skip(&telemetry.id);
+                    skipped += 1;
+                }
+                SyncOutcome::TransientError => failed += 1,
             }
         }
 
         log::info!(
-            "[Telemetry] Backlog sync finished: {} synced, {} failed",
-            synced,
-            failed
+            "[Telemetry] Backlog sync finished: {} synced, {} skipped (permanent), {} failed (transient)",
+            synced, skipped, failed
         );
+        BACKLOG_SYNC_IN_PROGRESS.store(false, Ordering::SeqCst);
     });
 }
 
@@ -92,7 +118,8 @@ fn normalize_telemetry(mut telemetry: GenerationTelemetry, plugins: &[Plugin]) -
     }
 
     if missing_string(telemetry.channel_layout.as_deref()) {
-        telemetry.channel_layout = plugin_channel_layout_from_plugins(&telemetry, plugins);
+        telemetry.channel_layout = plugin_channel_layout_from_plugins(&telemetry, plugins)
+            .or_else(|| Some("stereo".to_string()));
     }
 
     if missing_string(telemetry.os_platform.as_deref()) {
@@ -273,11 +300,18 @@ fn detect_cpu_architecture() -> String {
     std::env::consts::ARCH.to_string()
 }
 
+enum SyncOutcome {
+    Success,
+    AuthExpired,    // 401 — token expired, abort batch
+    PermanentError, // 403 — RLS / data violation, mark as skip
+    TransientError, // network error or unexpected status
+}
+
 async fn sync_to_supabase(
     telemetry: &GenerationTelemetry,
     user_id: &str,
     access_token: &str,
-) -> bool {
+) -> SyncOutcome {
     let row = TelemetryRow::from_telemetry(telemetry, user_id);
     let url = format!(
         "{}/rest/v1/generation_telemetry?on_conflict=id",
@@ -299,17 +333,44 @@ async fn sync_to_supabase(
         Ok(resp) => {
             if resp.status().is_success() {
                 log::info!("[Telemetry] Synced to Supabase: {}", telemetry.id);
-                true
+                SyncOutcome::Success
             } else {
                 let status = resp.status();
                 let body = resp.text().await.unwrap_or_default();
-                log::error!("[Telemetry] Supabase sync failed ({}): {}", status, body);
-                false
+                match status.as_u16() {
+                    401 => {
+                        log::warn!("[Telemetry] JWT expired ({})", telemetry.id);
+                        SyncOutcome::AuthExpired
+                    }
+                    400 | 403 => {
+                        log::error!(
+                            "[Telemetry] Permanent failure for {} — will not retry: {}",
+                            telemetry.id, body
+                        );
+                        SyncOutcome::PermanentError
+                    }
+                    _ => {
+                        log::error!("[Telemetry] Supabase sync failed ({}): {}", status, body);
+                        SyncOutcome::TransientError
+                    }
+                }
             }
         }
         Err(e) => {
             log::error!("[Telemetry] Supabase sync request failed: {}", e);
-            false
+            SyncOutcome::TransientError
+        }
+    }
+}
+
+fn mark_sync_skip(id: &str) {
+    let path = foundry_paths::telemetry_dir().join(format!("{}.json", id));
+    if let Ok(data) = fs::read_to_string(&path) {
+        if let Ok(mut telemetry) = serde_json::from_str::<GenerationTelemetry>(&data) {
+            telemetry.sync_skip = true;
+            if let Ok(json) = serde_json::to_string_pretty(&telemetry) {
+                let _ = fs::write(&path, json);
+            }
         }
     }
 }
