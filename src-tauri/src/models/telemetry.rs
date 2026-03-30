@@ -35,6 +35,9 @@ pub struct GenerationTelemetry {
     pub juce_version: Option<String>,
     pub created_at: String,
     pub user_rating: Option<i16>,
+    /// Set to true after a permanent sync failure (e.g. RLS 403) so backlog sync skips this record.
+    #[serde(default)]
+    pub sync_skip: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -307,6 +310,7 @@ impl TelemetryBuilder {
             juce_version: self.juce_version,
             created_at: chrono::Utc::now().to_rfc3339(),
             user_rating: None,
+            sync_skip: false,
         }
     }
 }
