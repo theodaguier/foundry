@@ -10,7 +10,7 @@ fn check_claude_auth() -> bool {
         return false;
     }
 
-    let cmd_path = platform::resolve_claude_path().unwrap_or_else(|| resolved);
+    let cmd_path = platform::resolve_claude_path().unwrap_or(resolved);
 
     let mut cmd = Command::new(&cmd_path);
     cmd.args(["auth", "status"]);

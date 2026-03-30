@@ -331,7 +331,7 @@ pub fn load_all() -> Result<Vec<GenerationTelemetry>, Box<dyn std::error::Error>
     let mut results = Vec::new();
     for entry in fs::read_dir(&dir)? {
         let entry = entry?;
-        if entry.path().extension().map_or(false, |ext| ext == "json") {
+        if entry.path().extension().is_some_and(|ext| ext == "json") {
             if let Ok(data) = fs::read_to_string(entry.path()) {
                 if let Ok(t) = serde_json::from_str::<GenerationTelemetry>(&data) {
                     results.push(t);

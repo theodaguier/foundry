@@ -6,10 +6,12 @@ use std::sync::{LazyLock, Mutex};
 static SUPABASE_URL_DEFAULT: &str = "https://bpqqfpdaigphewgobmpe.supabase.co";
 static SUPABASE_ANON_KEY_DEFAULT: &str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJwcXFmcGRhaWdwaGV3Z29ibXBlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQwODc3NTYsImV4cCI6MjA4OTY2Mzc1Nn0.YKFmmJk39st-P68Dvztn9YHSCteXWGAvMNyM3hNofy4";
 
+#[allow(clippy::incompatible_msrv)]
 pub static SUPABASE_URL: LazyLock<String> = LazyLock::new(|| {
     std::env::var("SUPABASE_URL").unwrap_or_else(|_| SUPABASE_URL_DEFAULT.to_string())
 });
 
+#[allow(clippy::incompatible_msrv)]
 pub static SUPABASE_ANON_KEY: LazyLock<String> = LazyLock::new(|| {
     std::env::var("SUPABASE_ANON_KEY").unwrap_or_else(|_| SUPABASE_ANON_KEY_DEFAULT.to_string())
 });

@@ -574,10 +574,10 @@ fn format_vs_build_tools_failure(exit_code: Option<i32>) -> String {
 pub fn install_cpp_build_tools() -> DependencyInstallResult {
     #[cfg(not(target_os = "windows"))]
     {
-        return DependencyInstallResult {
+        DependencyInstallResult {
             success: false,
             message: "C++ Build Tools installation is only available on Windows.".into(),
-        };
+        }
     }
 
     #[cfg(target_os = "windows")]

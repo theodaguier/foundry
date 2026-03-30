@@ -364,24 +364,21 @@ fn parse_codex_events(
             let item = &json["item"];
             let item_type = item["type"].as_str().unwrap_or("");
 
-            match item_type {
-                "command_execution" => {
-                    if let Some(cmd) = item["command"].as_str() {
-                        // Strip the shell wrapper to show the actual command
-                        let display_cmd = cmd
-                            .strip_prefix("/bin/zsh -lc ")
-                            .or_else(|| cmd.strip_prefix("/bin/bash -lc "))
-                            .unwrap_or(cmd)
-                            .trim_matches('\'')
-                            .trim_matches('"');
-                        events.push(ClaudeEvent::ToolUse {
-                            tool: "command".to_string(),
-                            file_path: None,
-                            detail: Some(truncate(display_cmd, 80)),
-                        });
-                    }
+            if item_type == "command_execution" {
+                if let Some(cmd) = item["command"].as_str() {
+                    // Strip the shell wrapper to show the actual command
+                    let display_cmd = cmd
+                        .strip_prefix("/bin/zsh -lc ")
+                        .or_else(|| cmd.strip_prefix("/bin/bash -lc "))
+                        .unwrap_or(cmd)
+                        .trim_matches('\'')
+                        .trim_matches('"');
+                    events.push(ClaudeEvent::ToolUse {
+                        tool: "command".to_string(),
+                        file_path: None,
+                        detail: Some(truncate(display_cmd, 80)),
+                    });
                 }
-                _ => {}
             }
         }
 
