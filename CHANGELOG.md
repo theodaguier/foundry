@@ -3,6 +3,15 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.60.5](https://github.com/theodaguier/foundry/compare/v1.60.4...v1.60.5) (2026-03-30)
+
+
+### Bug Fixes
+
+* **onboarding:** fix 5 critical macOS bugs blocking beta [ME-20] ([9dd7b13](https://github.com/theodaguier/foundry/commit/9dd7b13ae2991c635721c7b1ee021a86235525e0))
+* **onboarding:** fix 5 critical macOS onboarding bugs blocking beta (ME-20) ([0dd9200](https://github.com/theodaguier/foundry/commit/0dd9200475b433720df7e906ab50c58ad78f5323))
+* remove unused resolve_git_bash_path export (clippy dead_code on Windows) ([7a68fd5](https://github.com/theodaguier/foundry/commit/7a68fd54eff2802a9f5cf9c71a446a5193ad360e))
+
 ## [1.60.4](https://github.com/theodaguier/foundry/compare/v1.60.3...v1.60.4) (2026-03-30)
 
 
