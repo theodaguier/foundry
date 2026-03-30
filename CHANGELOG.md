@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.60.3](https://github.com/theodaguier/foundry/compare/v1.60.2...v1.60.3) (2026-03-30)
+
+
+### Bug Fixes
+
+* **ci:** make updater signing key optional — build succeeds even if TAURI_SIGNING_PRIVATE_KEY is not set ([05e919b](https://github.com/theodaguier/foundry/commit/05e919bbf621b2c630441e9c69ae1790adb58d1d))
+
 ## [1.60.2](https://github.com/theodaguier/foundry/compare/v1.60.1...v1.60.2) (2026-03-30)
 
 
