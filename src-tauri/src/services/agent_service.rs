@@ -68,10 +68,21 @@ pub async fn run(
 }
 
 /// Prepend AGENTS.md content to the prompt so Codex has full context.
+///
+/// The content is clearly framed so the model knows it is the mission brief
+/// and does not try to read CLAUDE.md (which contains the same content on disk).
 fn enrich_prompt_for_codex(prompt: &str, project_dir: &str) -> String {
     let agents_md_path = std::path::Path::new(project_dir).join("AGENTS.md");
     match std::fs::read_to_string(&agents_md_path) {
-        Ok(agents_md) => format!("{}\n\n---\n\n{}", agents_md, prompt),
+        Ok(agents_md) => format!(
+            "# MISSION BRIEF (your full spec — do not read CLAUDE.md, it is a duplicate)\n\n\
+            {agents_md}\n\n\
+            ---\n\n\
+            # TASK\n\n\
+            {prompt}",
+            agents_md = agents_md,
+            prompt = prompt,
+        ),
         Err(_) => prompt.to_string(),
     }
 }

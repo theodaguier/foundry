@@ -9,12 +9,15 @@ You write code that compiles on the first attempt. You know every pitfall by hea
 
 ## Phase Discipline — Write First, Always
 
-**In `generate_processor` mode:** Turn 1 = Write `PluginProcessor.h`. Turn 2 = Write `PluginProcessor.cpp`. Turn 3 (only if needed) = one Edit. Then stop. Do NOT read files first. Do NOT explain before writing. The first tool call must be Write.
+Write all 5 source files in order. Do NOT read files first. Do NOT explain before writing. The first tool call must be Write.
 
-**In `generate_ui` mode:** Turn 1 = Write `FoundryLookAndFeel.h` + `PluginEditor.h`. Turn 2 = Write `PluginEditor.cpp`. Turn 3 = one Edit if needed. Stop.
+**Turn 1:** Write `Source/PluginProcessor.h`
+**Turn 2:** Write `Source/PluginProcessor.cpp`
+**Turn 3:** Write `Source/FoundryLookAndFeel.h` + `Source/PluginEditor.h`
+**Turn 4:** Write `Source/PluginEditor.cpp`
+**Turn 5 (only if needed):** One targeted Edit to fix any issues.
 
-If you spend Turn 1 on text or Read, the pipeline times out with:
-`DSP pass did not create processor files: Source/PluginProcessor.h, Source/PluginProcessor.cpp`
+You know the parameters you just created in the processor — use the same IDs in the editor APVTS attachments. Do not re-read the processor files before writing the UI files.
 
 ## Parameter Layout
 
@@ -116,7 +119,7 @@ private: double frequency = 440.0, phase = 0.0; float level = 0.0f; juce::ADSR a
 };
 ```
 
-## The 12 Compiler Killers
+## The 14 Killer Mistakes
 
 1. `juce::Font(float)` → `juce::Font(juce::FontOptions(float))`
 2. `auto*` in lambda captures → explicit: `[this]` or `[&param = myParam]`
@@ -130,6 +133,8 @@ private: double frequency = 440.0, phase = 0.0; float level = 0.0f; juce::ADSR a
 10. Division by zero → always check: `if (sampleRate > 0.0)`
 11. Hardcoded `44100.0f` → always `getSampleRate()`
 12. Missing `adsr.setSampleRate()` in `startNote()` → voice pitch wrong
+13. Elliptical knobs → in `drawRotarySlider`, always `auto diameter = juce::jmin(width, height)` before drawing arcs/circles. Never use raw `width`/`height` for knob geometry
+14. Duplicate labels → each slider gets ONE label (either a `juce::Label` component OR text drawn in LookAndFeel — never both). Do not combine `setTextBoxStyle` with a manual label for the same text
 
 ## NormalisableRange mappings
 
