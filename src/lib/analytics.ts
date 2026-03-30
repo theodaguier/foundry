@@ -6,7 +6,11 @@ const POSTHOG_HOST = (import.meta.env.VITE_PUBLIC_POSTHOG_HOST as string | undef
 let initialized = false
 
 export function initAnalytics() {
-  if (!POSTHOG_KEY || initialized) return
+  if (!POSTHOG_KEY) {
+    console.warn("[analytics] PostHog key not set — analytics disabled")
+    return
+  }
+  if (initialized) return
   posthog.init(POSTHOG_KEY, {
     api_host: POSTHOG_HOST,
     ui_host: "https://eu.posthog.com",
@@ -30,7 +34,11 @@ export function resetUser() {
 
 export function track(event: string, props?: Record<string, unknown>) {
   if (!initialized) return
-  posthog.capture(event, props)
+  try {
+    posthog.capture(event, props)
+  } catch (e) {
+    console.error("[analytics] track failed:", event, e)
+  }
 }
 
 // ── Typed event helpers ──────────────────────────────────────────────────────
