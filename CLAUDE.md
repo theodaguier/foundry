@@ -428,6 +428,38 @@ macOS and Windows code signing are **optional** — if the certificate import fa
 - **`ConsolePanel`** — auto-scrolling build log with `useLayoutEffect` scroll-to-bottom, extracted from generation-progress
 - **Update notification** — sidebar footer shows update banner when `updateStatus === "available"`, opens dialog with release notes and Install/Later buttons
 
+## Worktree Workflow (`wt`)
+
+`wt` is a shell script at `~/.local/bin/wt` that creates git worktrees for this repo and opens them as new tabs in the current cmux workspace.
+
+### Commands
+
+```
+wt                       # fzf interactive picker — switch to existing or create new
+wt new [branch-name]     # new worktree from scratch
+wt gh <issue-number>     # from GitHub issue  (e.g. wt gh 182)
+wt linear <issue-id>     # from Linear issue  (e.g. wt linear ME-8)
+wt ls                    # list all worktrees
+wt rm <name>             # remove worktree + optionally delete branch
+```
+
+### Behavior
+
+- Worktrees are created in `~/conductor/workspaces/foundry/<name>/`
+- Each command opens a new tab in the current cmux workspace, named after the branch/issue, with the shell `cd`'d into the worktree directory
+- GitHub issues are fetched via `gh` CLI — branch name is `<number>-<slugified-title>`
+- Linear issues are fetched via the Linear GraphQL API — branch name comes from Linear's `branchName` field
+- Linear API key is read from `~/.config/linear/token` or `$LINEAR_API_KEY`
+
+### Configuration
+
+| Env var | Default | Description |
+|---|---|---|
+| `FOUNDRY_REPO` | `~/Developer/personal/foundry` | Main repo path |
+| `FOUNDRY_WORKTREE_BASE` | `~/conductor/workspaces/foundry` | Worktree destination |
+| `LINEAR_API_KEY` | reads `~/.config/linear/token` | Linear personal API key |
+| `CMUX_BIN` | auto-detected | Override cmux binary path |
+
 ## Known Issues / Open Items
 
 - Smoke test only checks bundle existence (`.component`/`.vst3`), not audio validity
