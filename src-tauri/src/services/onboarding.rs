@@ -162,6 +162,7 @@ pub fn install_xcode_clt() -> DependencyInstallResult {
     }
 }
 
+#[cfg(not(target_os = "windows"))]
 fn resolve_brew_path() -> Option<String> {
     let resolved = platform::resolve_command("brew");
     if resolved != "brew" {
@@ -352,6 +353,7 @@ fn run_winget_install(
     }
 }
 
+#[cfg(not(target_os = "windows"))]
 fn install_homebrew() -> Result<(), String> {
     #[cfg(not(target_os = "macos"))]
     {
