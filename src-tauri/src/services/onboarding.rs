@@ -129,10 +129,10 @@ pub async fn complete_onboarding(auth: &SupabaseAuth) -> Result<OnboardingState,
 pub fn install_xcode_clt() -> DependencyInstallResult {
     #[cfg(not(target_os = "macos"))]
     {
-        return DependencyInstallResult {
+        DependencyInstallResult {
             success: false,
             message: "Xcode Command Line Tools are only available on macOS.".into(),
-        };
+        }
     }
 
     #[cfg(target_os = "macos")]
@@ -162,6 +162,7 @@ pub fn install_xcode_clt() -> DependencyInstallResult {
     }
 }
 
+#[cfg(not(target_os = "windows"))]
 fn resolve_brew_path() -> Option<String> {
     let resolved = platform::resolve_command("brew");
     if resolved != "brew" {
@@ -198,7 +199,7 @@ fn resolve_npm_path() -> Option<String> {
             }
         }
 
-        return None;
+        None
     }
 
     #[cfg(not(target_os = "windows"))]
@@ -253,7 +254,7 @@ fn sanitize_winget_output(raw: &str) -> String {
                 .to_string();
             // Also strip any remaining runs of just spinner chars at end
             cleaned
-                .trim_end_matches(|c: char| matches!(c, '-' | '\\' | '|' | '/' | ' '))
+                .trim_end_matches(['-', '\\', '|', '/', ' '])
                 .trim()
                 .to_string()
         })
@@ -352,10 +353,11 @@ fn run_winget_install(
     }
 }
 
+#[cfg(not(target_os = "windows"))]
 fn install_homebrew() -> Result<(), String> {
     #[cfg(not(target_os = "macos"))]
     {
-        return Err("Homebrew installation is only supported on macOS.".into());
+        Err("Homebrew installation is only supported on macOS.".into())
     }
 
     #[cfg(target_os = "macos")]
@@ -388,7 +390,7 @@ pub fn install_git() -> DependencyInstallResult {
 
     #[cfg(target_os = "windows")]
     {
-        return run_winget_install("Git.Git", "Git for Windows", &[]);
+        run_winget_install("Git.Git", "Git for Windows", &[])
     }
 
     #[cfg(not(target_os = "windows"))]
@@ -412,9 +414,11 @@ pub fn install_cmake() -> DependencyInstallResult {
 
     #[cfg(target_os = "windows")]
     {
-        return run_winget_install("Kitware.CMake", "CMake", &[]);
+        run_winget_install("Kitware.CMake", "CMake", &[])
     }
 
+    #[cfg(not(target_os = "windows"))]
+    {
     let brew = match resolve_brew_path() {
         Some(path) => path,
         None => {
@@ -462,6 +466,7 @@ pub fn install_cmake() -> DependencyInstallResult {
             success: false,
             message: format!("Failed to run brew: {}", e),
         },
+    }
     }
 }
 
@@ -574,10 +579,10 @@ fn format_vs_build_tools_failure(exit_code: Option<i32>) -> String {
 pub fn install_cpp_build_tools() -> DependencyInstallResult {
     #[cfg(not(target_os = "windows"))]
     {
-        return DependencyInstallResult {
+        DependencyInstallResult {
             success: false,
             message: "C++ Build Tools installation is only available on Windows.".into(),
-        };
+        }
     }
 
     #[cfg(target_os = "windows")]
@@ -710,10 +715,10 @@ fn ensure_npm() -> Result<String, String> {
             return Ok(npm);
         }
 
-        return Err(
+        Err(
             "Node.js was installed but npm is not yet available. Please restart Foundry and try again."
                 .to_string(),
-        );
+        )
     }
 
     #[cfg(not(target_os = "windows"))]
