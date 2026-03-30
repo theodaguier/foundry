@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useAppStore } from "@/stores/app-store"
+import { FoundryLogo } from "@/components/app/foundry-logo"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import * as commands from "@/lib/commands"
@@ -118,19 +119,11 @@ export default function AuthContainer() {
     <div className="flex flex-col items-center justify-center h-full bg-background">
       <div className="w-[340px] flex flex-col gap-8">
         {/* Header */}
-        <div className="flex flex-col items-center gap-3">
-          <div className="relative h-12 overflow-hidden">
-            <span className="text-3xl font-[ArchitypeStedelijk] text-foreground opacity-50">
-              FOUNDRY
-            </span>
-            <div className="absolute inset-0 overflow-hidden">
-              <span className="text-3xl font-[ArchitypeStedelijk] text-foreground">
-                FOUNDRY
-              </span>
-              <div className="absolute inset-0 w-10 bg-gradient-to-r from-transparent via-foreground/10 to-transparent animate-shimmer" />
-            </div>
+        <div className="flex flex-col items-center gap-4">
+          <div className="auth-fade-in auth-logo-shimmer" style={{ animationDelay: "0ms" }}>
+            <FoundryLogo height={52} className="text-foreground" />
           </div>
-          <span className="text-[10px] font-mono tracking-[2px] text-muted-foreground/60">
+          <span className="auth-fade-in text-[10px] font-mono tracking-[2px] text-muted-foreground/60" style={{ animationDelay: "80ms" }}>
             {headerSubtitle}
           </span>
         </div>
@@ -138,7 +131,7 @@ export default function AuthContainer() {
         {/* Login */}
         {screen === "login" && (
           <div className="flex flex-col gap-8">
-            <div className="rounded-lg overflow-hidden">
+            <div className="auth-fade-in rounded-lg overflow-hidden" style={{ animationDelay: "160ms" }}>
               <div className="px-4 py-3 bg-muted/60">
                 <label className="block text-[9px] tracking-[2px] text-muted-foreground/60 mb-1.5">EMAIL</label>
                 <Input
@@ -155,11 +148,12 @@ export default function AuthContainer() {
             <Button
               onClick={sendCode}
               disabled={!email || isLoading}
-              className="w-full h-11 text-xs tracking-[2px] font-mono"
+              className="auth-fade-in w-full h-11 text-xs tracking-[2px] font-mono"
+              style={{ animationDelay: "240ms" }}
             >
               {isLoading ? <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" /> : "SEND CODE"}
             </Button>
-            <div className="flex items-center justify-center gap-1.5">
+            <div className="auth-fade-in flex items-center justify-center gap-1.5" style={{ animationDelay: "320ms" }}>
               <span className="text-[10px] tracking-[1px] text-muted-foreground/60">NO ACCOUNT?</span>
               <button onClick={() => switchTo("signup")} className="text-[10px] tracking-[1px] text-foreground underline font-medium">CREATE ONE</button>
             </div>
