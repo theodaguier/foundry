@@ -82,3 +82,33 @@ export function trackPluginDeleted() {
 export function trackRefineStarted(props: { agent: string; model: string }) {
   track("plugin_refine_started", props)
 }
+
+// ── Onboarding & dependency events ──────────────────────────────────────────
+
+export function trackOnboardingStarted() {
+  track("onboarding_started")
+}
+
+export function trackOnboardingCompleted() {
+  track("onboarding_completed")
+}
+
+export function trackDependencyInstallStarted(props: { dependency: string }) {
+  track("dependency_install_started", props)
+}
+
+export function trackDependencyInstallCompleted(props: {
+  dependency: string
+  success: boolean
+  message?: string
+}) {
+  track("dependency_install_completed", props)
+}
+
+export function trackDependencyAuthStarted(props: { provider: string }) {
+  track("dependency_auth_started", props)
+}
+
+export function trackDependencyAuthCompleted(props: { provider: string }) {
+  track("dependency_auth_completed", props)
+}

@@ -56,64 +56,31 @@ pub async fn install_dependency(
     Ok(result)
 }
 
-/// Open a terminal window running `claude` so the user can complete the
-/// interactive OAuth sign-in flow.
+/// Launch `claude auth login` directly — opens the browser for OAuth.
+/// No terminal window needed.
 #[command]
 pub async fn launch_claude_auth() -> Result<bool, String> {
     let claude_path = platform::resolve_claude_path()
         .unwrap_or_else(|| platform::resolve_command("claude"));
 
-    #[cfg(target_os = "macos")]
-    {
-        // Open Terminal.app running claude
-        let script = format!(
-            "tell application \"Terminal\"
-                activate
-                do script \"'{}'\"
-            end tell",
-            claude_path
-        );
-        Command::new("osascript")
-            .args(["-e", &script])
-            .spawn()
-            .map_err(|e| format!("Could not open Terminal: {}", e))?;
-        Ok(true)
-    }
+    Command::new(&claude_path)
+        .args(["auth", "login"])
+        .spawn()
+        .map_err(|e| format!("Could not launch claude auth login: {}", e))?;
 
-    #[cfg(target_os = "windows")]
-    {
-        // Find Git Bash — Claude Code on Windows requires it
-        let git_bash = platform::resolve_git_bash_path();
+    Ok(true)
+}
 
-        // Build a command that sets the env var if needed, then runs claude
-        let cmd_line = if let Some(bash_path) = &git_bash {
-            format!(
-                "set \"CLAUDE_CODE_GIT_BASH_PATH={}\" && \"{}\"",
-                bash_path, claude_path
-            )
-        } else {
-            format!("\"{}\"", claude_path)
-        };
+/// Launch `codex login` directly — opens the browser for OAuth.
+#[command]
+pub async fn launch_codex_auth() -> Result<bool, String> {
+    let codex_path = platform::resolve_codex_path()
+        .unwrap_or_else(|| platform::resolve_command("codex"));
 
-        Command::new("cmd")
-            .args(["/c", "start", "cmd", "/k", &cmd_line])
-            .spawn()
-            .map_err(|e| format!("Could not open terminal: {}", e))?;
-        Ok(true)
-    }
+    Command::new(&codex_path)
+        .args(["login"])
+        .spawn()
+        .map_err(|e| format!("Could not launch codex login: {}", e))?;
 
-    #[cfg(target_os = "linux")]
-    {
-        // Try common terminal emulators
-        for term in &["gnome-terminal", "konsole", "xterm"] {
-            if Command::new(term)
-                .args(["--", &claude_path])
-                .spawn()
-                .is_ok()
-            {
-                return Ok(true);
-            }
-        }
-        return Err("Could not find a terminal emulator.".into());
-    }
+    Ok(true)
 }

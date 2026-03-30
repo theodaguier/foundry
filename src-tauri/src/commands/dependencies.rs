@@ -1,3 +1,4 @@
+use crate::platform;
 use crate::services::build_environment;
 use crate::services::dependency_checker;
 use tauri::{command, Emitter};
@@ -19,6 +20,16 @@ pub struct DependencyStatus {
 
 #[command]
 pub async fn check_dependencies() -> Result<Vec<DependencyStatus>, String> {
+    dependency_checker::check_all()
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Invalidate the cached shell environment, then re-check all dependencies.
+/// Used by Settings to ensure freshly installed tools are detected.
+#[command]
+pub async fn invalidate_and_check_dependencies() -> Result<Vec<DependencyStatus>, String> {
+    platform::invalidate_shell_cache();
     dependency_checker::check_all()
         .await
         .map_err(|e| e.to_string())

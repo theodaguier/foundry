@@ -1,4 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
+import {
+  DependencyStatusArraySchema,
+  BuildEnvironmentStatusSchema,
+  OnboardingStateSchema,
+  DependencyInstallResultSchema,
+} from "@/lib/schemas"
 import type {
   Plugin,
   GenerationConfig,
@@ -42,16 +48,46 @@ export const startRefine = (config: RefineConfig) =>
   invoke<void>("start_refine", { config });
 export const cancelBuild = () => invoke<void>("cancel_build");
 
-export const checkDependencies = () => invoke<DependencyStatus[]>("check_dependencies");
-export const installJuce = () => invoke<BuildEnvironmentStatus>("install_juce");
-export const getBuildEnvironment = () =>
-  invoke<BuildEnvironmentStatus>("get_build_environment");
-export const prepareBuildEnvironment = (autoRepair: boolean) =>
-  invoke<BuildEnvironmentStatus>("prepare_build_environment", { autoRepair });
-export const setJuceOverridePath = (path: string) =>
-  invoke<BuildEnvironmentStatus>("set_juce_override_path", { path });
-export const clearJuceOverridePath = () =>
-  invoke<BuildEnvironmentStatus>("clear_juce_override_path");
+// ---------------------------------------------------------------------------
+// Dependencies & onboarding — validated with Zod at the IPC boundary
+// ---------------------------------------------------------------------------
+
+export const checkDependencies = async (): Promise<DependencyStatus[]> =>
+  DependencyStatusArraySchema.parse(await invoke("check_dependencies"));
+
+export const invalidateAndCheckDependencies = async (): Promise<DependencyStatus[]> =>
+  DependencyStatusArraySchema.parse(await invoke("invalidate_and_check_dependencies"));
+
+export const installJuce = async (): Promise<BuildEnvironmentStatus> =>
+  BuildEnvironmentStatusSchema.parse(await invoke("install_juce"));
+
+export const getBuildEnvironment = async (): Promise<BuildEnvironmentStatus> =>
+  BuildEnvironmentStatusSchema.parse(await invoke("get_build_environment"));
+
+export const prepareBuildEnvironment = async (autoRepair: boolean): Promise<BuildEnvironmentStatus> =>
+  BuildEnvironmentStatusSchema.parse(await invoke("prepare_build_environment", { autoRepair }));
+
+export const setJuceOverridePath = async (path: string): Promise<BuildEnvironmentStatus> =>
+  BuildEnvironmentStatusSchema.parse(await invoke("set_juce_override_path", { path }));
+
+export const clearJuceOverridePath = async (): Promise<BuildEnvironmentStatus> =>
+  BuildEnvironmentStatusSchema.parse(await invoke("clear_juce_override_path"));
+
+export const getOnboardingState = async (): Promise<OnboardingState> =>
+  OnboardingStateSchema.parse(await invoke("get_onboarding_state"));
+
+export const completeOnboarding = async (): Promise<OnboardingState> =>
+  OnboardingStateSchema.parse(await invoke("complete_onboarding"));
+
+export const installDependency = async (name: string): Promise<DependencyInstallResult> =>
+  DependencyInstallResultSchema.parse(await invoke("install_dependency", { name }));
+
+export const launchClaudeAuth = () => invoke<boolean>("launch_claude_auth");
+export const launchCodexAuth = () => invoke<boolean>("launch_codex_auth");
+
+// ---------------------------------------------------------------------------
+// Models & install paths (no Zod — not in onboarding critical path)
+// ---------------------------------------------------------------------------
 
 export const getModelCatalog = () => invoke<AgentProvider[]>("get_model_catalog");
 export const refreshModelCatalog = () => invoke<AgentProvider[]>("refresh_model_catalog");
@@ -82,9 +118,3 @@ export const loadTelemetry = (id: string) =>
 export const loadAllTelemetry = () => invoke<GenerationTelemetry[]>("load_all_telemetry");
 
 export const showInFinder = (path: string) => invoke<void>("show_in_finder", { path });
-
-export const getOnboardingState = () => invoke<OnboardingState>("get_onboarding_state");
-export const completeOnboarding = () => invoke<OnboardingState>("complete_onboarding");
-export const installDependency = (name: string) =>
-  invoke<DependencyInstallResult>("install_dependency", { name });
-export const launchClaudeAuth = () => invoke<boolean>("launch_claude_auth");

@@ -30,6 +30,30 @@ fn check_claude_auth() -> bool {
     }
 }
 
+/// Check if Codex CLI is authenticated by running `codex login status`.
+fn check_codex_auth() -> bool {
+    let resolved = platform::resolve_command("codex");
+    if resolved == "codex" && platform::resolve_codex_path().is_none() {
+        return false;
+    }
+
+    let cmd_path = platform::resolve_codex_path().unwrap_or(resolved);
+
+    let mut cmd = Command::new(&cmd_path);
+    cmd.args(["login", "status"]);
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x08000000);
+    }
+
+    match cmd.output() {
+        Ok(output) => output.status.success(),
+        _ => false,
+    }
+}
+
 pub async fn check_all() -> Result<Vec<DependencyStatus>, String> {
     let mut deps = Vec::new();
 
@@ -38,9 +62,11 @@ pub async fn check_all() -> Result<Vec<DependencyStatus>, String> {
         let result = platform::check_dependency(&spec);
         let is_installed = result.is_some();
 
-        // For Claude Code: also check authentication
+        // For provider CLIs: also check authentication
         let auth_required = if spec.name == "Claude Code CLI" && is_installed {
             !check_claude_auth()
+        } else if spec.name == "Codex CLI" && is_installed {
+            !check_codex_auth()
         } else {
             false
         };
