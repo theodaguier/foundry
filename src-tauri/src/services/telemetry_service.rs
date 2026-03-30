@@ -18,9 +18,8 @@ pub fn save(telemetry: &GenerationTelemetry, auth: &SupabaseAuth) {
     let session = auth.get_session();
     tokio::spawn(async move {
         if let Some(session) = session {
-            match sync_to_supabase(&telemetry, &session.user_id, &session.access_token).await {
-                SyncOutcome::PermanentError => mark_sync_skip(&telemetry.id),
-                _ => {}
+            if let SyncOutcome::PermanentError = sync_to_supabase(&telemetry, &session.user_id, &session.access_token).await {
+                mark_sync_skip(&telemetry.id);
             }
         } else {
             log::info!("[Telemetry] Not authenticated — skipping Supabase sync");
