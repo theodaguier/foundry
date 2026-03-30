@@ -122,6 +122,33 @@ Place it in the header zone alongside the plugin name. Left-align. It must not f
 
 ---
 
+## Rotary Slider Rendering — critical rules
+
+### Knobs must be perfect circles
+In `drawRotarySlider`, always square the bounds before drawing:
+```cpp
+auto diameter = juce::jmin(width, height);
+auto radius = diameter * 0.5f;
+auto centreX = x + width * 0.5f;
+auto centreY = y + height * 0.5f;
+auto rx = centreX - radius;
+auto ry = centreY - radius;
+// Draw all arcs/ellipses using (rx, ry, diameter, diameter) — NEVER (x, y, width, height)
+```
+Using the raw `width`/`height` without squaring produces **elliptical knobs** — this is rejected.
+
+### No duplicate labels
+Each control gets ONE label, managed ONE way. Pick either:
+- A `juce::Label` component positioned above/below the slider, OR
+- Text drawn inside `drawRotarySlider` via `g.drawText()`
+
+**Never both.** Do not call `slider.setTextBoxStyle(TextBoxBelow, ...)` AND also add a separate Label with the same text. Do not draw the parameter name inside `drawRotarySlider` if a Label component already exists for that slider.
+
+### Value display
+Show the current value via `slider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 80, 16)`. Do NOT draw the value manually in `drawRotarySlider` when the Slider's text box is already visible.
+
+---
+
 ## Hard stops
 
 - Same window size for two plugins → rejected
@@ -131,3 +158,5 @@ Place it in the header zone alongside the plugin name. Left-align. It must not f
 - Absolute coordinate layout → rejected
 - Vertical single-column list → rejected
 - Controls touching window edge → rejected
+- Elliptical/oval knobs → rejected (must be perfect circles)
+- Duplicate labels on any control → rejected

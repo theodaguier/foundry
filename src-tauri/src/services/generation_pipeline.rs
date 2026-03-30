@@ -326,6 +326,7 @@ async fn execute_generation(
         &config.channel_layout,
         &creative_profile,
         debug_context,
+        agent_name,
     );
 
     let app_clone = app.clone();
@@ -1451,19 +1452,36 @@ fn build_unified_generation_prompt(
     _channel_layout: &str,
     _creative_profile: &CreativeProfile,
     debug_context: Option<&GenerationDebugContext>,
+    agent: &str,
 ) -> String {
-    // Keep the prompt minimal. Everything the agent needs is in CLAUDE.md
-    // which Claude Code reads automatically from the working directory.
     let debug_section = render_debug_context_section(debug_context);
 
-    format!(
-        "Build the \"{name}\" plugin. Brief: {prompt}\n\
-        CLAUDE.md has the full spec, creative direction, and expert knowledge.\n\
-        {debug_section}",
-        name = plugin_name,
-        prompt = user_prompt,
-        debug_section = debug_section,
-    )
+    let is_codex = agent.to_ascii_lowercase().contains("codex");
+
+    if is_codex {
+        // For Codex, the mission brief (AGENTS.md) is prepended to the prompt
+        // by agent_service::enrich_prompt_for_codex(). Do NOT reference CLAUDE.md
+        // — Codex would read it from disk and duplicate the already-prepended context.
+        format!(
+            "Build the \"{name}\" plugin. Brief: {prompt}\n\
+            The mission brief above has the full spec, creative direction, and expert knowledge. \
+            Do NOT read CLAUDE.md — it duplicates the context you already have.\n\
+            {debug_section}",
+            name = plugin_name,
+            prompt = user_prompt,
+            debug_section = debug_section,
+        )
+    } else {
+        // Claude Code reads CLAUDE.md automatically from the working directory.
+        format!(
+            "Build the \"{name}\" plugin. Brief: {prompt}\n\
+            CLAUDE.md has the full spec, creative direction, and expert knowledge.\n\
+            {debug_section}",
+            name = plugin_name,
+            prompt = user_prompt,
+            debug_section = debug_section,
+        )
+    }
 }
 
 #[cfg_attr(not(test), allow(dead_code))]
