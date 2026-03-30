@@ -282,7 +282,7 @@ async fn execute_generation(
     );
 
     let plugin_type = &project.plugin_type;
-    let plugin_role = match plugin_type.as_str() {
+    let _plugin_role = match plugin_type.as_str() {
         "instrument" => "playable instrument",
         "utility" => "utility or analysis tool",
         _ => "audio effect",
@@ -293,7 +293,7 @@ async fn execute_generation(
         "Inferred plugin type"
     };
     let project_dir_str = project.directory.to_string_lossy().to_string();
-    let creative_profile = infer_creative_profile(&plugin_name, plugin_type, &config.prompt);
+    let _creative_profile = infer_creative_profile(&plugin_name, plugin_type, &config.prompt);
     let debug_context = active_debug_context(&config);
 
     check_cancelled(&cancel_watch)?;
@@ -320,11 +320,7 @@ async fn execute_generation(
 
     let unified_prompt = build_unified_generation_prompt(
         &plugin_name,
-        plugin_role,
-        plugin_type,
         &config.prompt,
-        &config.channel_layout,
-        &creative_profile,
         debug_context,
         agent_name,
     );
@@ -1446,11 +1442,7 @@ fn handle_claude_event(app: &AppHandle, event: &claude_code_service::ClaudeEvent
 
 fn build_unified_generation_prompt(
     plugin_name: &str,
-    _plugin_role: &str,
-    _plugin_type: &str,
     user_prompt: &str,
-    _channel_layout: &str,
-    _creative_profile: &CreativeProfile,
     debug_context: Option<&GenerationDebugContext>,
     agent: &str,
 ) -> String {
