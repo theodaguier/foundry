@@ -3,6 +3,14 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.61.3](https://github.com/theodaguier/foundry/compare/v1.61.2...v1.61.3) (2026-03-31)
+
+
+### Bug Fixes
+
+* align right header controls with sidebar header on Windows ([310b2d4](https://github.com/theodaguier/foundry/commit/310b2d4598b84183d9439f08bde17831e593c52a))
+* align right header controls with sidebar on Windows ([97e393e](https://github.com/theodaguier/foundry/commit/97e393e1d68518bdfbc8ba231eb0fd994d26df2f))
+
 ## [1.61.2](https://github.com/theodaguier/foundry/compare/v1.61.1...v1.61.2) (2026-03-31)
 
 
