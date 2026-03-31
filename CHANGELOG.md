@@ -3,6 +3,14 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.61.4](https://github.com/theodaguier/foundry/compare/v1.61.3...v1.61.4) (2026-03-31)
+
+
+### Bug Fixes
+
+* wire up CLI install buttons in Settings &gt; Models with toast feedback ([08e8102](https://github.com/theodaguier/foundry/commit/08e810280dde2e1cccf84833de562cf245bc4e1f))
+* wire up CLI install buttons in Settings with toast feedback ([e57c814](https://github.com/theodaguier/foundry/commit/e57c8143fe4e5b10023907f3ca72b49600fc6289))
+
 ## [1.61.3](https://github.com/theodaguier/foundry/compare/v1.61.2...v1.61.3) (2026-03-31)
 
 
