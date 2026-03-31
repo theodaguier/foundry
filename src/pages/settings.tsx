@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react"
+import { toast } from "sonner"
 import { open } from "@tauri-apps/plugin-dialog"
 import { useAppStore } from "@/stores/app-store"
 import { useBuildStore } from "@/stores/build-store"
@@ -326,7 +327,38 @@ function GeneralTab() {
 
 function ModelsTab() {
   const { modelCatalog, loadCatalog, refreshModels, isRefreshing } = useSettingsStore()
+  const [installingCli, setInstallingCli] = useState<string | null>(null)
   useEffect(() => { loadCatalog() }, [loadCatalog])
+
+  const hasClaudeCode = modelCatalog.some((p) => p.name.toLowerCase().includes("claude"))
+  const hasCodex = modelCatalog.some((p) => p.name.toLowerCase().includes("codex"))
+
+  const handleInstallCli = useCallback(async (key: string) => {
+    const label = key === "claude_code" ? "Claude Code" : "Codex"
+    setInstallingCli(key)
+    try {
+      const result = await installDependency(key)
+      if (result.success) {
+        // Re-check auth state and launch auth if needed
+        const freshDeps = await invalidateAndCheckDependencies()
+        const depName = key === "claude_code" ? "Claude Code CLI" : "Codex CLI"
+        const providerStatus = freshDeps.find(d => d.name === depName)
+        if (providerStatus?.installed && providerStatus.authRequired) {
+          toast.info(`${label} installed — sign in to continue`, { description: "Opening browser…" })
+          if (key === "codex") await launchCodexAuth()
+          else await launchClaudeAuth()
+        } else {
+          toast.success(`${label} installed successfully`)
+        }
+        await refreshModels()
+      } else {
+        toast.error(`Failed to install ${label}`, { description: result.message })
+      }
+    } catch (e) {
+      toast.error(`Failed to install ${label}`, { description: String(e) })
+    }
+    setInstallingCli(null)
+  }, [refreshModels])
 
   return (
     <div className="flex flex-col gap-4">
@@ -362,6 +394,29 @@ function ModelsTab() {
         </div>
       ))}
 
+      {!hasClaudeCode && (
+        <div className="flex items-center gap-2 px-1 py-2">
+          <AgentIcon agent="Claude Code" className="size-3 text-muted-foreground/40" />
+          <span className="text-[10px] text-muted-foreground/50 flex-1">Claude Code CLI not installed</span>
+          <Button variant="outline" size="xs" disabled={installingCli !== null} onClick={() => handleInstallCli("claude_code")}>
+            {installingCli === "claude_code" ? (
+              <><div className="size-3 border-[1.5px] border-current border-t-transparent rounded-full animate-spin mr-1.5" />Installing…</>
+            ) : "Install"}
+          </Button>
+        </div>
+      )}
+
+      {!hasCodex && (
+        <div className="flex items-center gap-2 px-1 py-2">
+          <AgentIcon agent="Codex" className="size-3 text-muted-foreground/40" />
+          <span className="text-[10px] text-muted-foreground/50 flex-1">Codex CLI not installed</span>
+          <Button variant="outline" size="xs" disabled={installingCli !== null} onClick={() => handleInstallCli("codex")}>
+            {installingCli === "codex" ? (
+              <><div className="size-3 border-[1.5px] border-current border-t-transparent rounded-full animate-spin mr-1.5" />Installing…</>
+            ) : "Install"}
+          </Button>
+        </div>
+      )}
       <Button variant="outline" size="xs" onClick={refreshModels} disabled={isRefreshing} className="self-start">
         {isRefreshing ? "Refreshing..." : "Refresh Models"}
       </Button>
@@ -408,8 +463,15 @@ function DependenciesTab() {
     if (!key) return
     setInstalling(key)
     try {
-      await installDependency(key)
-    } catch {}
+      const result = await installDependency(key)
+      if (result.success) {
+        toast.success(`${dep.name} installed successfully`)
+      } else {
+        toast.error(`Failed to install ${dep.name}`, { description: result.message })
+      }
+    } catch (e) {
+      toast.error(`Failed to install ${dep.name}`, { description: String(e) })
+    }
     await refreshDeps()
     setInstalling(null)
   }, [refreshDeps])

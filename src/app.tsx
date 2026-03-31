@@ -10,6 +10,7 @@ import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
 import { Button } from "@/components/ui/button"
 import { PluginDetailView } from "@/components/app/plugin-detail-view"
 import { User, Bell, Hammer, Settings as SettingsIcon } from "lucide-react"
+import { Toaster } from "@/components/ui/sonner"
 import AuthContainer from "@/pages/auth/auth-container"
 import Onboarding from "@/pages/onboarding"
 import Prompt from "@/pages/prompt"
@@ -275,6 +276,7 @@ export default function App() {
     <SidebarProvider open={true}>
       <GlobalPipelineListener />
       <GlobalAppUpdateManager />
+      <Toaster position="bottom-right" />
       <AppSidebar />
       <SidebarInset className="min-w-0 overflow-hidden">
         {/* Drag region + top nav aligned to sidebar header */}
