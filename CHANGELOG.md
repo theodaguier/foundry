@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.61.2](https://github.com/theodaguier/foundry/compare/v1.61.1...v1.61.2) (2026-03-31)
+
+
+### Bug Fixes
+
+* remove duplicate install buttons in Settings and add progress spinner ([f78eec9](https://github.com/theodaguier/foundry/commit/f78eec9c6aefc6b235c8df5e7638c2953f10e48f))
+
 ## [1.61.1](https://github.com/theodaguier/foundry/compare/v1.61.0...v1.61.1) (2026-03-30)
 
 
