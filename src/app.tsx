@@ -281,7 +281,7 @@ export default function App() {
         <div
           data-tauri-drag-region
           className="shrink-0 select-none flex items-end justify-end px-2 pb-1"
-          style={{ minHeight: Math.max(titlebarInset, 36) }}
+          style={{ minHeight: 52 }}
         >
           <TopNav />
         </div>
