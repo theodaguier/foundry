@@ -15,7 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/componen
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
 import type { DependencyStatus } from "@/lib/types"
-import { Download, FolderOpen, RefreshCw, RotateCcw } from "lucide-react"
+import { Download, FolderOpen, Loader2, RefreshCw, RotateCcw } from "lucide-react"
 
 function formatDateTime(value?: string | null) {
   if (!value) return "Never"
@@ -326,15 +326,16 @@ function GeneralTab() {
 
 function ModelsTab() {
   const { modelCatalog, loadCatalog, refreshModels, isRefreshing } = useSettingsStore()
-  const [deps, setDeps] = useState<DependencyStatus[]>([])
   useEffect(() => { loadCatalog() }, [loadCatalog])
-  useEffect(() => { invalidateAndCheckDependencies().then(setDeps).catch(() => {}) }, [])
-
-  const hasClaudeCode = modelCatalog.some((p) => p.name.toLowerCase().includes("claude"))
-  const hasCodex = modelCatalog.some((p) => p.name.toLowerCase().includes("codex"))
 
   return (
     <div className="flex flex-col gap-4">
+      {modelCatalog.length === 0 && !isRefreshing && (
+        <p className="text-[10px] text-muted-foreground/50">
+          No AI providers detected. Install Claude Code or Codex CLI from the Dependencies tab.
+        </p>
+      )}
+
       {modelCatalog.map((provider) => (
         <div key={provider.id} className="flex flex-col gap-2">
           <div className="flex items-center gap-1.5">
@@ -360,26 +361,6 @@ function ModelsTab() {
           </Card>
         </div>
       ))}
-
-      {!hasClaudeCode && (
-        <div className="flex items-center gap-2 px-1 py-2">
-          <AgentIcon agent="Claude Code" className="size-3 text-muted-foreground/40" />
-          <span className="text-[10px] text-muted-foreground/50 flex-1">Claude Code CLI not installed</span>
-          <Button variant="outline" size="xs" onClick={() => window.open("https://docs.anthropic.com/en/docs/claude-code/overview")}>
-            Install
-          </Button>
-        </div>
-      )}
-
-      {!hasCodex && (
-        <div className="flex items-center gap-2 px-1 py-2">
-          <AgentIcon agent="Codex" className="size-3 text-muted-foreground/40" />
-          <span className="text-[10px] text-muted-foreground/50 flex-1">Codex CLI not installed</span>
-          <Button variant="outline" size="xs" onClick={() => window.open("https://github.com/openai/codex")}>
-            Install
-          </Button>
-        </div>
-      )}
 
       <Button variant="outline" size="xs" onClick={refreshModels} disabled={isRefreshing} className="self-start">
         {isRefreshing ? "Refreshing..." : "Refresh Models"}
@@ -473,7 +454,11 @@ function DependenciesTab() {
       <div key={dep.name}>
         {i > 0 && <Separator />}
         <div className="flex items-center gap-2.5 py-2">
-          <span className={cn("size-1.5 rounded-full shrink-0", dep.installed && !dep.authRequired ? "bg-green-400" : dep.authRequired ? "bg-amber-400" : "bg-destructive")} />
+          {installing === key ? (
+            <Loader2 className="size-3 shrink-0 text-muted-foreground/60 animate-spin" />
+          ) : (
+            <span className={cn("size-1.5 rounded-full shrink-0", dep.installed && !dep.authRequired ? "bg-green-400" : dep.authRequired ? "bg-amber-400" : "bg-destructive")} />
+          )}
           <div className="flex-1 min-w-0">
             <div className="text-xs">{dep.name}</div>
             {dep.detail && <div className="text-[10px] text-muted-foreground/60 truncate">{dep.detail}</div>}
@@ -493,6 +478,7 @@ function DependenciesTab() {
               disabled={installing !== null}
               onClick={() => handleInstall(dep)}
             >
+              {installing === key && <Loader2 className="size-3 animate-spin" />}
               {installing === key ? "Installing…" : "Install"}
             </Button>
           )}
