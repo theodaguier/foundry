@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.61.5](https://github.com/theodaguier/foundry/compare/v1.61.4...v1.61.5) (2026-04-01)
+
+
+### Bug Fixes
+
+* **ci:** add Bearer prefix to Linear API auth header ([b71fa0c](https://github.com/theodaguier/foundry/commit/b71fa0c593aa93a0077a0b447eb3443b986fb057))
+
 ## [1.61.4](https://github.com/theodaguier/foundry/compare/v1.61.3...v1.61.4) (2026-03-31)
 
 
