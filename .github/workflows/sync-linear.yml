@@ -1,0 +1,105 @@
+name: Sync GitHub Issues to Linear
+
+on:
+  issues:
+    types: [opened, closed, reopened, labeled]
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Sync to Linear
+        env:
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+          LINEAR_TEAM_ID: d0b31b23-fb7f-40c5-980c-9dc3fa86dc5e
+          LINEAR_PROJECT_ID: ee9741fa-842f-431a-bf6f-fea9e4ceddb5
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 << 'PYEOF'
+          import os, json, urllib.request
+
+          LINEAR_API_KEY = os.environ["LINEAR_API_KEY"]
+          TEAM_ID = os.environ["LINEAR_TEAM_ID"]
+          PROJECT_ID = os.environ["LINEAR_PROJECT_ID"]
+          LINEAR_URL = "https://api.linear.app/graphql"
+
+          # GitHub event data
+          event_path = os.environ.get("GITHUB_EVENT_PATH", "")
+          with open(event_path) as f:
+              event = json.load(f)
+
+          action = event.get("action")
+          issue = event.get("issue", {})
+          gh_number = issue.get("number")
+          gh_title = issue.get("title", "")
+          gh_body = (issue.get("body") or "")[:2000]
+          gh_url = issue.get("html_url", "")
+          gh_state = issue.get("state", "open")
+          labels = [l["name"] for l in issue.get("labels", [])]
+
+          def gql(q, v=None):
+              p = {"query": q}
+              if v: p["variables"] = v
+              req = urllib.request.Request(LINEAR_URL,
+                  data=json.dumps(p).encode(),
+                  headers={"Authorization": LINEAR_API_KEY, "Content-Type": "application/json"})
+              with urllib.request.urlopen(req) as r:
+                  return json.load(r)
+
+          # Find existing Linear issue by GitHub URL in description
+          def find_linear_issue():
+              r = gql('{ project(id: "%s") { issues { nodes { id identifier title description state { name type } } } } }' % PROJECT_ID)
+              issues = r["data"]["project"]["issues"]["nodes"]
+              ref = f"issues/{gh_number}"
+              for i in issues:
+                  if i.get("description") and ref in i["description"]:
+                      return i
+              return None
+
+          # Get workflow states
+          r = gql('{ team(id: "%s") { states { nodes { id name type } } } }' % TEAM_ID)
+          states = {s["type"]: s["id"] for s in r["data"]["team"]["states"]["nodes"]}
+          done_state = states.get("completed")
+          todo_state = states.get("unstarted")
+
+          # Priority mapping
+          priority = 1 if "bug" in labels else (2 if "pipeline" in labels else 3)
+
+          existing = find_linear_issue()
+
+          if action == "opened":
+              if existing:
+                  print(f"Issue #{gh_number} already exists in Linear as {existing['identifier']}")
+              else:
+                  desc = gh_body + f"\n\n## Refs\n\n{gh_url}"
+                  r = gql("""
+                  mutation CreateIssue($input: IssueCreateInput!) {
+                      issueCreate(input: $input) {
+                          success issue { identifier url }
+                      }
+                  }
+                  """, {"input": {
+                      "title": gh_title,
+                      "description": desc,
+                      "teamId": TEAM_ID,
+                      "projectId": PROJECT_ID,
+                      "priority": priority
+                  }})
+                  result = r["data"]["issueCreate"]
+                  if result["success"]:
+                      print(f"Created {result['issue']['identifier']} for GitHub #{gh_number}")
+
+          elif action == "closed":
+              if existing and existing["state"]["type"] != "completed":
+                  r = gql('mutation { issueUpdate(id: "%s", input: { stateId: "%s" }) { success } }' % (existing["id"], done_state))
+                  print(f"Closed {existing['identifier']} (GitHub #{gh_number} closed)")
+              elif not existing:
+                  print(f"No Linear issue found for #{gh_number}")
+
+          elif action == "reopened":
+              if existing:
+                  r = gql('mutation { issueUpdate(id: "%s", input: { stateId: "%s" }) { success } }' % (existing["id"], todo_state))
+                  print(f"Reopened {existing['identifier']} (GitHub #{gh_number} reopened)")
+
+          print(f"Done. Action: {action}, Issue: #{gh_number}")
+          PYEOF
