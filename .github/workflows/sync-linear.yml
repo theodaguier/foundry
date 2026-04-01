@@ -42,7 +42,7 @@ jobs:
               if v: p["variables"] = v
               req = urllib.request.Request(LINEAR_URL,
                   data=json.dumps(p).encode(),
-                  headers={"Authorization": LINEAR_API_KEY, "Content-Type": "application/json"})
+                  headers={"Authorization": f"Bearer {LINEAR_API_KEY}", "Content-Type": "application/json"})
               with urllib.request.urlopen(req) as r:
                   return json.load(r)
 
