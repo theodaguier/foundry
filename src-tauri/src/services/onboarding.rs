@@ -1378,7 +1378,14 @@ mod tests {
     #[test]
     fn only_user_local_bins_are_treated_as_directly_removable() {
         let home = dirs::home_dir().unwrap();
+        #[cfg(target_os = "windows")]
+        let local_path = home.join(".local/bin/claude.cmd");
+        #[cfg(not(target_os = "windows"))]
         let local_path = home.join(".local/bin/claude");
+
+        #[cfg(target_os = "windows")]
+        let homebrew_path = std::path::PathBuf::from("C:/Program Files/claude.cmd");
+        #[cfg(not(target_os = "windows"))]
         let homebrew_path = std::path::PathBuf::from("/opt/homebrew/bin/claude");
 
         assert!(user_local_cli_path(
