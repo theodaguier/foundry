@@ -206,14 +206,19 @@ mod tests {
 
     #[test]
     fn computes_windows_cli_path_from_npm_binary() {
+        // On non-Windows platforms, construct the path properly using forward slashes
+        // internally, but verify the function produces the right structure
+        let npm_dir = PathBuf::from("C:/Users/Theo/AppData/Roaming/npm");
+        let npm_path = npm_dir.join("npm.cmd");
         let path = global_cli_path_from_npm_binary(
-            PathBuf::from(r"C:\Users\Theo\AppData\Roaming\npm\npm.cmd"),
+            npm_path,
             "codex",
             ProviderPlatform::Windows,
         )
         .unwrap();
 
-        assert_eq!(path, PathBuf::from(r"C:\Users\Theo\AppData\Roaming\npm\codex.cmd"));
+        let expected = npm_dir.join("codex.cmd");
+        assert_eq!(path, expected);
     }
 
     #[test]
@@ -234,10 +239,11 @@ mod tests {
             cli_shim_from_prefix("/opt/homebrew", "claude", ProviderPlatform::Unix),
             PathBuf::from("/opt/homebrew/bin/claude")
         );
-        assert_eq!(
-            cli_shim_from_prefix(r"C:\Users\Theo\AppData\Roaming\npm", "codex", ProviderPlatform::Windows),
-            PathBuf::from(r"C:\Users\Theo\AppData\Roaming\npm\codex.cmd")
-        );
+        // Use forward slashes for path construction on non-Windows platforms
+        let npm_prefix = PathBuf::from("C:/Users/Theo/AppData/Roaming/npm");
+        let result = cli_shim_from_prefix(&npm_prefix, "codex", ProviderPlatform::Windows);
+        let expected = npm_prefix.join("codex.cmd");
+        assert_eq!(result, expected);
     }
 
     #[test]
