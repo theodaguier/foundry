@@ -224,7 +224,8 @@ async fn execute_generation(
         },
     );
 
-    let build_entry = register_generation_build(&config, &plugin_name).map_err(|e| e.to_string())?;
+    let build_entry =
+        register_generation_build(&config, &plugin_name).map_err(|e| e.to_string())?;
     tb.plugin_id = Some(build_entry.id.clone());
     tb.version_number = Some(1);
     let _ = app.emit(
@@ -246,7 +247,11 @@ async fn execute_generation(
         }
     } else {
         emit_log(app, "Assembling project files...", None);
-        let pre_profile = infer_creative_profile(&plugin_name, &project_assembler::infer_plugin_type(&config.prompt), &config.prompt);
+        let pre_profile = infer_creative_profile(
+            &plugin_name,
+            &project_assembler::infer_plugin_type(&config.prompt),
+            &config.prompt,
+        );
         let creative_ctx = project_assembler::CreativeContext {
             signature_interaction: pre_profile.signature_interaction.to_string(),
             control_strategy: pre_profile.control_strategy.to_string(),
@@ -271,7 +276,8 @@ async fn execute_generation(
             Path::new(&resolved_juce_path),
             Some(&creative_ctx),
         )?;
-        persist_plugin_build_directory(&build_entry.id, &project.directory).map_err(|e| e.to_string())?;
+        persist_plugin_build_directory(&build_entry.id, &project.directory)
+            .map_err(|e| e.to_string())?;
         project
     };
 
@@ -310,20 +316,12 @@ async fn execute_generation(
 
     emit_log(
         app,
-        &format!(
-            "── {} · {} ──",
-            agent_display.to_lowercase(),
-            model_flag
-        ),
+        &format!("── {} · {} ──", agent_display.to_lowercase(), model_flag),
         Some("active"),
     );
 
-    let unified_prompt = build_unified_generation_prompt(
-        &plugin_name,
-        &config.prompt,
-        debug_context,
-        agent_name,
-    );
+    let unified_prompt =
+        build_unified_generation_prompt(&plugin_name, &config.prompt, debug_context, agent_name);
 
     let app_clone = app.clone();
     let gen_result = agent_service::run(
@@ -355,7 +353,10 @@ async fn execute_generation(
     // Only hard-fail if the agent produced zero source files — everything
     // else (missing UI files, style issues, etc.) will surface as compiler
     // errors and be handled by the build loop.
-    if !project.directory.join("Source/PluginProcessor.cpp").exists()
+    if !project
+        .directory
+        .join("Source/PluginProcessor.cpp")
+        .exists()
         && !project.directory.join("Source/PluginProcessor.h").exists()
     {
         let message = gen_result
@@ -887,7 +888,10 @@ fn random_icon_color() -> String {
     colors[rand_index(colors.len())].to_string()
 }
 
-fn register_generation_build(config: &GenerationConfig, plugin_name: &str) -> Result<Plugin, String> {
+fn register_generation_build(
+    config: &GenerationConfig,
+    plugin_name: &str,
+) -> Result<Plugin, String> {
     let mut plugins = plugin_manager::load_plugins().unwrap_or_default();
     let plugin_type = plugin_type_from_config(config);
     let formats = resolve_formats(&config.format);
@@ -968,12 +972,20 @@ fn reusable_build_directory(plugin: &Plugin) -> Option<PathBuf> {
         .filter(|path| path.exists())
 }
 
-fn persist_plugin_build_directory(plugin_id: &str, build_directory: &Path) -> Result<Plugin, String> {
+fn persist_plugin_build_directory(
+    plugin_id: &str,
+    build_directory: &Path,
+) -> Result<Plugin, String> {
     let mut plugins = plugin_manager::load_plugins().map_err(|e| e.to_string())?;
     let plugin = plugins
         .iter_mut()
         .find(|plugin| plugin.id == plugin_id)
-        .ok_or_else(|| format!("Plugin not found while saving build workspace: {}", plugin_id))?;
+        .ok_or_else(|| {
+            format!(
+                "Plugin not found while saving build workspace: {}",
+                plugin_id
+            )
+        })?;
     plugin.build_directory = Some(build_directory.to_string_lossy().to_string());
 
     let updated = plugin.clone();
@@ -3402,12 +3414,29 @@ mod tests {
     fn prompts_are_substantial() {
         let profile = CreativeProfile::for_prompt("a compressor", "effect");
         let processor = build_processor_prompt(
-            "Comp", "audio effect", "effect", "stereo", "a compressor", &profile, None,
+            "Comp",
+            "audio effect",
+            "effect",
+            "stereo",
+            "a compressor",
+            &profile,
+            None,
         );
         let ui = build_fast_ui_prompt(
-            "Comp", "audio effect", "effect", "a compressor", "stereo", &profile, &[], None,
+            "Comp",
+            "audio effect",
+            "effect",
+            "a compressor",
+            "stereo",
+            &profile,
+            &[],
+            None,
         );
-        assert!(processor.len() > 500, "processor prompt too short ({} chars)", processor.len());
+        assert!(
+            processor.len() > 500,
+            "processor prompt too short ({} chars)",
+            processor.len()
+        );
         assert!(ui.len() > 500, "UI prompt too short ({} chars)", ui.len());
     }
 }

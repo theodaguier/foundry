@@ -1,5 +1,5 @@
-use crate::state::AppState;
 use crate::services::telemetry_service;
+use crate::state::AppState;
 use tauri::{command, State};
 
 #[command]

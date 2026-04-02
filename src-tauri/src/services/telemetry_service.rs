@@ -18,7 +18,9 @@ pub fn save(telemetry: &GenerationTelemetry, auth: &SupabaseAuth) {
     let session = auth.get_session();
     tokio::spawn(async move {
         if let Some(session) = session {
-            if let SyncOutcome::PermanentError = sync_to_supabase(&telemetry, &session.user_id, &session.access_token).await {
+            if let SyncOutcome::PermanentError =
+                sync_to_supabase(&telemetry, &session.user_id, &session.access_token).await
+            {
                 mark_sync_skip(&telemetry.id);
             }
         } else {
@@ -89,7 +91,9 @@ pub fn sync_local_backlog(auth: &SupabaseAuth) {
             match sync_to_supabase(&telemetry, &session.user_id, &session.access_token).await {
                 SyncOutcome::Success => synced += 1,
                 SyncOutcome::AuthExpired => {
-                    log::warn!("[Telemetry] Backlog sync aborted: JWT expired. Will retry after re-auth.");
+                    log::warn!(
+                        "[Telemetry] Backlog sync aborted: JWT expired. Will retry after re-auth."
+                    );
                     break;
                 }
                 SyncOutcome::PermanentError => {
@@ -108,7 +112,10 @@ pub fn sync_local_backlog(auth: &SupabaseAuth) {
     });
 }
 
-fn normalize_telemetry(mut telemetry: GenerationTelemetry, plugins: &[Plugin]) -> GenerationTelemetry {
+fn normalize_telemetry(
+    mut telemetry: GenerationTelemetry,
+    plugins: &[Plugin],
+) -> GenerationTelemetry {
     if missing_string(telemetry.plugin_type.as_deref()) {
         telemetry.plugin_type = infer_plugin_type(&telemetry, plugins);
     }
@@ -158,12 +165,22 @@ fn missing_string(value: Option<&str>) -> bool {
 fn infer_plugin_type(telemetry: &GenerationTelemetry, plugins: &[Plugin]) -> Option<String> {
     plugin_from_telemetry(telemetry, plugins)
         .map(|plugin| plugin_type_label(&plugin.plugin_type).to_string())
-        .or_else(|| Some(project_assembler::infer_plugin_type(&telemetry.original_prompt)))
+        .or_else(|| {
+            Some(project_assembler::infer_plugin_type(
+                &telemetry.original_prompt,
+            ))
+        })
 }
 
-fn plugin_format_from_plugins(telemetry: &GenerationTelemetry, plugins: &[Plugin]) -> Option<String> {
+fn plugin_format_from_plugins(
+    telemetry: &GenerationTelemetry,
+    plugins: &[Plugin],
+) -> Option<String> {
     let plugin = plugin_from_telemetry(telemetry, plugins)?;
-    let has_au = plugin.formats.iter().any(|format| matches!(format, PluginFormat::Au));
+    let has_au = plugin
+        .formats
+        .iter()
+        .any(|format| matches!(format, PluginFormat::Au));
     let has_vst3 = plugin
         .formats
         .iter()
@@ -238,7 +255,8 @@ fn estimate_codex_cost_usd(
         _ => return None,
     };
 
-    let has_usage = input_tokens.is_some() || output_tokens.is_some() || cache_read_tokens.is_some();
+    let has_usage =
+        input_tokens.is_some() || output_tokens.is_some() || cache_read_tokens.is_some();
     if !has_usage {
         return None;
     }
@@ -279,7 +297,11 @@ fn detect_os_version() -> String {
                 content
                     .lines()
                     .find(|line| line.starts_with("PRETTY_NAME="))
-                    .map(|line| line.trim_start_matches("PRETTY_NAME=").trim_matches('"').to_string())
+                    .map(|line| {
+                        line.trim_start_matches("PRETTY_NAME=")
+                            .trim_matches('"')
+                            .to_string()
+                    })
             })
             .unwrap_or_else(|| "Linux".to_string())
     }
@@ -345,7 +367,8 @@ async fn sync_to_supabase(
                     400 | 403 => {
                         log::error!(
                             "[Telemetry] Permanent failure for {} — will not retry: {}",
-                            telemetry.id, body
+                            telemetry.id,
+                            body
                         );
                         SyncOutcome::PermanentError
                     }

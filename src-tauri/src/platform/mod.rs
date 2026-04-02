@@ -94,7 +94,9 @@ pub fn default_plugin_install_dir(format: &PluginFormat) -> InstallDir {
 /// Returns the effective install directory, checking user overrides first.
 pub fn plugin_install_dir(format: &PluginFormat) -> InstallDir {
     if let Some(override_path) = crate::services::foundry_paths::install_path_override(format) {
-        return InstallDir { path: override_path };
+        return InstallDir {
+            path: override_path,
+        };
     }
     imp::plugin_install_dir(format)
 }
@@ -194,14 +196,18 @@ pub(crate) fn select_provider_resolution(
 }
 
 fn first_existing_path(paths: Vec<PathBuf>) -> Option<String> {
-    paths.into_iter()
+    paths
+        .into_iter()
         .find(|path| path.is_file())
         .map(|path| path.to_string_lossy().to_string())
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{cli_shim_from_prefix, global_cli_path_from_npm_binary, select_provider_resolution, ProviderPlatform};
+    use super::{
+        cli_shim_from_prefix, global_cli_path_from_npm_binary, select_provider_resolution,
+        ProviderPlatform,
+    };
     use std::path::PathBuf;
 
     #[test]
@@ -210,12 +216,8 @@ mod tests {
         // internally, but verify the function produces the right structure
         let npm_dir = PathBuf::from("C:/Users/Theo/AppData/Roaming/npm");
         let npm_path = npm_dir.join("npm.cmd");
-        let path = global_cli_path_from_npm_binary(
-            npm_path,
-            "codex",
-            ProviderPlatform::Windows,
-        )
-        .unwrap();
+        let path =
+            global_cli_path_from_npm_binary(npm_path, "codex", ProviderPlatform::Windows).unwrap();
 
         let expected = npm_dir.join("codex.cmd");
         assert_eq!(path, expected);

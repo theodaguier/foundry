@@ -10,10 +10,7 @@ static CLAUDE_PATH: RwLock<Option<Option<String>>> = RwLock::new(None);
 static CODEX_PATH: RwLock<Option<Option<String>>> = RwLock::new(None);
 
 fn resolve_shell_environment() -> Vec<(String, String)> {
-    let output = Command::new("/bin/zsh")
-        .args(["-lic", "env"])
-        .output()
-        .ok();
+    let output = Command::new("/bin/zsh").args(["-lic", "env"]).output().ok();
     let mut env = Vec::new();
     if let Some(out) = output {
         for line in String::from_utf8_lossy(&out.stdout).lines() {

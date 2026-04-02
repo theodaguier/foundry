@@ -330,7 +330,6 @@ fn infer_interface_style(prompt: &str, plugin_type: &str) -> &'static str {
     }
 }
 
-
 fn select_skills_for_type(plugin_type: &str) -> String {
     let juce_expert = include_str!("../../../foundry-kit/skills/juce-expert/SKILL.md");
     let art_director = include_str!("../../../foundry-kit/skills/art-director/SKILL.md");
@@ -552,7 +551,6 @@ juce_generate_juce_header({name})
 
     fs::write(dir.join("CMakeLists.txt"), content).map_err(|e| e.to_string())
 }
-
 
 fn write_foundry_kit(project_dir: &Path) -> Result<(), String> {
     let kit_dir = project_dir.join("foundry-kit");
