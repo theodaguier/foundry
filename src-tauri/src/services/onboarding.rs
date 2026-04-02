@@ -121,6 +121,7 @@ impl DependencyInstallResult {
         }
     }
 
+    #[allow(dead_code)]
     pub fn pending(message: impl Into<String>) -> Self {
         Self {
             success: true,
