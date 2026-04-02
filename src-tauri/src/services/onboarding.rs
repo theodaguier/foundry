@@ -367,6 +367,22 @@ fn uninstall_provider_cli(
     }
 }
 
+#[cfg(target_os = "windows")]
+fn uninstall_cmake(items: &mut Vec<DependencyResetItem>) {
+    let cmake_path = platform::resolve_command("cmake");
+    let detail = if cmake_path == "cmake" {
+        "CMake is not reset on Windows by this debug action.".to_string()
+    } else {
+        format!(
+            "CMake is installed at {}. Windows debug reset leaves this install intact.",
+            cmake_path
+        )
+    };
+
+    push_reset_item(items, "CMake", DependencyResetStatus::Skipped, detail);
+}
+
+#[cfg(not(target_os = "windows"))]
 fn uninstall_cmake(items: &mut Vec<DependencyResetItem>) {
     let cmake_path = platform::resolve_command("cmake");
     let Some(brew_path) = resolve_brew_path() else {
