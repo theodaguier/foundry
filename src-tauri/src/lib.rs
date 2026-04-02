@@ -60,6 +60,7 @@ pub fn run() {
             commands::onboarding::get_onboarding_state,
             commands::onboarding::complete_onboarding,
             commands::onboarding::install_dependency,
+            commands::onboarding::reset_debug_dependencies,
             commands::onboarding::launch_claude_auth,
             commands::onboarding::launch_codex_auth,
         ])

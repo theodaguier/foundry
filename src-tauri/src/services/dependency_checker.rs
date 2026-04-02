@@ -59,7 +59,10 @@ fn check_codex_auth(explicit_path: Option<&str>) -> bool {
     }
 }
 
-fn check_dependency_with_path(spec: &platform::types::DependencySpec, explicit_path: Option<&str>) -> Option<String> {
+fn check_dependency_with_path(
+    spec: &platform::types::DependencySpec,
+    explicit_path: Option<&str>,
+) -> Option<String> {
     if spec.check_command == "__vs_build_tools__" {
         return platform::check_dependency(spec);
     }

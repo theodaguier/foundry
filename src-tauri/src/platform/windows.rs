@@ -376,7 +376,11 @@ fn provider_fallback_paths(command: &str) -> Vec<PathBuf> {
 
     if let Ok(appdata) = std::env::var("APPDATA") {
         if !appdata.is_empty() {
-            fallbacks.push(PathBuf::from(appdata).join("npm").join(format!("{}.cmd", command)));
+            fallbacks.push(
+                PathBuf::from(appdata)
+                    .join("npm")
+                    .join(format!("{}.cmd", command)),
+            );
         }
     }
 

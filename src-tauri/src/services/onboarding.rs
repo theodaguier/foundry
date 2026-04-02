@@ -10,8 +10,7 @@ use crate::commands::dependencies::DependencyStatus;
 use crate::platform;
 use crate::services::{
     auth_service::{SupabaseAuth, SUPABASE_ANON_KEY, SUPABASE_URL},
-    dependency_checker,
-    foundry_paths,
+    build_environment, dependency_checker, foundry_paths,
 };
 
 /// Global lock: only one install can run at a time.
@@ -39,6 +38,19 @@ pub fn try_acquire_install_lock() -> bool {
 /// Release the install lock.
 pub fn release_install_lock() {
     INSTALL_ACTIVE.store(false, Ordering::SeqCst);
+}
+
+fn push_reset_item(
+    items: &mut Vec<DependencyResetItem>,
+    name: &str,
+    status: DependencyResetStatus,
+    detail: impl Into<String>,
+) {
+    items.push(DependencyResetItem {
+        name: name.to_string(),
+        status,
+        detail: detail.into(),
+    });
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -71,6 +83,29 @@ pub enum DependencyInstallVerification {
 pub enum DependencyInstallDispatchResult {
     Final(DependencyInstallResult),
     Provider(ProviderInstallPreparation),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum DependencyResetStatus {
+    Removed,
+    Skipped,
+    Failed,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DependencyResetItem {
+    pub name: String,
+    pub status: DependencyResetStatus,
+    pub detail: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DependencyResetResult {
+    pub items: Vec<DependencyResetItem>,
+    pub summary: String,
 }
 
 #[derive(Debug, Clone)]
@@ -141,6 +176,330 @@ impl DependencyInstallResult {
             detected_path: None,
         }
     }
+}
+
+fn resolve_provider_path(provider: ProviderCli) -> Option<String> {
+    match provider {
+        ProviderCli::Claude => platform::resolve_claude_path(),
+        ProviderCli::Codex => platform::resolve_codex_path(),
+    }
+}
+
+fn user_local_cli_path(path: &str, cli_name: &str) -> bool {
+    let cli_path = Path::new(path);
+    let Some(file_name) = cli_path.file_name().and_then(|value| value.to_str()) else {
+        return false;
+    };
+
+    #[cfg(target_os = "windows")]
+    let matches_name = file_name.eq_ignore_ascii_case(&format!("{}.cmd", cli_name));
+    #[cfg(not(target_os = "windows"))]
+    let matches_name = file_name == cli_name;
+
+    if !matches_name {
+        return false;
+    }
+
+    let Some(home) = dirs::home_dir() else {
+        return false;
+    };
+
+    [
+        home.join(".local").join("bin"),
+        home.join(".npm-global").join("bin"),
+    ]
+    .iter()
+    .any(|dir| cli_path.starts_with(dir))
+}
+
+fn npm_global_modules_dir(npm_path: &str) -> Result<PathBuf, String> {
+    let output = silent_command(npm_path)
+        .args(["root", "-g"])
+        .output()
+        .map_err(|e| format!("Failed to inspect npm global modules: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("npm root -g failed: {}", stderr.trim()));
+    }
+
+    let root = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if root.is_empty() {
+        return Err("npm root -g returned an empty path.".into());
+    }
+
+    Ok(PathBuf::from(root))
+}
+
+fn uninstall_global_npm_package(npm_path: &str, package_name: &str) -> Result<bool, String> {
+    let package_dir = npm_global_modules_dir(npm_path)?.join(package_name);
+    if !package_dir.exists() {
+        return Ok(false);
+    }
+
+    let output = silent_command(npm_path)
+        .args(["uninstall", "-g", package_name])
+        .output()
+        .map_err(|e| format!("Failed to uninstall {}: {}", package_name, e))?;
+
+    if output.status.success() {
+        Ok(true)
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        Err(format!(
+            "npm uninstall -g {} failed: {}",
+            package_name,
+            stderr.trim()
+        ))
+    }
+}
+
+fn uninstall_provider_cli(
+    provider: ProviderCli,
+    package_name: &str,
+    items: &mut Vec<DependencyResetItem>,
+) {
+    let dependency_name = provider.dependency_name();
+    let path_before = resolve_provider_path(provider);
+    let mut notes = Vec::new();
+    let mut removed_any = false;
+    let mut errors = Vec::new();
+
+    match resolve_npm_path() {
+        Some(npm_path) => match uninstall_global_npm_package(&npm_path, package_name) {
+            Ok(true) => {
+                removed_any = true;
+                notes.push(format!("Removed npm package {}.", package_name));
+            }
+            Ok(false) => {}
+            Err(error) => errors.push(error),
+        },
+        None => notes.push("npm was not available to remove global packages.".into()),
+    }
+
+    if let Err(error) = foundry_paths::clear_provider_path_override(provider.command()) {
+        errors.push(format!(
+            "Failed to clear {} path override: {}",
+            provider.command(),
+            error
+        ));
+    }
+
+    platform::invalidate_shell_cache();
+
+    if let Some(path) = resolve_provider_path(provider) {
+        if user_local_cli_path(&path, provider.command()) {
+            match std::fs::remove_file(&path) {
+                Ok(()) => {
+                    removed_any = true;
+                    notes.push(format!("Removed local CLI shim at {}.", path));
+                    platform::invalidate_shell_cache();
+                }
+                Err(error) => errors.push(format!("Failed to remove {}: {}", path, error)),
+            }
+        }
+    }
+
+    platform::invalidate_shell_cache();
+    let path_after = resolve_provider_path(provider);
+
+    if let Some(path) = path_after {
+        if errors.is_empty() {
+            let detail = if removed_any {
+                format!(
+                    "{} still resolves at {}. Foundry removed managed installs but left any external install intact.",
+                    dependency_name, path
+                )
+            } else {
+                format!(
+                    "{} is still installed at {}. No managed install was removed.",
+                    dependency_name, path
+                )
+            };
+            push_reset_item(
+                items,
+                dependency_name,
+                DependencyResetStatus::Skipped,
+                detail,
+            );
+        } else {
+            push_reset_item(
+                items,
+                dependency_name,
+                DependencyResetStatus::Failed,
+                errors.join(" "),
+            );
+        }
+        return;
+    }
+
+    if !errors.is_empty() {
+        push_reset_item(
+            items,
+            dependency_name,
+            DependencyResetStatus::Failed,
+            errors.join(" "),
+        );
+    } else if removed_any {
+        if notes.is_empty() {
+            notes.push(format!("Removed {}.", dependency_name));
+        }
+        push_reset_item(
+            items,
+            dependency_name,
+            DependencyResetStatus::Removed,
+            notes.join(" "),
+        );
+    } else if path_before.is_some() {
+        push_reset_item(
+            items,
+            dependency_name,
+            DependencyResetStatus::Removed,
+            format!("{} is no longer detected.", dependency_name),
+        );
+    } else {
+        push_reset_item(
+            items,
+            dependency_name,
+            DependencyResetStatus::Skipped,
+            format!("{} was not installed.", dependency_name),
+        );
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn uninstall_cmake(items: &mut Vec<DependencyResetItem>) {
+    let cmake_path = platform::resolve_command("cmake");
+    let detail = if cmake_path == "cmake" {
+        "CMake is not reset on Windows by this debug action.".to_string()
+    } else {
+        format!(
+            "CMake is installed at {}. Windows debug reset leaves this install intact.",
+            cmake_path
+        )
+    };
+
+    push_reset_item(items, "CMake", DependencyResetStatus::Skipped, detail);
+}
+
+#[cfg(not(target_os = "windows"))]
+fn uninstall_cmake(items: &mut Vec<DependencyResetItem>) {
+    let cmake_path = platform::resolve_command("cmake");
+    let Some(brew_path) = resolve_brew_path() else {
+        let detail = if cmake_path == "cmake" {
+            "Homebrew is not available and CMake is not currently detected.".to_string()
+        } else {
+            format!(
+                "CMake is installed at {} but not via a removable Homebrew setup.",
+                cmake_path
+            )
+        };
+        push_reset_item(items, "CMake", DependencyResetStatus::Skipped, detail);
+        return;
+    };
+
+    let list_output = silent_command(&brew_path)
+        .args(["list", "--versions", "cmake"])
+        .output();
+
+    let installed_via_brew = matches!(list_output, Ok(output) if output.status.success() && !String::from_utf8_lossy(&output.stdout).trim().is_empty());
+
+    if !installed_via_brew {
+        let detail = if cmake_path == "cmake" {
+            "CMake is not installed via Homebrew.".to_string()
+        } else {
+            format!(
+                "CMake is installed at {} but not via Homebrew, so it was left intact.",
+                cmake_path
+            )
+        };
+        push_reset_item(items, "CMake", DependencyResetStatus::Skipped, detail);
+        return;
+    }
+
+    let output = silent_command(&brew_path)
+        .args(["uninstall", "cmake"])
+        .output();
+
+    match output {
+        Ok(result) if result.status.success() => push_reset_item(
+            items,
+            "CMake",
+            DependencyResetStatus::Removed,
+            "Removed Homebrew CMake install.",
+        ),
+        Ok(result) => {
+            let stderr = String::from_utf8_lossy(&result.stderr);
+            push_reset_item(
+                items,
+                "CMake",
+                DependencyResetStatus::Failed,
+                format!("Homebrew uninstall failed: {}", stderr.trim()),
+            );
+        }
+        Err(error) => push_reset_item(
+            items,
+            "CMake",
+            DependencyResetStatus::Failed,
+            format!("Failed to launch Homebrew uninstall: {}", error),
+        ),
+    }
+}
+
+pub fn reset_debug_dependencies() -> DependencyResetResult {
+    let mut items = Vec::new();
+
+    platform::invalidate_shell_cache();
+    uninstall_provider_cli(ProviderCli::Claude, "@anthropic-ai/claude-code", &mut items);
+    uninstall_provider_cli(ProviderCli::Codex, "@openai/codex", &mut items);
+    uninstall_cmake(&mut items);
+
+    match build_environment::reset_managed_juce_state() {
+        Ok(actions) if actions.is_empty() => push_reset_item(
+            &mut items,
+            "JUCE SDK",
+            DependencyResetStatus::Skipped,
+            "No managed JUCE install was present.",
+        ),
+        Ok(actions) => push_reset_item(
+            &mut items,
+            "JUCE SDK",
+            DependencyResetStatus::Removed,
+            actions.join(" "),
+        ),
+        Err(error) => push_reset_item(&mut items, "JUCE SDK", DependencyResetStatus::Failed, error),
+    }
+
+    push_reset_item(
+        &mut items,
+        "Xcode Command Line Tools",
+        DependencyResetStatus::Skipped,
+        "Left intact because it is a system toolchain install.",
+    );
+
+    platform::invalidate_shell_cache();
+
+    let removed = items
+        .iter()
+        .filter(|item| item.status == DependencyResetStatus::Removed)
+        .count();
+    let failed = items
+        .iter()
+        .filter(|item| item.status == DependencyResetStatus::Failed)
+        .count();
+
+    let summary = if failed > 0 {
+        format!(
+            "Dependency reset finished with {} removal(s) and {} failure(s).",
+            removed, failed
+        )
+    } else if removed > 0 {
+        format!("Removed {} dependency install(s).", removed)
+    } else {
+        "No removable dependency installs were found.".to_string()
+    };
+
+    DependencyResetResult { items, summary }
 }
 
 /// Read onboarding state from the user's Supabase profile.
@@ -236,7 +595,9 @@ pub fn install_xcode_clt() -> DependencyInstallResult {
             Ok(o) => {
                 let stderr = String::from_utf8_lossy(&o.stderr);
                 if stderr.contains("already installed") {
-                    DependencyInstallResult::verified("Xcode Command Line Tools are already installed.")
+                    DependencyInstallResult::verified(
+                        "Xcode Command Line Tools are already installed.",
+                    )
                 } else {
                     DependencyInstallResult::pending(
                         "Xcode Command Line Tools installer launched. Please complete the installation in the popup window.",
@@ -277,8 +638,12 @@ fn resolve_npm_path() -> Option<String> {
         let program_files = std::env::var("ProgramFiles").unwrap_or_default();
         let appdata = std::env::var("APPDATA").unwrap_or_default();
         for candidate in &[
-            std::path::PathBuf::from(&program_files).join("nodejs").join("npm.cmd"),
-            std::path::PathBuf::from(&appdata).join("npm").join("npm.cmd"),
+            std::path::PathBuf::from(&program_files)
+                .join("nodejs")
+                .join("npm.cmd"),
+            std::path::PathBuf::from(&appdata)
+                .join("npm")
+                .join("npm.cmd"),
         ] {
             if candidate.is_file() {
                 return Some(candidate.to_string_lossy().to_string());
@@ -425,9 +790,10 @@ fn run_winget_install(
                 ))
             }
         }
-        Err(error) => {
-            DependencyInstallResult::failed(format!("Could not install {}: {}", display_name, error))
-        }
+        Err(error) => DependencyInstallResult::failed(format!(
+            "Could not install {}: {}",
+            display_name, error
+        )),
     }
 }
 
@@ -488,40 +854,43 @@ pub fn install_cmake() -> DependencyInstallResult {
 
     #[cfg(not(target_os = "windows"))]
     {
-    let brew = match resolve_brew_path() {
-        Some(path) => path,
-        None => {
-            if let Err(e) = install_homebrew() {
-                return DependencyInstallResult::failed(e);
-            }
-            match resolve_brew_path() {
-                Some(path) => path,
-                None => {
-                    return DependencyInstallResult::failed(
-                        "Homebrew installed but could not be found on PATH.",
-                    )
+        let brew = match resolve_brew_path() {
+            Some(path) => path,
+            None => {
+                if let Err(e) = install_homebrew() {
+                    return DependencyInstallResult::failed(e);
+                }
+                match resolve_brew_path() {
+                    Some(path) => path,
+                    None => {
+                        return DependencyInstallResult::failed(
+                            "Homebrew installed but could not be found on PATH.",
+                        )
+                    }
                 }
             }
-        }
-    };
+        };
 
-    let result = silent_command(&brew).args(["install", "cmake"]).output();
+        let result = silent_command(&brew).args(["install", "cmake"]).output();
 
-    match result {
-        Ok(o) if o.status.success() => {
-            DependencyInstallResult::verified("CMake installed successfully via Homebrew.")
-        }
-        Ok(o) => {
-            let stderr = String::from_utf8_lossy(&o.stderr);
-            let stdout = String::from_utf8_lossy(&o.stdout);
-            if stderr.contains("already installed") || stdout.contains("already installed") {
-                DependencyInstallResult::verified("CMake is already installed via Homebrew.")
-            } else {
-                DependencyInstallResult::failed(format!("Failed to install CMake: {}", stderr.trim()))
+        match result {
+            Ok(o) if o.status.success() => {
+                DependencyInstallResult::verified("CMake installed successfully via Homebrew.")
             }
+            Ok(o) => {
+                let stderr = String::from_utf8_lossy(&o.stderr);
+                let stdout = String::from_utf8_lossy(&o.stdout);
+                if stderr.contains("already installed") || stdout.contains("already installed") {
+                    DependencyInstallResult::verified("CMake is already installed via Homebrew.")
+                } else {
+                    DependencyInstallResult::failed(format!(
+                        "Failed to install CMake: {}",
+                        stderr.trim()
+                    ))
+                }
+            }
+            Err(e) => DependencyInstallResult::failed(format!("Failed to run brew: {}", e)),
         }
-        Err(e) => DependencyInstallResult::failed(format!("Failed to run brew: {}", e)),
-    }
     }
 }
 
@@ -634,7 +1003,9 @@ fn format_vs_build_tools_failure(exit_code: Option<i32>) -> String {
 pub fn install_cpp_build_tools() -> DependencyInstallResult {
     #[cfg(not(target_os = "windows"))]
     {
-        DependencyInstallResult::failed("C++ Build Tools installation is only available on Windows.")
+        DependencyInstallResult::failed(
+            "C++ Build Tools installation is only available on Windows.",
+        )
     }
 
     #[cfg(target_os = "windows")]
@@ -671,7 +1042,9 @@ pub fn install_cpp_build_tools() -> DependencyInstallResult {
                 let install_succeeded = matches!(exit_code, Some(0) | Some(1641) | Some(3010));
 
                 if !install_succeeded {
-                    return DependencyInstallResult::failed(format_vs_build_tools_failure(exit_code));
+                    return DependencyInstallResult::failed(format_vs_build_tools_failure(
+                        exit_code,
+                    ));
                 }
 
                 if wait_for_vs_build_tools_registration(30) {
@@ -693,9 +1066,10 @@ pub fn install_cpp_build_tools() -> DependencyInstallResult {
                     DependencyInstallResult::failed("Build Tools installation finished, but Foundry could not verify the C++ workload afterwards. Restart Foundry and click Re-check.")
                 }
             }
-            Err(e) => {
-                DependencyInstallResult::failed(format!("Could not launch the Build Tools installer: {}", e))
-            }
+            Err(e) => DependencyInstallResult::failed(format!(
+                "Could not launch the Build Tools installer: {}",
+                e
+            )),
         }
     }
 }
@@ -840,7 +1214,10 @@ fn verified_provider_result(
         DependencyInstallVerification::Verified
     };
     let message = if status.auth_required {
-        format!("{} installed. Sign in to continue.", provider.display_name())
+        format!(
+            "{} installed. Sign in to continue.",
+            provider.display_name()
+        )
     } else {
         format!("{} installed successfully.", provider.display_name())
     };
@@ -912,10 +1289,9 @@ pub async fn verify_provider_install(
                 path
             );
 
-            if let Some(status) = dependency_checker::provider_status(
-                preparation.provider,
-                Some(&path),
-            )? {
+            if let Some(status) =
+                dependency_checker::provider_status(preparation.provider, Some(&path))?
+            {
                 foundry_paths::set_provider_path_override(preparation.provider.command(), &path)?;
                 platform::invalidate_shell_cache();
 
@@ -951,7 +1327,10 @@ pub async fn verify_provider_install(
 
 #[cfg(test)]
 mod tests {
-    use super::{provider_not_detected_result, DependencyInstallVerification, ProviderCli};
+    use super::{
+        provider_not_detected_result, user_local_cli_path, DependencyInstallVerification,
+        DependencyResetItem, DependencyResetResult, DependencyResetStatus, ProviderCli,
+    };
 
     #[test]
     fn verification_timeout_returns_not_detected() {
@@ -961,9 +1340,62 @@ mod tests {
         );
 
         assert!(!result.success);
-        assert_eq!(result.verification, DependencyInstallVerification::NotDetected);
-        assert_eq!(result.detected_path.as_deref(), Some("/opt/homebrew/bin/codex"));
-        assert!(result.message.contains("could not verify the CLI afterwards"));
+        assert_eq!(
+            result.verification,
+            DependencyInstallVerification::NotDetected
+        );
+        assert_eq!(
+            result.detected_path.as_deref(),
+            Some("/opt/homebrew/bin/codex")
+        );
+        assert!(result
+            .message
+            .contains("could not verify the CLI afterwards"));
+    }
+
+    #[test]
+    fn reset_summary_counts_removed_and_failed_items() {
+        let result = DependencyResetResult {
+            items: vec![
+                DependencyResetItem {
+                    name: "Claude Code CLI".into(),
+                    status: DependencyResetStatus::Removed,
+                    detail: "Removed.".into(),
+                },
+                DependencyResetItem {
+                    name: "JUCE SDK".into(),
+                    status: DependencyResetStatus::Failed,
+                    detail: "Could not remove.".into(),
+                },
+            ],
+            summary: "Dependency reset finished with 1 removal(s) and 1 failure(s).".into(),
+        };
+
+        assert!(result.summary.contains("1 removal"));
+        assert!(result.summary.contains("1 failure"));
+    }
+
+    #[test]
+    fn only_user_local_bins_are_treated_as_directly_removable() {
+        let home = dirs::home_dir().unwrap();
+        #[cfg(target_os = "windows")]
+        let local_path = home.join(".local/bin/claude.cmd");
+        #[cfg(not(target_os = "windows"))]
+        let local_path = home.join(".local/bin/claude");
+
+        #[cfg(target_os = "windows")]
+        let homebrew_path = std::path::PathBuf::from("C:/Program Files/claude.cmd");
+        #[cfg(not(target_os = "windows"))]
+        let homebrew_path = std::path::PathBuf::from("/opt/homebrew/bin/claude");
+
+        assert!(user_local_cli_path(
+            local_path.to_string_lossy().as_ref(),
+            "claude"
+        ));
+        assert!(!user_local_cli_path(
+            homebrew_path.to_string_lossy().as_ref(),
+            "claude"
+        ));
     }
 }
 

@@ -397,16 +397,26 @@ mod tests {
         let v = t.agent_cli_version.unwrap();
         assert!(!v.is_empty(), "agent_cli_version must not be empty");
         // Must look like a semver string
-        assert!(v.contains('.'), "agent_cli_version must be a semver string, got: {}", v);
+        assert!(
+            v.contains('.'),
+            "agent_cli_version must be a semver string, got: {}",
+            v
+        );
     }
 
     #[test]
     fn telemetry_build_no_hardcoded_none_fields() {
         let t = make_builder().build();
         assert!(t.os_version.is_some(), "os_version must be detected");
-        assert!(t.cpu_architecture.is_some(), "cpu_architecture must be detected");
+        assert!(
+            t.cpu_architecture.is_some(),
+            "cpu_architecture must be detected"
+        );
         // user_rating starts as None — that's correct
-        assert!(t.user_rating.is_none(), "user_rating starts as None before user rates");
+        assert!(
+            t.user_rating.is_none(),
+            "user_rating starts as None before user rates"
+        );
     }
 
     #[test]

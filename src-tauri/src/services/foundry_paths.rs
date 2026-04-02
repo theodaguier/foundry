@@ -138,7 +138,7 @@ fn save_environment_config(config: &EnvironmentConfig) -> Result<(), String> {
     };
 
     std::fs::create_dir_all(parent).map_err(|e| format!("Failed to create config dir: {}", e))?;
-    let content =
-        serde_json::to_string_pretty(config).map_err(|e| format!("Failed to serialize config: {}", e))?;
+    let content = serde_json::to_string_pretty(config)
+        .map_err(|e| format!("Failed to serialize config: {}", e))?;
     std::fs::write(&config_path, content).map_err(|e| format!("Failed to write config: {}", e))
 }

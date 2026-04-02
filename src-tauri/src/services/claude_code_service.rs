@@ -1,6 +1,6 @@
-use std::process::Stdio;
 #[cfg(target_os = "windows")]
 use std::path::Path;
+use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
@@ -521,9 +521,7 @@ fn normalize_windows_git_bash_env(env: &mut [(String, String)]) -> Option<String
 
 #[cfg(any(test, target_os = "windows"))]
 fn normalize_windows_path(path: &str) -> String {
-    path.trim()
-        .trim_matches('"')
-        .replace('/', "\\")
+    path.trim().trim_matches('"').replace('/', "\\")
 }
 
 #[cfg(target_os = "windows")]
@@ -552,9 +550,7 @@ fn ensure_windows_project_settings(project_dir: &str, git_bash_path: &str) -> Re
         )
     })?;
 
-    let env = object
-        .entry("env")
-        .or_insert_with(|| serde_json::json!({}));
+    let env = object.entry("env").or_insert_with(|| serde_json::json!({}));
     let env_object = env.as_object_mut().ok_or_else(|| {
         format!(
             "{} must contain an object in the `env` field",
