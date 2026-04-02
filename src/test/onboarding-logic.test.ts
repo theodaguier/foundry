@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest"
-import type { DependencyStatus } from "@/lib/schemas"
+import type { DependencyInstallResult, DependencyStatus } from "@/lib/schemas"
+import { interpretDependencyInstallResult } from "@/lib/dependency-install"
 
 // ---------------------------------------------------------------------------
 // Replicate the onboarding mapping logic so we can test it in isolation.
@@ -268,5 +269,45 @@ describe("Settings dependency filtering", () => {
       expect(DEP_INSTALL_KEY[name]).toBeDefined()
       expect(DEP_INSTALL_KEY[name].length).toBeGreaterThan(0)
     }
+  })
+})
+
+describe("provider install verification mapping", () => {
+  function nextStatus(result: DependencyInstallResult): DepStatus {
+    const outcome = interpretDependencyInstallResult(result)
+    switch (outcome.state) {
+      case "verified":
+        return "installed"
+      case "auth_required":
+        return "auth_required"
+      case "pending":
+        return "installing"
+      case "failed":
+        return "failed"
+    }
+  }
+
+  it("maps verified installs to installed", () => {
+    expect(nextStatus({
+      success: true,
+      message: "Codex installed successfully.",
+      verification: "verified",
+    })).toBe("installed")
+  })
+
+  it("maps auth_required installs to auth_required", () => {
+    expect(nextStatus({
+      success: true,
+      message: "Claude Code installed. Sign in to continue.",
+      verification: "auth_required",
+    })).toBe("auth_required")
+  })
+
+  it("maps not_detected installs to failed", () => {
+    expect(nextStatus({
+      success: false,
+      message: "Installer completed, but Foundry could not verify the CLI afterwards.",
+      verification: "not_detected",
+    })).toBe("failed")
   })
 })

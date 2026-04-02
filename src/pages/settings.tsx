@@ -5,6 +5,7 @@ import { useAppStore } from "@/stores/app-store"
 import { useBuildStore } from "@/stores/build-store"
 import { useSettingsStore } from "@/stores/settings-store"
 import { invalidateAndCheckDependencies, installDependency, launchClaudeAuth, launchCodexAuth } from "@/lib/commands"
+import { interpretDependencyInstallResult } from "@/lib/dependency-install"
 import { cn } from "@/lib/utils"
 import { AgentIcon } from "@/components/app/agent-icon"
 import { Button } from "@/components/ui/button"
@@ -338,21 +339,23 @@ function ModelsTab() {
     setInstallingCli(key)
     try {
       const result = await installDependency(key)
-      if (result.success) {
-        // Re-check auth state and launch auth if needed
-        const freshDeps = await invalidateAndCheckDependencies()
-        const depName = key === "claude_code" ? "Claude Code CLI" : "Codex CLI"
-        const providerStatus = freshDeps.find(d => d.name === depName)
-        if (providerStatus?.installed && providerStatus.authRequired) {
-          toast.info(`${label} installed — sign in to continue`, { description: "Opening browser…" })
-          if (key === "codex") await launchCodexAuth()
-          else await launchClaudeAuth()
-        } else {
-          toast.success(`${label} installed successfully`)
-        }
+      const outcome = interpretDependencyInstallResult(result)
+
+      if (outcome.shouldRefreshProviderState) {
+        await invalidateAndCheckDependencies()
         await refreshModels()
+      }
+
+      if (outcome.state === "verified") {
+        toast.success(label + " installed successfully")
+      } else if (outcome.state === "auth_required") {
+        toast.info(outcome.message, { description: "Opening browser…" })
+        if (key === "codex") await launchCodexAuth()
+        else await launchClaudeAuth()
+      } else if (outcome.state === "failed") {
+        toast.error(`Failed to install ${label}`, { description: outcome.message })
       } else {
-        toast.error(`Failed to install ${label}`, { description: result.message })
+        toast.success(outcome.message)
       }
     } catch (e) {
       toast.error(`Failed to install ${label}`, { description: String(e) })
@@ -464,10 +467,18 @@ function DependenciesTab() {
     setInstalling(key)
     try {
       const result = await installDependency(key)
-      if (result.success) {
+      const outcome = interpretDependencyInstallResult(result)
+
+      if (outcome.state === "verified") {
         toast.success(`${dep.name} installed successfully`)
+      } else if (outcome.state === "auth_required") {
+        toast.info(outcome.message, { description: "Opening browser…" })
+        if (dep.name === "Codex CLI") await launchCodexAuth()
+        else if (dep.name === "Claude Code CLI") await launchClaudeAuth()
+      } else if (outcome.state === "pending") {
+        toast.success(outcome.message)
       } else {
-        toast.error(`Failed to install ${dep.name}`, { description: result.message })
+        toast.error(`Failed to install ${dep.name}`, { description: outcome.message })
       }
     } catch (e) {
       toast.error(`Failed to install ${dep.name}`, { description: String(e) })

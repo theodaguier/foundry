@@ -25,23 +25,23 @@ pub async fn install_dependency(
 ) -> Result<onboarding::DependencyInstallResult, String> {
     // Enforce one install at a time
     if !onboarding::try_acquire_install_lock() {
-        return Ok(onboarding::DependencyInstallResult {
-            success: false,
-            message: "Another install is already in progress. Please wait.".into(),
-        });
+        return Ok(onboarding::DependencyInstallResult::failed(
+            "Another install is already in progress. Please wait.",
+        ));
     }
 
-    let result = tokio::task::spawn_blocking(move || match name.as_str() {
-        "xcode_clt" => onboarding::install_xcode_clt(),
-        "cpp_build_tools" => onboarding::install_cpp_build_tools(),
-        "cmake" => onboarding::install_cmake(),
-        "git" => onboarding::install_git(),
+    let outcome = tokio::task::spawn_blocking(move || match name.as_str() {
+        "xcode_clt" => onboarding::DependencyInstallDispatchResult::Final(onboarding::install_xcode_clt()),
+        "cpp_build_tools" => {
+            onboarding::DependencyInstallDispatchResult::Final(onboarding::install_cpp_build_tools())
+        }
+        "cmake" => onboarding::DependencyInstallDispatchResult::Final(onboarding::install_cmake()),
+        "git" => onboarding::DependencyInstallDispatchResult::Final(onboarding::install_git()),
         "claude_code" => onboarding::install_claude_code(),
         "codex" => onboarding::install_codex(),
-        _ => onboarding::DependencyInstallResult {
-            success: false,
-            message: format!("Unknown dependency: {}", name),
-        },
+        _ => onboarding::DependencyInstallDispatchResult::Final(onboarding::DependencyInstallResult::failed(
+            format!("Unknown dependency: {}", name),
+        )),
     })
     .await
     .map_err(|e| {
@@ -51,6 +51,14 @@ pub async fn install_dependency(
 
     // Invalidate cached shell environment so newly installed tools are detected
     platform::invalidate_shell_cache();
+
+    let result = match outcome {
+        onboarding::DependencyInstallDispatchResult::Final(result) => result,
+        onboarding::DependencyInstallDispatchResult::Provider(preparation) => {
+            onboarding::verify_provider_install(preparation).await?
+        }
+    };
+
     onboarding::release_install_lock();
 
     Ok(result)

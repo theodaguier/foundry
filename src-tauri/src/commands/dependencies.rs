@@ -8,7 +8,7 @@ struct ErrorEvent {
     message: String,
 }
 
-#[derive(serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DependencyStatus {
     pub name: String,

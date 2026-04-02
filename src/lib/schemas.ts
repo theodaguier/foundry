@@ -38,6 +38,9 @@ export const OnboardingStateSchema = z.object({
 export const DependencyInstallResultSchema = z.object({
   success: z.boolean(),
   message: z.string(),
+  verification: z.enum(["verified", "auth_required", "pending", "not_detected"]),
+  status: DependencyStatusSchema.nullish(),
+  detectedPath: z.string().nullish(),
 })
 
 // ---------------------------------------------------------------------------
