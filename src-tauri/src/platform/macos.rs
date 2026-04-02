@@ -1,5 +1,6 @@
 use super::types::{BundleMapping, DependencySpec, InstallDir, InstallOperation};
 use crate::models::plugin::PluginFormat;
+use crate::services::foundry_paths;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::RwLock;
@@ -10,7 +11,7 @@ static CODEX_PATH: RwLock<Option<Option<String>>> = RwLock::new(None);
 
 fn resolve_shell_environment() -> Vec<(String, String)> {
     let output = Command::new("/bin/zsh")
-        .args(["-l", "-c", "env"])
+        .args(["-lic", "env"])
         .output()
         .ok();
     let mut env = Vec::new();
@@ -39,38 +40,34 @@ pub fn shell_environment() -> Vec<(String, String)> {
 
 /// Resolve the Claude CLI binary path via the cached shell environment.
 pub fn resolve_claude_path() -> Option<String> {
-    {
-        let guard = CLAUDE_PATH.read().unwrap();
-        if let Some(cached) = guard.as_ref() {
-            return cached.clone();
-        }
-    }
-    let resolved = resolve_command("claude");
-    let result = if resolved == "claude" {
-        None
-    } else {
-        Some(resolved)
-    };
-    *CLAUDE_PATH.write().unwrap() = Some(result.clone());
-    result
+    resolve_provider_path("claude", &CLAUDE_PATH)
 }
 
 /// Resolve the Codex CLI binary path via the cached shell environment.
 pub fn resolve_codex_path() -> Option<String> {
+    resolve_provider_path("codex", &CODEX_PATH)
+}
+
+fn resolve_provider_path(command: &str, cache: &RwLock<Option<Option<String>>>) -> Option<String> {
     {
-        let guard = CODEX_PATH.read().unwrap();
+        let guard = cache.read().unwrap();
         if let Some(cached) = guard.as_ref() {
             return cached.clone();
         }
     }
-    let resolved = resolve_command("codex");
-    let result = if resolved == "codex" {
-        None
-    } else {
-        Some(resolved)
-    };
-    *CODEX_PATH.write().unwrap() = Some(result.clone());
-    result
+
+    let resolution = crate::platform::select_provider_resolution(
+        foundry_paths::provider_path_override(command),
+        resolve_known_cli(command),
+        provider_fallback_paths(command),
+    );
+
+    if resolution.clear_override {
+        let _ = foundry_paths::clear_provider_path_override(command);
+    }
+
+    *cache.write().unwrap() = Some(resolution.path.clone());
+    resolution.path
 }
 
 /// Clear cached shell environment and tool paths so newly installed tools are detected.
@@ -103,6 +100,56 @@ fn path_from_cached_env(cmd: &str) -> Option<String> {
 /// Resolve a command path using the cached login shell environment.
 pub fn resolve_command(cmd: &str) -> String {
     path_from_cached_env(cmd).unwrap_or_else(|| cmd.to_string())
+}
+
+fn resolve_known_cli(cmd: &str) -> Option<String> {
+    let resolved = resolve_command(cmd);
+    (resolved != cmd).then_some(resolved)
+}
+
+fn provider_fallback_paths(command: &str) -> Vec<PathBuf> {
+    let mut fallbacks = Vec::new();
+
+    if let Some(npm_path) = resolve_known_cli("npm").or_else(find_npm_in_common_locations) {
+        if let Some(candidate) = global_cli_path_from_npm(&npm_path, command) {
+            fallbacks.push(candidate);
+        }
+    }
+
+    for dir in common_global_bin_dirs() {
+        fallbacks.push(dir.join(command));
+    }
+
+    fallbacks
+}
+
+fn common_global_bin_dirs() -> Vec<PathBuf> {
+    let mut dirs = Vec::new();
+
+    if let Some(home) = dirs::home_dir() {
+        dirs.push(home.join(".npm-global").join("bin"));
+        dirs.push(home.join(".local").join("bin"));
+    }
+
+    dirs.push(PathBuf::from("/opt/homebrew/bin"));
+    dirs.push(PathBuf::from("/usr/local/bin"));
+
+    dirs
+}
+
+fn find_npm_in_common_locations() -> Option<String> {
+    ["/opt/homebrew/bin/npm", "/usr/local/bin/npm"]
+        .iter()
+        .find(|path| Path::new(path).is_file())
+        .map(|path| path.to_string())
+}
+
+pub fn global_cli_path_from_npm(npm_path: &str, cli_name: &str) -> Option<PathBuf> {
+    crate::platform::global_cli_path_from_npm_binary(
+        PathBuf::from(npm_path),
+        cli_name,
+        crate::platform::ProviderPlatform::Unix,
+    )
 }
 
 /// Create a Command with proper process wrapping.

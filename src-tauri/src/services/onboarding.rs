@@ -1,10 +1,18 @@
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::{Duration, Instant};
 
+use log::{info, warn};
 use serde::{Deserialize, Serialize};
 
+use crate::commands::dependencies::DependencyStatus;
 use crate::platform;
-use crate::services::auth_service::{SupabaseAuth, SUPABASE_ANON_KEY, SUPABASE_URL};
+use crate::services::{
+    auth_service::{SupabaseAuth, SUPABASE_ANON_KEY, SUPABASE_URL},
+    dependency_checker,
+    foundry_paths,
+};
 
 /// Global lock: only one install can run at a time.
 static INSTALL_ACTIVE: AtomicBool = AtomicBool::new(false);
@@ -45,6 +53,93 @@ pub struct OnboardingState {
 pub struct DependencyInstallResult {
     pub success: bool,
     pub message: String,
+    pub verification: DependencyInstallVerification,
+    pub status: Option<DependencyStatus>,
+    pub detected_path: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum DependencyInstallVerification {
+    Verified,
+    AuthRequired,
+    Pending,
+    NotDetected,
+}
+
+#[derive(Debug, Clone)]
+pub enum DependencyInstallDispatchResult {
+    Final(DependencyInstallResult),
+    Provider(ProviderInstallPreparation),
+}
+
+#[derive(Debug, Clone)]
+pub struct ProviderInstallPreparation {
+    pub provider: ProviderCli,
+    pub installer: &'static str,
+    pub npm_path: Option<String>,
+    pub expected_path: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProviderCli {
+    Claude,
+    Codex,
+}
+
+impl ProviderCli {
+    pub fn command(self) -> &'static str {
+        match self {
+            ProviderCli::Claude => "claude",
+            ProviderCli::Codex => "codex",
+        }
+    }
+
+    pub fn display_name(self) -> &'static str {
+        match self {
+            ProviderCli::Claude => "Claude Code",
+            ProviderCli::Codex => "Codex",
+        }
+    }
+
+    pub fn dependency_name(self) -> &'static str {
+        match self {
+            ProviderCli::Claude => "Claude Code CLI",
+            ProviderCli::Codex => "Codex CLI",
+        }
+    }
+}
+
+impl DependencyInstallResult {
+    pub fn verified(message: impl Into<String>) -> Self {
+        Self {
+            success: true,
+            message: message.into(),
+            verification: DependencyInstallVerification::Verified,
+            status: None,
+            detected_path: None,
+        }
+    }
+
+    pub fn pending(message: impl Into<String>) -> Self {
+        Self {
+            success: true,
+            message: message.into(),
+            verification: DependencyInstallVerification::Pending,
+            status: None,
+            detected_path: None,
+        }
+    }
+
+    pub fn failed(message: impl Into<String>) -> Self {
+        Self {
+            success: false,
+            message: message.into(),
+            verification: DependencyInstallVerification::NotDetected,
+            status: None,
+            detected_path: None,
+        }
+    }
 }
 
 /// Read onboarding state from the user's Supabase profile.
@@ -129,10 +224,7 @@ pub async fn complete_onboarding(auth: &SupabaseAuth) -> Result<OnboardingState,
 pub fn install_xcode_clt() -> DependencyInstallResult {
     #[cfg(not(target_os = "macos"))]
     {
-        DependencyInstallResult {
-            success: false,
-            message: "Xcode Command Line Tools are only available on macOS.".into(),
-        }
+        DependencyInstallResult::failed("Xcode Command Line Tools are only available on macOS.")
     }
 
     #[cfg(target_os = "macos")]
@@ -143,21 +235,14 @@ pub fn install_xcode_clt() -> DependencyInstallResult {
             Ok(o) => {
                 let stderr = String::from_utf8_lossy(&o.stderr);
                 if stderr.contains("already installed") {
-                    DependencyInstallResult {
-                        success: true,
-                        message: "Xcode Command Line Tools are already installed.".into(),
-                    }
+                    DependencyInstallResult::verified("Xcode Command Line Tools are already installed.")
                 } else {
-                    DependencyInstallResult {
-                    success: true,
-                    message: "Xcode Command Line Tools installer launched. Please complete the installation in the popup window.".into(),
-                }
+                    DependencyInstallResult::pending(
+                        "Xcode Command Line Tools installer launched. Please complete the installation in the popup window.",
+                    )
                 }
             }
-            Err(e) => DependencyInstallResult {
-                success: false,
-                message: format!("Failed to launch installer: {}", e),
-            },
+            Err(e) => DependencyInstallResult::failed(format!("Failed to launch installer: {}", e)),
         }
     }
 }
@@ -296,13 +381,10 @@ fn run_winget_install(
     let winget = match resolve_winget_path() {
         Some(path) => path,
         None => {
-            return DependencyInstallResult {
-                success: false,
-                message: format!(
-                    "winget is not available. Install {} manually, then click Re-check.",
-                    display_name
-                ),
-            };
+            return DependencyInstallResult::failed(format!(
+                "winget is not available. Install {} manually, then click Re-check.",
+                display_name
+            ));
         }
     };
 
@@ -320,10 +402,9 @@ fn run_winget_install(
     let result = silent_command(&winget).args(&args).output();
 
     match result {
-        Ok(output) if output.status.success() => DependencyInstallResult {
-            success: true,
-            message: format!("{} installed successfully.", display_name),
-        },
+        Ok(output) if output.status.success() => {
+            DependencyInstallResult::verified(format!("{} installed successfully.", display_name))
+        }
         Ok(output) => {
             let stderr = String::from_utf8_lossy(&output.stderr);
             let stdout = String::from_utf8_lossy(&output.stdout);
@@ -334,22 +415,18 @@ fn run_winget_install(
                 || combined.contains("Found an existing package already installed")
                 || combined.contains("No newer package versions are available")
             {
-                DependencyInstallResult {
-                    success: true,
-                    message: format!("{} is already installed.", display_name),
-                }
+                DependencyInstallResult::verified(format!("{} is already installed.", display_name))
             } else {
                 let clean = sanitize_winget_output(&combined);
-                DependencyInstallResult {
-                    success: false,
-                    message: format!("Could not install {}. {}", display_name, clean),
-                }
+                DependencyInstallResult::failed(format!(
+                    "Could not install {}. {}",
+                    display_name, clean
+                ))
             }
         }
-        Err(error) => DependencyInstallResult {
-            success: false,
-            message: format!("Could not install {}: {}", display_name, error),
-        },
+        Err(error) => {
+            DependencyInstallResult::failed(format!("Could not install {}: {}", display_name, error))
+        }
     }
 }
 
@@ -382,10 +459,7 @@ fn install_homebrew() -> Result<(), String> {
 pub fn install_git() -> DependencyInstallResult {
     let resolved = platform::resolve_command("git");
     if resolved != "git" {
-        return DependencyInstallResult {
-            success: true,
-            message: "Git is already installed.".into(),
-        };
+        return DependencyInstallResult::verified("Git is already installed.");
     }
 
     #[cfg(target_os = "windows")]
@@ -395,10 +469,7 @@ pub fn install_git() -> DependencyInstallResult {
 
     #[cfg(not(target_os = "windows"))]
     {
-        DependencyInstallResult {
-            success: false,
-            message: "Git installation is only automated on Windows.".into(),
-        }
+        DependencyInstallResult::failed("Git installation is only automated on Windows.")
     }
 }
 
@@ -406,10 +477,7 @@ pub fn install_git() -> DependencyInstallResult {
 pub fn install_cmake() -> DependencyInstallResult {
     let resolved = platform::resolve_command("cmake");
     if resolved != "cmake" {
-        return DependencyInstallResult {
-            success: true,
-            message: "CMake is already installed.".into(),
-        };
+        return DependencyInstallResult::verified("CMake is already installed.");
     }
 
     #[cfg(target_os = "windows")]
@@ -423,18 +491,14 @@ pub fn install_cmake() -> DependencyInstallResult {
         Some(path) => path,
         None => {
             if let Err(e) = install_homebrew() {
-                return DependencyInstallResult {
-                    success: false,
-                    message: e,
-                };
+                return DependencyInstallResult::failed(e);
             }
             match resolve_brew_path() {
                 Some(path) => path,
                 None => {
-                    return DependencyInstallResult {
-                        success: false,
-                        message: "Homebrew installed but could not be found on PATH.".into(),
-                    }
+                    return DependencyInstallResult::failed(
+                        "Homebrew installed but could not be found on PATH.",
+                    )
                 }
             }
         }
@@ -443,29 +507,19 @@ pub fn install_cmake() -> DependencyInstallResult {
     let result = silent_command(&brew).args(["install", "cmake"]).output();
 
     match result {
-        Ok(o) if o.status.success() => DependencyInstallResult {
-            success: true,
-            message: "CMake installed successfully via Homebrew.".into(),
-        },
+        Ok(o) if o.status.success() => {
+            DependencyInstallResult::verified("CMake installed successfully via Homebrew.")
+        }
         Ok(o) => {
             let stderr = String::from_utf8_lossy(&o.stderr);
             let stdout = String::from_utf8_lossy(&o.stdout);
             if stderr.contains("already installed") || stdout.contains("already installed") {
-                DependencyInstallResult {
-                    success: true,
-                    message: "CMake is already installed via Homebrew.".into(),
-                }
+                DependencyInstallResult::verified("CMake is already installed via Homebrew.")
             } else {
-                DependencyInstallResult {
-                    success: false,
-                    message: format!("Failed to install CMake: {}", stderr.trim()),
-                }
+                DependencyInstallResult::failed(format!("Failed to install CMake: {}", stderr.trim()))
             }
         }
-        Err(e) => DependencyInstallResult {
-            success: false,
-            message: format!("Failed to run brew: {}", e),
-        },
+        Err(e) => DependencyInstallResult::failed(format!("Failed to run brew: {}", e)),
     }
     }
 }
@@ -579,20 +633,14 @@ fn format_vs_build_tools_failure(exit_code: Option<i32>) -> String {
 pub fn install_cpp_build_tools() -> DependencyInstallResult {
     #[cfg(not(target_os = "windows"))]
     {
-        DependencyInstallResult {
-            success: false,
-            message: "C++ Build Tools installation is only available on Windows.".into(),
-        }
+        DependencyInstallResult::failed("C++ Build Tools installation is only available on Windows.")
     }
 
     #[cfg(target_os = "windows")]
     {
         // Pre-check with vswhere
         if vs_build_tools_installed() {
-            return DependencyInstallResult {
-                success: true,
-                message: "Windows Build Tools are already installed.".into(),
-            };
+            return DependencyInstallResult::verified("Windows Build Tools are already installed.");
         }
 
         // Download the official VS Build Tools bootstrapper
@@ -600,10 +648,7 @@ pub fn install_cpp_build_tools() -> DependencyInstallResult {
         let bootstrapper_path = temp_dir.join("vs_BuildTools.exe");
 
         if let Err(message) = download_vs_build_tools_bootstrapper(&bootstrapper_path) {
-            return DependencyInstallResult {
-                success: false,
-                message,
-            };
+            return DependencyInstallResult::failed(message);
         }
 
         let run_install = silent_command(&bootstrapper_path.to_string_lossy())
@@ -625,10 +670,7 @@ pub fn install_cpp_build_tools() -> DependencyInstallResult {
                 let install_succeeded = matches!(exit_code, Some(0) | Some(1641) | Some(3010));
 
                 if !install_succeeded {
-                    return DependencyInstallResult {
-                        success: false,
-                        message: format_vs_build_tools_failure(exit_code),
-                    };
+                    return DependencyInstallResult::failed(format_vs_build_tools_failure(exit_code));
                 }
 
                 if wait_for_vs_build_tools_registration(30) {
@@ -638,13 +680,10 @@ pub fn install_cpp_build_tools() -> DependencyInstallResult {
                         ""
                     };
 
-                    return DependencyInstallResult {
-                        success: true,
-                        message: format!(
-                            "Windows Build Tools installed successfully.{}",
-                            restart_suffix
-                        ),
-                    };
+                    return DependencyInstallResult::verified(format!(
+                        "Windows Build Tools installed successfully.{}",
+                        restart_suffix
+                    ));
                 }
 
                 let message = if matches!(exit_code, Some(1641) | Some(3010)) {
@@ -653,15 +692,11 @@ pub fn install_cpp_build_tools() -> DependencyInstallResult {
                     "Build Tools installation finished, but Foundry could not verify the C++ workload afterwards. Restart Foundry and click Re-check.".into()
                 };
 
-                DependencyInstallResult {
-                    success: false,
-                    message,
-                }
+                DependencyInstallResult::failed(message)
             }
-            Err(e) => DependencyInstallResult {
-                success: false,
-                message: format!("Could not launch the Build Tools installer: {}", e),
-            },
+            Err(e) => {
+                DependencyInstallResult::failed(format!("Could not launch the Build Tools installer: {}", e))
+            }
         }
     }
 }
@@ -747,154 +782,358 @@ fn ensure_npm() -> Result<String, String> {
     }
 }
 
+fn npm_global_prefix(npm_path: &str) -> Result<String, String> {
+    let output = silent_command(npm_path)
+        .args(["prefix", "-g"])
+        .output()
+        .map_err(|e| format!("Failed to inspect npm prefix: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("npm prefix -g failed: {}", stderr.trim()));
+    }
+
+    let prefix = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if prefix.is_empty() {
+        return Err("npm prefix -g returned an empty path.".into());
+    }
+
+    Ok(prefix)
+}
+
+fn provider_cli_from_prefix(prefix: &str, cli_name: &str) -> PathBuf {
+    #[cfg(target_os = "windows")]
+    {
+        PathBuf::from(prefix).join(format!("{}.cmd", cli_name))
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        PathBuf::from(prefix).join("bin").join(cli_name)
+    }
+}
+
+fn expected_cli_path_from_npm(npm_path: &str, cli_name: &str) -> Option<String> {
+    if let Ok(prefix) = npm_global_prefix(npm_path) {
+        let candidate = provider_cli_from_prefix(&prefix, cli_name);
+        info!(
+            "Provider install npm prefix resolved: cli={} npm={} prefix={} expected={}",
+            cli_name,
+            npm_path,
+            prefix,
+            candidate.display()
+        );
+        return Some(candidate.to_string_lossy().to_string());
+    }
+
+    platform::global_cli_path_from_npm(npm_path, cli_name)
+        .map(|path| path.to_string_lossy().to_string())
+}
+
+fn verified_provider_result(
+    provider: ProviderCli,
+    status: DependencyStatus,
+    detected_path: String,
+) -> DependencyInstallResult {
+    let verification = if status.auth_required {
+        DependencyInstallVerification::AuthRequired
+    } else {
+        DependencyInstallVerification::Verified
+    };
+    let message = if status.auth_required {
+        format!("{} installed. Sign in to continue.", provider.display_name())
+    } else {
+        format!("{} installed successfully.", provider.display_name())
+    };
+
+    DependencyInstallResult {
+        success: true,
+        message,
+        verification,
+        status: Some(status),
+        detected_path: Some(detected_path),
+    }
+}
+
+fn provider_not_detected_result(
+    provider: ProviderCli,
+    last_detected_path: Option<String>,
+) -> DependencyInstallResult {
+    DependencyInstallResult {
+        success: false,
+        message: format!(
+            "{} installer completed, but Foundry could not verify the CLI afterwards. Please try again or install {} manually.",
+            provider.display_name(),
+            provider.display_name()
+        ),
+        verification: DependencyInstallVerification::NotDetected,
+        status: None,
+        detected_path: last_detected_path,
+    }
+}
+
+pub async fn verify_provider_install(
+    preparation: ProviderInstallPreparation,
+) -> Result<DependencyInstallResult, String> {
+    const VERIFY_TIMEOUT: Duration = Duration::from_secs(15);
+    const VERIFY_INTERVAL: Duration = Duration::from_secs(1);
+
+    info!(
+        "Verifying provider install: provider={} installer={} npm_path={:?} expected_path={:?}",
+        preparation.provider.command(),
+        preparation.installer,
+        preparation.npm_path,
+        preparation.expected_path
+    );
+
+    let started_at = Instant::now();
+    let mut last_detected_path = None;
+
+    loop {
+        platform::invalidate_shell_cache();
+
+        let expected_candidate = preparation
+            .expected_path
+            .as_deref()
+            .filter(|path| Path::new(path).is_file())
+            .map(ToOwned::to_owned);
+
+        let detected_path = expected_candidate
+            .clone()
+            .or_else(|| match preparation.provider {
+                ProviderCli::Claude => platform::resolve_claude_path(),
+                ProviderCli::Codex => platform::resolve_codex_path(),
+            });
+
+        if let Some(path) = detected_path.clone() {
+            last_detected_path = Some(path.clone());
+            info!(
+                "Provider install candidate detected: provider={} path={}",
+                preparation.provider.command(),
+                path
+            );
+
+            if let Some(status) = dependency_checker::provider_status(
+                preparation.provider,
+                Some(&path),
+            )? {
+                foundry_paths::set_provider_path_override(preparation.provider.command(), &path)?;
+                platform::invalidate_shell_cache();
+
+                info!(
+                    "Provider install verified: provider={} path={} auth_required={}",
+                    preparation.provider.command(),
+                    path,
+                    status.auth_required
+                );
+
+                return Ok(verified_provider_result(preparation.provider, status, path));
+            }
+        }
+
+        if started_at.elapsed() >= VERIFY_TIMEOUT {
+            warn!(
+                "Provider install verification timed out: provider={} installer={} expected_path={:?} last_detected_path={:?}",
+                preparation.provider.command(),
+                preparation.installer,
+                preparation.expected_path,
+                last_detected_path
+            );
+
+            return Ok(provider_not_detected_result(
+                preparation.provider,
+                last_detected_path,
+            ));
+        }
+
+        tokio::time::sleep(VERIFY_INTERVAL).await;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{provider_not_detected_result, DependencyInstallVerification, ProviderCli};
+
+    #[test]
+    fn verification_timeout_returns_not_detected() {
+        let result = provider_not_detected_result(
+            ProviderCli::Codex,
+            Some("/opt/homebrew/bin/codex".into()),
+        );
+
+        assert!(!result.success);
+        assert_eq!(result.verification, DependencyInstallVerification::NotDetected);
+        assert_eq!(result.detected_path.as_deref(), Some("/opt/homebrew/bin/codex"));
+        assert!(result.message.contains("could not verify the CLI afterwards"));
+    }
+}
+
 /// Install Claude Code using the native installer (no Node.js required).
 /// Falls back to winget on Windows, brew on macOS, and npm as last resort.
-pub fn install_claude_code() -> DependencyInstallResult {
-    let resolved = platform::resolve_command("claude");
-    if resolved != "claude" {
-        return DependencyInstallResult {
-            success: true,
-            message: "Claude Code is already installed.".into(),
-        };
+pub fn install_claude_code() -> DependencyInstallDispatchResult {
+    if let Some(existing_path) = platform::resolve_claude_path() {
+        info!("Claude Code already resolvable at {}", existing_path);
+        return DependencyInstallDispatchResult::Provider(ProviderInstallPreparation {
+            provider: ProviderCli::Claude,
+            installer: "existing",
+            npm_path: None,
+            expected_path: Some(existing_path),
+        });
     }
 
     // Try native installer first (recommended by Anthropic, no dependencies)
     #[cfg(target_os = "windows")]
     {
-        // Windows: try winget first (cleanest), then PowerShell native installer
+        info!("Installing Claude Code via winget");
         let winget_result = run_winget_install("Anthropic.ClaudeCode", "Claude Code", &[]);
         if winget_result.success {
-            platform::invalidate_shell_cache();
-            return winget_result;
+            return DependencyInstallDispatchResult::Provider(ProviderInstallPreparation {
+                provider: ProviderCli::Claude,
+                installer: "winget",
+                npm_path: None,
+                expected_path: None,
+            });
         }
 
-        // Fallback: PowerShell native installer
+        info!("Installing Claude Code via PowerShell installer");
         let ps_result = silent_command("powershell")
             .args([
                 "-NoProfile",
-                "-ExecutionPolicy", "Bypass",
+                "-ExecutionPolicy",
+                "Bypass",
                 "-Command",
                 "irm https://claude.ai/install.ps1 | iex",
             ])
             .output();
 
         match ps_result {
-            Ok(o) if o.status.success() => {
-                platform::invalidate_shell_cache();
-                return DependencyInstallResult {
-                    success: true,
-                    message: "Claude Code installed successfully.".into(),
-                };
+            Ok(output) if output.status.success() => {
+                return DependencyInstallDispatchResult::Provider(ProviderInstallPreparation {
+                    provider: ProviderCli::Claude,
+                    installer: "powershell",
+                    npm_path: None,
+                    expected_path: None,
+                });
             }
-            _ => {}
+            Ok(output) => {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                warn!("Claude PowerShell installer failed: {}", stderr.trim());
+            }
+            Err(error) => warn!("Claude PowerShell installer failed to launch: {}", error),
         }
     }
 
     #[cfg(not(target_os = "windows"))]
     {
-        // macOS/Linux: native installer via curl
+        info!("Installing Claude Code via shell installer");
         let curl_result = silent_command("/bin/bash")
             .args(["-c", "curl -fsSL https://claude.ai/install.sh | bash"])
             .output();
 
         match curl_result {
-            Ok(o) if o.status.success() => {
-                platform::invalidate_shell_cache();
-                return DependencyInstallResult {
-                    success: true,
-                    message: "Claude Code installed successfully.".into(),
-                };
+            Ok(output) if output.status.success() => {
+                return DependencyInstallDispatchResult::Provider(ProviderInstallPreparation {
+                    provider: ProviderCli::Claude,
+                    installer: "shell",
+                    npm_path: None,
+                    expected_path: None,
+                });
             }
-            _ => {}
+            Ok(output) => {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                warn!("Claude shell installer failed: {}", stderr.trim());
+            }
+            Err(error) => warn!("Claude shell installer failed to launch: {}", error),
         }
     }
 
-    // Last resort: npm
     let npm = match ensure_npm() {
         Ok(path) => path,
         Err(_) => {
-            return DependencyInstallResult {
-                success: false,
-                message: "Could not install Claude Code. Please install it manually: https://code.claude.com/docs/setup".into(),
-            };
+            return DependencyInstallDispatchResult::Final(DependencyInstallResult::failed(
+                "Could not install Claude Code. Please install it manually: https://code.claude.com/docs/setup",
+            ));
         }
     };
 
+    let expected_path = expected_cli_path_from_npm(&npm, ProviderCli::Claude.command());
+    info!(
+        "Installing Claude Code via npm: npm={} expected_path={:?}",
+        npm, expected_path
+    );
     let result = silent_command(&npm)
         .args(["install", "-g", "@anthropic-ai/claude-code"])
         .output();
 
     match result {
-        Ok(o) if o.status.success() => {
-            platform::invalidate_shell_cache();
-            DependencyInstallResult {
-                success: true,
-                message: "Claude Code installed successfully.".into(),
-            }
+        Ok(output) if output.status.success() => {
+            DependencyInstallDispatchResult::Provider(ProviderInstallPreparation {
+                provider: ProviderCli::Claude,
+                installer: "npm",
+                npm_path: Some(npm),
+                expected_path,
+            })
         }
-        Ok(o) => {
-            let stderr = String::from_utf8_lossy(&o.stderr);
-            DependencyInstallResult {
-                success: false,
-                message: format!("Could not install Claude Code. {}", stderr.lines().last().unwrap_or("").trim()),
-            }
+        Ok(output) => {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            DependencyInstallDispatchResult::Final(DependencyInstallResult::failed(format!(
+                "Could not install Claude Code. {}",
+                stderr.lines().last().unwrap_or("").trim()
+            )))
         }
-        Err(e) => DependencyInstallResult {
-            success: false,
-            message: format!("Could not install Claude Code: {}", e),
-        },
+        Err(error) => DependencyInstallDispatchResult::Final(DependencyInstallResult::failed(
+            format!("Could not install Claude Code: {}", error),
+        )),
     }
 }
 
 /// Install Codex CLI via npm.
-pub fn install_codex() -> DependencyInstallResult {
-    let resolved = platform::resolve_command("codex");
-    if resolved != "codex" {
-        return DependencyInstallResult {
-            success: true,
-            message: "Codex CLI is already installed.".into(),
-        };
+pub fn install_codex() -> DependencyInstallDispatchResult {
+    if let Some(existing_path) = platform::resolve_codex_path() {
+        info!("Codex already resolvable at {}", existing_path);
+        return DependencyInstallDispatchResult::Provider(ProviderInstallPreparation {
+            provider: ProviderCli::Codex,
+            installer: "existing",
+            npm_path: None,
+            expected_path: Some(existing_path),
+        });
     }
 
     let npm = match ensure_npm() {
         Ok(path) => path,
-        Err(e) => {
-            return DependencyInstallResult {
-                success: false,
-                message: e,
-            }
+        Err(error) => {
+            return DependencyInstallDispatchResult::Final(DependencyInstallResult::failed(error))
         }
     };
+
+    let expected_path = expected_cli_path_from_npm(&npm, ProviderCli::Codex.command());
+    info!(
+        "Installing Codex via npm: npm={} expected_path={:?}",
+        npm, expected_path
+    );
 
     let result = silent_command(&npm)
         .args(["install", "-g", "@openai/codex"])
         .output();
 
     match result {
-        Ok(o) if o.status.success() => {
-            platform::invalidate_shell_cache();
-            if platform::resolve_codex_path().is_some() {
-                DependencyInstallResult {
-                    success: true,
-                    message: "Codex installed successfully.".into(),
-                }
-            } else {
-                DependencyInstallResult {
-                    success: false,
-                    message: "npm install succeeded but the codex binary was not found on PATH. Try restarting your shell.".into(),
-                }
-            }
+        Ok(output) if output.status.success() => {
+            DependencyInstallDispatchResult::Provider(ProviderInstallPreparation {
+                provider: ProviderCli::Codex,
+                installer: "npm",
+                npm_path: Some(npm),
+                expected_path,
+            })
         }
-        Ok(o) => {
-            let stderr = String::from_utf8_lossy(&o.stderr);
-            DependencyInstallResult {
-                success: false,
-                message: format!("Could not install Codex. {}", stderr.lines().last().unwrap_or("").trim()),
-            }
+        Ok(output) => {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            DependencyInstallDispatchResult::Final(DependencyInstallResult::failed(format!(
+                "Could not install Codex. {}",
+                stderr.lines().last().unwrap_or("").trim()
+            )))
         }
-        Err(e) => DependencyInstallResult {
-            success: false,
-            message: format!("Could not install Codex: {}", e),
-        },
+        Err(error) => DependencyInstallDispatchResult::Final(DependencyInstallResult::failed(
+            format!("Could not install Codex: {}", error),
+        )),
     }
 }

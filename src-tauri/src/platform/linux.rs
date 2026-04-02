@@ -64,6 +64,14 @@ pub fn resolve_command(cmd: &str) -> String {
         .unwrap_or_else(|| cmd.to_string())
 }
 
+pub fn global_cli_path_from_npm(npm_path: &str, cli_name: &str) -> Option<PathBuf> {
+    crate::platform::global_cli_path_from_npm_binary(
+        PathBuf::from(npm_path),
+        cli_name,
+        crate::platform::ProviderPlatform::Unix,
+    )
+}
+
 /// Create a Command with proper process wrapping.
 pub fn create_command(cmd: &str) -> Command {
     let mut c = Command::new("/usr/bin/env");

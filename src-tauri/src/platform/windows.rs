@@ -1,5 +1,6 @@
 use super::types::{BundleMapping, DependencySpec, InstallDir, InstallOperation};
 use crate::models::plugin::PluginFormat;
+use crate::services::foundry_paths;
 use std::os::windows::process::CommandExt;
 use std::path::Path;
 use std::path::PathBuf;
@@ -35,12 +36,26 @@ pub fn shell_environment() -> Vec<(String, String)> {
 
 /// Resolve Claude CLI path using `where` on Windows.
 pub fn resolve_claude_path() -> Option<String> {
-    resolve_known_cli("claude")
+    resolve_provider_path("claude")
 }
 
 /// Resolve Codex CLI path using `where` on Windows.
 pub fn resolve_codex_path() -> Option<String> {
-    resolve_known_cli("codex")
+    resolve_provider_path("codex")
+}
+
+fn resolve_provider_path(command: &str) -> Option<String> {
+    let resolution = crate::platform::select_provider_resolution(
+        foundry_paths::provider_path_override(command),
+        resolve_known_cli(command),
+        provider_fallback_paths(command),
+    );
+
+    if resolution.clear_override {
+        let _ = foundry_paths::clear_provider_path_override(command);
+    }
+
+    resolution.path
 }
 
 /// Resolve the Git Bash executable required by Claude Code on native Windows.
@@ -81,6 +96,14 @@ pub fn resolve_command(cmd: &str) -> String {
             }
         })
         .unwrap_or_else(|| cmd.to_string())
+}
+
+pub fn global_cli_path_from_npm(npm_path: &str, cli_name: &str) -> Option<PathBuf> {
+    crate::platform::global_cli_path_from_npm_binary(
+        PathBuf::from(npm_path),
+        cli_name,
+        crate::platform::ProviderPlatform::Windows,
+    )
 }
 
 /// Create a Command directly (no /usr/bin/env on Windows).
@@ -346,6 +369,27 @@ fn resolve_known_cli(cmd: &str) -> Option<String> {
                 .cloned()
         })
         .or_else(|| candidates.into_iter().next())
+}
+
+fn provider_fallback_paths(command: &str) -> Vec<PathBuf> {
+    let mut fallbacks = Vec::new();
+
+    if let Ok(appdata) = std::env::var("APPDATA") {
+        if !appdata.is_empty() {
+            fallbacks.push(PathBuf::from(appdata).join("npm").join(format!("{}.cmd", command)));
+        }
+    }
+
+    for npm_candidate in where_results("npm.cmd")
+        .into_iter()
+        .chain(where_results("npm").into_iter())
+    {
+        if let Some(path) = global_cli_path_from_npm(&npm_candidate, command) {
+            fallbacks.push(path);
+        }
+    }
+
+    fallbacks
 }
 
 fn where_results(cmd: &str) -> Vec<String> {

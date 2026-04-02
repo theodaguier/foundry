@@ -221,30 +221,43 @@ describe("OnboardingStateSchema", () => {
 
 describe("DependencyInstallResultSchema", () => {
   it("parses a successful install", () => {
-    const data = { success: true, message: "CMake installed successfully via Homebrew." }
+    const data = {
+      success: true,
+      message: "CMake installed successfully via Homebrew.",
+      verification: "verified",
+    }
     const result = DependencyInstallResultSchema.parse(data)
     expect(result.success).toBe(true)
     expect(result.message).toBe("CMake installed successfully via Homebrew.")
+    expect(result.verification).toBe("verified")
   })
 
   it("parses a failed install", () => {
     const data = {
       success: false,
       message: "npm install succeeded but the codex binary was not found on PATH. Try restarting your shell.",
+      verification: "not_detected",
     }
     const result = DependencyInstallResultSchema.parse(data)
     expect(result.success).toBe(false)
+    expect(result.verification).toBe("not_detected")
   })
 
   it("rejects missing message", () => {
     expect(() =>
-      DependencyInstallResultSchema.parse({ success: true })
+      DependencyInstallResultSchema.parse({ success: true, verification: "verified" })
     ).toThrow()
   })
 
   it("rejects missing success", () => {
     expect(() =>
-      DependencyInstallResultSchema.parse({ message: "ok" })
+      DependencyInstallResultSchema.parse({ message: "ok", verification: "verified" })
+    ).toThrow()
+  })
+
+  it("rejects missing verification", () => {
+    expect(() =>
+      DependencyInstallResultSchema.parse({ success: true, message: "ok" })
     ).toThrow()
   })
 })

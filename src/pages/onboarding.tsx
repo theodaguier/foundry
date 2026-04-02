@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button"
 import { FoundryLogo } from "@/components/app/foundry-logo"
 import { useAppStore } from "@/stores/app-store"
 import * as commands from "@/lib/commands"
+import { interpretDependencyInstallResult } from "@/lib/dependency-install"
 import * as analytics from "@/lib/analytics"
 
 // ---------------------------------------------------------------------------
@@ -343,14 +344,15 @@ export default function Onboarding() {
       }
 
       const result = await commands.installDependency(dep.key)
+      const outcome = interpretDependencyInstallResult(result)
 
       // Xcode CLT is still a GUI-based installer — poll until detected.
-      const isGuiInstaller = dep.key === "xcode_clt" && result.success
+      const isGuiInstaller = dep.key === "xcode_clt" && outcome.state === "pending"
       if (isGuiInstaller) {
         const depName = "Xcode Command Line Tools"
         updateDep(dep.key, {
           status: "installing",
-          message: result.message,
+          message: outcome.message,
         })
         if (pollRef.current) clearInterval(pollRef.current)
         pollRef.current = setInterval(async () => {
@@ -378,50 +380,52 @@ export default function Onboarding() {
         return
       }
 
-      if (result.success) {
-        // For provider CLIs: re-check auth state and auto-launch auth if needed
+      if (outcome.state === "verified") {
+        updateDep(dep.key, { status: "installed", message: undefined })
+        analytics.trackDependencyInstallCompleted({ dependency: dep.key, success: true })
+        return
+      }
+
+      if (outcome.state === "auth_required") {
         const providerAuth: Record<string, { depName: string; launch: () => Promise<unknown> }> = {
           claude_code: { depName: "Claude Code CLI", launch: commands.launchClaudeAuth },
           codex: { depName: "Codex CLI", launch: commands.launchCodexAuth },
         }
         const auth = providerAuth[dep.key]
+        updateDep(dep.key, { status: "auth_required", message: "Opening browser to sign in…" })
+        analytics.trackDependencyInstallCompleted({ dependency: dep.key, success: true })
         if (auth) {
-          const freshResults = await commands.checkDependencies()
-          const providerStatus = freshResults.find(r => r.name === auth.depName)
-          if (providerStatus?.installed && providerStatus.authRequired) {
-            updateDep(dep.key, { status: "auth_required", message: "Opening browser to sign in…" })
-            analytics.trackDependencyInstallCompleted({ dependency: dep.key, success: true })
-            analytics.trackDependencyAuthStarted({ provider: dep.key })
-            try { await auth.launch() } catch {}
-            // Poll for auth completion (separate ref from Xcode CLT poll)
-            if (authPollRef.current) clearInterval(authPollRef.current)
-            authPollRef.current = setInterval(async () => {
-              try {
-                const results = await commands.checkDependencies()
-                const found = results.find(r => r.name === auth.depName)
-                if (found?.installed && !found.authRequired) {
-                  if (authPollRef.current) clearInterval(authPollRef.current)
-                  authPollRef.current = null
-                  updateDep(dep.key, { status: "installed", message: undefined })
-                  analytics.trackDependencyAuthCompleted({ provider: dep.key })
-                }
-              } catch { /* keep polling */ }
-            }, 5000)
-            // Timeout after 5 minutes
-            setTimeout(() => {
-              if (authPollRef.current) {
-                clearInterval(authPollRef.current)
+          analytics.trackDependencyAuthStarted({ provider: dep.key })
+          try { await auth.launch() } catch {}
+          if (authPollRef.current) clearInterval(authPollRef.current)
+          authPollRef.current = setInterval(async () => {
+            try {
+              const results = await commands.checkDependencies()
+              const found = results.find(r => r.name === auth.depName)
+              if (found?.installed && !found.authRequired) {
+                if (authPollRef.current) clearInterval(authPollRef.current)
                 authPollRef.current = null
+                updateDep(dep.key, { status: "installed", message: undefined })
+                analytics.trackDependencyAuthCompleted({ provider: dep.key })
               }
-            }, 300_000)
-            return
-          }
+            } catch { /* keep polling */ }
+          }, 5000)
+          setTimeout(() => {
+            if (authPollRef.current) {
+              clearInterval(authPollRef.current)
+              authPollRef.current = null
+            }
+          }, 300_000)
         }
-        updateDep(dep.key, { status: "installed", message: undefined })
+        return
+      }
+
+      if (outcome.state === "pending") {
+        updateDep(dep.key, { status: "installing", message: outcome.message })
         analytics.trackDependencyInstallCompleted({ dependency: dep.key, success: true })
       } else {
-        updateDep(dep.key, { status: "failed", message: result.message })
-        analytics.trackDependencyInstallCompleted({ dependency: dep.key, success: false, message: result.message })
+        updateDep(dep.key, { status: "failed", message: outcome.message })
+        analytics.trackDependencyInstallCompleted({ dependency: dep.key, success: false, message: outcome.message })
       }
     } catch (e) {
       updateDep(dep.key, { status: "failed", message: String(e) })
@@ -625,7 +629,7 @@ export default function Onboarding() {
                         </div>
                       ) : dep.status === "auth_required" ? (
                         <div className="text-[11px] text-amber-500/80 mt-0.5">
-                          Run <code className="bg-muted px-1 py-0.5 rounded font-mono text-[10px]">claude</code> in a terminal to sign in
+                          Sign in with {dep.label} in your browser to finish setup
                         </div>
                       ) : (
                         <div className="text-[11px] text-muted-foreground/70 mt-0.5">
@@ -654,7 +658,10 @@ export default function Onboarding() {
                           size="sm"
                           variant="secondary"
                           onClick={async () => {
-                            try { await commands.launchClaudeAuth() } catch {}
+                            try {
+                              if (dep.key === "codex") await commands.launchCodexAuth()
+                              else await commands.launchClaudeAuth()
+                            } catch {}
                           }}
                           className="text-[11px] h-6 px-2 text-amber-500 hover:text-amber-500"
                         >
