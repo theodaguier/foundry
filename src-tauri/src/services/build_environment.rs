@@ -101,6 +101,32 @@ pub async fn clear_juce_override_path() -> Result<BuildEnvironmentStatus, String
     inspect_environment(false, None).await
 }
 
+pub fn reset_managed_juce_state() -> Result<Vec<String>, String> {
+    let mut actions = Vec::new();
+    let managed_root = foundry_paths::managed_juce_root_dir();
+
+    if managed_root.exists() {
+        fs::remove_dir_all(&managed_root).map_err(|error| error.to_string())?;
+        actions.push(format!("Removed {}", managed_root.display()));
+    }
+
+    let mut config = read_environment_config()?;
+    let had_override = config.juce_override_path.take().is_some();
+    let had_managed_version = config.managed_juce_version.take().is_some();
+    let had_last_resolved = config.last_resolved_juce_path.take().is_some();
+
+    if had_override {
+        actions.push("Cleared custom JUCE path override.".into());
+    }
+    config.last_validation_at = Some(Utc::now().to_rfc3339());
+
+    if had_override || had_managed_version || had_last_resolved || !actions.is_empty() {
+        write_environment_config(&config)?;
+    }
+
+    Ok(actions)
+}
+
 pub fn format_blocked_message(status: &BuildEnvironmentStatus) -> String {
     let details = status
         .issues

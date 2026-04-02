@@ -30,24 +30,32 @@ pub async fn install_dependency(
         ));
     }
 
-    let outcome = tokio::task::spawn_blocking(move || match name.as_str() {
-        "xcode_clt" => onboarding::DependencyInstallDispatchResult::Final(onboarding::install_xcode_clt()),
-        "cpp_build_tools" => {
-            onboarding::DependencyInstallDispatchResult::Final(onboarding::install_cpp_build_tools())
-        }
-        "cmake" => onboarding::DependencyInstallDispatchResult::Final(onboarding::install_cmake()),
-        "git" => onboarding::DependencyInstallDispatchResult::Final(onboarding::install_git()),
-        "claude_code" => onboarding::install_claude_code(),
-        "codex" => onboarding::install_codex(),
-        _ => onboarding::DependencyInstallDispatchResult::Final(onboarding::DependencyInstallResult::failed(
-            format!("Unknown dependency: {}", name),
-        )),
-    })
-    .await
-    .map_err(|e| {
-        onboarding::release_install_lock();
-        e.to_string()
-    })?;
+    let outcome =
+        tokio::task::spawn_blocking(move || match name.as_str() {
+            "xcode_clt" => {
+                onboarding::DependencyInstallDispatchResult::Final(onboarding::install_xcode_clt())
+            }
+            "cpp_build_tools" => onboarding::DependencyInstallDispatchResult::Final(
+                onboarding::install_cpp_build_tools(),
+            ),
+            "cmake" => {
+                onboarding::DependencyInstallDispatchResult::Final(onboarding::install_cmake())
+            }
+            "git" => onboarding::DependencyInstallDispatchResult::Final(onboarding::install_git()),
+            "claude_code" => onboarding::install_claude_code(),
+            "codex" => onboarding::install_codex(),
+            _ => onboarding::DependencyInstallDispatchResult::Final(
+                onboarding::DependencyInstallResult::failed(format!(
+                    "Unknown dependency: {}",
+                    name
+                )),
+            ),
+        })
+        .await
+        .map_err(|e| {
+            onboarding::release_install_lock();
+            e.to_string()
+        })?;
 
     // Invalidate cached shell environment so newly installed tools are detected
     platform::invalidate_shell_cache();
@@ -64,12 +72,31 @@ pub async fn install_dependency(
     Ok(result)
 }
 
+#[command]
+pub async fn reset_debug_dependencies() -> Result<onboarding::DependencyResetResult, String> {
+    if !onboarding::try_acquire_install_lock() {
+        return Err("Another dependency action is already in progress. Please wait.".into());
+    }
+
+    let result = tokio::task::spawn_blocking(onboarding::reset_debug_dependencies)
+        .await
+        .map_err(|e| {
+            onboarding::release_install_lock();
+            e.to_string()
+        })?;
+
+    onboarding::release_install_lock();
+    platform::invalidate_shell_cache();
+
+    Ok(result)
+}
+
 /// Launch `claude auth login` directly — opens the browser for OAuth.
 /// No terminal window needed.
 #[command]
 pub async fn launch_claude_auth() -> Result<bool, String> {
-    let claude_path = platform::resolve_claude_path()
-        .unwrap_or_else(|| platform::resolve_command("claude"));
+    let claude_path =
+        platform::resolve_claude_path().unwrap_or_else(|| platform::resolve_command("claude"));
 
     Command::new(&claude_path)
         .args(["auth", "login"])
@@ -82,8 +109,8 @@ pub async fn launch_claude_auth() -> Result<bool, String> {
 /// Launch `codex login` directly — opens the browser for OAuth.
 #[command]
 pub async fn launch_codex_auth() -> Result<bool, String> {
-    let codex_path = platform::resolve_codex_path()
-        .unwrap_or_else(|| platform::resolve_command("codex"));
+    let codex_path =
+        platform::resolve_codex_path().unwrap_or_else(|| platform::resolve_command("codex"));
 
     Command::new(&codex_path)
         .args(["login"])

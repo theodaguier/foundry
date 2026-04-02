@@ -4,7 +4,8 @@ import {
   BuildEnvironmentStatusSchema,
   OnboardingStateSchema,
   DependencyInstallResultSchema,
-} from "@/lib/schemas"
+  DependencyResetResultSchema,
+} from "@/lib/schemas";
 import type {
   Plugin,
   GenerationConfig,
@@ -17,7 +18,8 @@ import type {
   RawUserProfile,
   OnboardingState,
   DependencyInstallResult,
-} from "@/lib/types"
+  DependencyResetResult,
+} from "@/lib/types";
 
 export const sendOtp = (email: string) => invoke<void>("send_otp", { email });
 export const verifyOtp = (email: string, code: string, isSignup: boolean) =>
@@ -34,7 +36,8 @@ export const assignCardVariantBatch = (emails: string[], variant: string) =>
   invoke<number>("assign_card_variant_batch", { emails, variant });
 
 export const loadPlugins = () => invoke<Plugin[]>("load_plugins");
-export const deletePlugin = (id: string) => invoke<void>("delete_plugin", { id });
+export const deletePlugin = (id: string) =>
+  invoke<void>("delete_plugin", { id });
 export const renamePlugin = (id: string, newName: string) =>
   invoke<void>("rename_plugin", { id, newName });
 export const installVersion = (pluginId: string, versionNumber: number) =>
@@ -55,8 +58,12 @@ export const cancelBuild = () => invoke<void>("cancel_build");
 export const checkDependencies = async (): Promise<DependencyStatus[]> =>
   DependencyStatusArraySchema.parse(await invoke("check_dependencies"));
 
-export const invalidateAndCheckDependencies = async (): Promise<DependencyStatus[]> =>
-  DependencyStatusArraySchema.parse(await invoke("invalidate_and_check_dependencies"));
+export const invalidateAndCheckDependencies = async (): Promise<
+  DependencyStatus[]
+> =>
+  DependencyStatusArraySchema.parse(
+    await invoke("invalidate_and_check_dependencies"),
+  );
 
 export const installJuce = async (): Promise<BuildEnvironmentStatus> =>
   BuildEnvironmentStatusSchema.parse(await invoke("install_juce"));
@@ -64,14 +71,25 @@ export const installJuce = async (): Promise<BuildEnvironmentStatus> =>
 export const getBuildEnvironment = async (): Promise<BuildEnvironmentStatus> =>
   BuildEnvironmentStatusSchema.parse(await invoke("get_build_environment"));
 
-export const prepareBuildEnvironment = async (autoRepair: boolean): Promise<BuildEnvironmentStatus> =>
-  BuildEnvironmentStatusSchema.parse(await invoke("prepare_build_environment", { autoRepair }));
+export const prepareBuildEnvironment = async (
+  autoRepair: boolean,
+): Promise<BuildEnvironmentStatus> =>
+  BuildEnvironmentStatusSchema.parse(
+    await invoke("prepare_build_environment", { autoRepair }),
+  );
 
-export const setJuceOverridePath = async (path: string): Promise<BuildEnvironmentStatus> =>
-  BuildEnvironmentStatusSchema.parse(await invoke("set_juce_override_path", { path }));
+export const setJuceOverridePath = async (
+  path: string,
+): Promise<BuildEnvironmentStatus> =>
+  BuildEnvironmentStatusSchema.parse(
+    await invoke("set_juce_override_path", { path }),
+  );
 
-export const clearJuceOverridePath = async (): Promise<BuildEnvironmentStatus> =>
-  BuildEnvironmentStatusSchema.parse(await invoke("clear_juce_override_path"));
+export const clearJuceOverridePath =
+  async (): Promise<BuildEnvironmentStatus> =>
+    BuildEnvironmentStatusSchema.parse(
+      await invoke("clear_juce_override_path"),
+    );
 
 export const getOnboardingState = async (): Promise<OnboardingState> =>
   OnboardingStateSchema.parse(await invoke("get_onboarding_state"));
@@ -79,8 +97,16 @@ export const getOnboardingState = async (): Promise<OnboardingState> =>
 export const completeOnboarding = async (): Promise<OnboardingState> =>
   OnboardingStateSchema.parse(await invoke("complete_onboarding"));
 
-export const installDependency = async (name: string): Promise<DependencyInstallResult> =>
-  DependencyInstallResultSchema.parse(await invoke("install_dependency", { name }));
+export const installDependency = async (
+  name: string,
+): Promise<DependencyInstallResult> =>
+  DependencyInstallResultSchema.parse(
+    await invoke("install_dependency", { name }),
+  );
+
+export const resetDebugDependencies =
+  async (): Promise<DependencyResetResult> =>
+    DependencyResetResultSchema.parse(await invoke("reset_debug_dependencies"));
 
 export const launchClaudeAuth = () => invoke<boolean>("launch_claude_auth");
 export const launchCodexAuth = () => invoke<boolean>("launch_codex_auth");
@@ -89,8 +115,10 @@ export const launchCodexAuth = () => invoke<boolean>("launch_codex_auth");
 // Models & install paths (no Zod — not in onboarding critical path)
 // ---------------------------------------------------------------------------
 
-export const getModelCatalog = () => invoke<AgentProvider[]>("get_model_catalog");
-export const refreshModelCatalog = () => invoke<AgentProvider[]>("refresh_model_catalog");
+export const getModelCatalog = () =>
+  invoke<AgentProvider[]>("get_model_catalog");
+export const refreshModelCatalog = () =>
+  invoke<AgentProvider[]>("refresh_model_catalog");
 
 export interface InstallPathsConfig {
   platform: "macos" | "windows" | "linux";
@@ -101,7 +129,8 @@ export interface InstallPathsConfig {
   vst3IsDefault: boolean;
 }
 
-export const getInstallPaths = () => invoke<InstallPathsConfig>("get_install_paths");
+export const getInstallPaths = () =>
+  invoke<InstallPathsConfig>("get_install_paths");
 export const setInstallPath = (format: string, path: string) =>
   invoke<InstallPathsConfig>("set_install_path", { format, path });
 export const resetInstallPath = (format: string) =>
@@ -110,11 +139,18 @@ export const resetInstallPath = (format: string) =>
 export const rateGeneration = (id: string, rating: 1 | -1) =>
   invoke<void>("rate_generation", { id, rating });
 
-export const submitPluginFeedback = (pluginId: string, speed: number, quality: number, design: number) =>
+export const submitPluginFeedback = (
+  pluginId: string,
+  speed: number,
+  quality: number,
+  design: number,
+) =>
   invoke<void>("submit_plugin_feedback", { pluginId, speed, quality, design });
 
 export const loadTelemetry = (id: string) =>
   invoke<GenerationTelemetry | null>("load_telemetry", { id });
-export const loadAllTelemetry = () => invoke<GenerationTelemetry[]>("load_all_telemetry");
+export const loadAllTelemetry = () =>
+  invoke<GenerationTelemetry[]>("load_all_telemetry");
 
-export const showInFinder = (path: string) => invoke<void>("show_in_finder", { path });
+export const showInFinder = (path: string) =>
+  invoke<void>("show_in_finder", { path });

@@ -158,7 +158,9 @@ export type {
   BuildEnvironmentStatus,
   OnboardingState,
   DependencyInstallResult,
-} from "@/lib/schemas"
+  DependencyResetItem,
+  DependencyResetResult,
+} from "@/lib/schemas";
 
 export type PluginFilter = "ALL" | "INSTRUMENTS" | "EFFECTS" | "UTILITIES";
 
