@@ -686,13 +686,11 @@ pub fn install_cpp_build_tools() -> DependencyInstallResult {
                     ));
                 }
 
-                let message = if matches!(exit_code, Some(1641) | Some(3010)) {
-                    "Windows requested a restart to finish the Build Tools installation. Restart Windows, reopen Foundry, and click Re-check.".into()
+                if matches!(exit_code, Some(1641) | Some(3010)) {
+                    DependencyInstallResult::failed("Windows requested a restart to finish the Build Tools installation. Restart Windows, reopen Foundry, and click Re-check.")
                 } else {
-                    "Build Tools installation finished, but Foundry could not verify the C++ workload afterwards. Restart Foundry and click Re-check.".into()
-                };
-
-                DependencyInstallResult::failed(message)
+                    DependencyInstallResult::failed("Build Tools installation finished, but Foundry could not verify the C++ workload afterwards. Restart Foundry and click Re-check.")
+                }
             }
             Err(e) => {
                 DependencyInstallResult::failed(format!("Could not launch the Build Tools installer: {}", e))
