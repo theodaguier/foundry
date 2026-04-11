@@ -10,7 +10,7 @@ Foundry is a macOS desktop app that turns a natural language description into a 
 
 Foundry dispatches an AI coding agent (Claude Code CLI or Codex CLI) to write the JUCE C++, builds it with CMake, and installs it directly into your DAW.
 
-> Currently in **private beta** on macOS. [Request access →](https://foundry.so)
+> Currently in **private beta** on macOS. [Request access →](https://byfoundry.app)
 
 ---
 
@@ -78,7 +78,7 @@ foundry/
 │       ├── models/         # Shared data types
 │       ├── services/       # Core business logic
 │       └── platform/       # Platform abstraction
-└── landing/                # Astro landing page (foundry.so)
+└── landing/                # Astro landing page (byfoundry.app)
 ```
 
 See [`CLAUDE.md`](./CLAUDE.md) for full architecture, data model, and pipeline details.
