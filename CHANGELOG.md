@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.61.7](https://github.com/theodaguier/foundry/compare/v1.61.6...v1.61.7) (2026-04-11)
+
+
+### Bug Fixes
+
+* update domain from foundry.so to byfoundry.app ([379f983](https://github.com/theodaguier/foundry/commit/379f98361ac3bce3ac937c6d60bc7ccfee1aa143))
+
 ## [1.61.6](https://github.com/theodaguier/foundry/compare/v1.61.5...v1.61.6) (2026-04-01)
 
 
