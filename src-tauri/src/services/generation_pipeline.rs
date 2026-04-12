@@ -76,6 +76,7 @@ fn now_ts() -> String {
     chrono::Local::now().format("[%H:%M:%S]").to_string()
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 fn active_debug_context(config: &GenerationConfig) -> Option<&GenerationDebugContext> {
     if config.debug_pipeline {
         config.debug_context.as_ref()
@@ -299,8 +300,6 @@ async fn execute_generation(
         "Inferred plugin type"
     };
     let project_dir_str = project.directory.to_string_lossy().to_string();
-    let creative_profile = infer_creative_profile(&plugin_name, plugin_type, &config.prompt);
-
     check_cancelled(&cancel_watch)?;
 
     // Step 2: Generate using skill-based multi-sub-agent pipeline
@@ -1529,6 +1528,7 @@ fn handle_claude_event(app: &AppHandle, event: &claude_code_service::ClaudeEvent
     }
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 fn build_unified_generation_prompt(
     plugin_name: &str,
     user_prompt: &str,

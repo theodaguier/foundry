@@ -592,6 +592,7 @@ fn write_foundry_kit(project_dir: &Path) -> Result<(), String> {
 
 /// Write the new .foundry/ directory structure for the skill-based pipeline.
 /// This replaces the old inline brief with a file-based contract system.
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn write_foundry_directory(
     project_dir: &Path,
     plugin_name: &str,
@@ -661,6 +662,7 @@ pub fn write_foundry_directory(
 
 /// Write a minimal mission brief for the skill-based pipeline.
 /// This replaces the old highly-prescriptive brief.
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn build_minimal_brief(
     name: &str,
     plugin_type: &str,

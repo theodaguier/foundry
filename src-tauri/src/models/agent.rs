@@ -63,6 +63,7 @@ impl SkillId {
         }
     }
 
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn display_name(&self) -> &'static str {
         match self {
             SkillId::JuceExpert => "JUCE Expert",
