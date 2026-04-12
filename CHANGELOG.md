@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.61.8](https://github.com/theodaguier/foundry/compare/v1.61.7...v1.61.8) (2026-04-12)
+
+
+### Bug Fixes
+
+* prevent infinite loop in sync-linear workflow ([8e89029](https://github.com/theodaguier/foundry/commit/8e890296b927c8411e53d79191de55b383acb1ed))
+
 ## [1.61.7](https://github.com/theodaguier/foundry/compare/v1.61.6...v1.61.7) (2026-04-11)
 
 
