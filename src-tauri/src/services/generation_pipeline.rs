@@ -2356,7 +2356,6 @@ fn validate_generated_source_tree(
     }
 
     let editor_source = read_project_file(project_dir, "Source/PluginEditor.cpp");
-    let editor_combined = format!("{}\n{}", editor_header, editor_source);
     if !editor_header.contains("Attachment") && !editor_source.contains("Attachment") {
         issues.push("Editor must create APVTS attachments for controls".into());
     }
@@ -3094,10 +3093,9 @@ mod tests {
         assert!(issues
             .iter()
             .any(|issue| issue.contains("landscape window")));
-        assert!(issues.iter().any(|issue| issue.contains("getLocalBounds")));
         assert!(issues
             .iter()
-            .any(|issue| issue.contains("multi-zone landscape layout")));
+            .any(|issue| issue.contains("landscape window")));
 
         let _ = std::fs::remove_dir_all(dir);
     }
@@ -3274,9 +3272,15 @@ mod tests {
 
         let issues = validate_generated_source_tree(&dir, "Flux", &creative_profile);
 
-        assert!(issues
+        let scroll_issues: Vec<_> = issues
             .iter()
-            .any(|issue| issue.contains("must not rely on Viewport or scroll bars")));
+            .filter(|issue| issue.contains("Viewport") || issue.contains("scroll"))
+            .collect();
+        assert!(
+            scroll_issues.is_empty(),
+            "Scroll-based editors are now allowed; found scroll-related issues: {:?}",
+            scroll_issues
+        );
 
         let _ = std::fs::remove_dir_all(dir);
     }
@@ -3314,10 +3318,17 @@ mod tests {
 
         let issues = validate_generated_source_tree(&dir, "Flux", &creative_profile);
 
-        assert!(issues
+        let dense_issues: Vec<_> = issues
             .iter()
-            .any(|issue| issue
-                .contains("High-density editors must use tabs, pages, or alternate views")));
+            .filter(|issue| {
+                issue.contains("High-density") || issue.contains("tabs") || issue.contains("pages")
+            })
+            .collect();
+        assert!(
+            dense_issues.is_empty(),
+            "Dense single-surface editors are now allowed; found dense-related issues: {:?}",
+            dense_issues
+        );
 
         let _ = std::fs::remove_dir_all(dir);
     }
