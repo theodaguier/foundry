@@ -1071,7 +1071,7 @@ dependencies = [
 
 [[package]]
 name = "foundry"
-version = "1.61.6"
+version = "1.61.9"
 dependencies = [
  "chrono",
  "cocoa",

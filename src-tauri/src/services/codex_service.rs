@@ -559,10 +559,24 @@ fn expected_output_files_exist(project_dir: &str, mode: &str) -> bool {
 
 /// Minimal system instructions baked into the prompt for Codex.
 /// The real context is in the AGENTS.md content prepended by agent_service.
+/// 
+/// These are the sub-agent modes for the skill-based pipeline.
+/// Each mode has a distinct purpose and max turns for parity with Claude.
 fn mode_system_instructions(mode: &str) -> &'static str {
     match mode {
+        // Legacy modes (kept for backward compatibility)
         "generate" => "Build a complete JUCE plugin. The prompt contains the full spec and expert knowledge. Write all Source/ files. Do NOT touch CMakeLists.txt.",
         "refine" => "Modify an existing JUCE plugin. Read the Source/ files, then apply targeted changes. Do NOT touch CMakeLists.txt.",
+        
+        // Sub-agent modes for skill-based pipeline
+        "planner" => "Analyze the user brief and create a plugin implementation plan. Write the plan to `.foundry/contracts/plan.md`. Do NOT write any code.",
+        "dsp" => "Generate the DSP processor files: Source/PluginProcessor.h and Source/PluginProcessor.cpp with APVTS parameters and signal processing. Write complete, compilable code.",
+        "ui" => "Generate the UI files: Source/PluginEditor.h, Source/PluginEditor.cpp, and Source/FoundryLookAndFeel.h with real controls. Write complete, usable code.",
+        "review" => "Review the generated code for correctness and completeness. Write findings to `.foundry/review/findings.md`. Do NOT rewrite code.",
+        "build_fix" => "Fix the build errors in this JUCE plugin. Only edit Source/ files. Do NOT touch CMakeLists.txt.",
+        "refine_modify" => "Make targeted modifications to the plugin. Read Source/ files first, then apply changes. Do NOT rewrite entire files.",
+        
+        // Legacy fallback
         _ => "Fix the errors in this JUCE plugin. Only edit Source/ files. Do NOT touch CMakeLists.txt.",
     }
 }
@@ -570,8 +584,19 @@ fn mode_system_instructions(mode: &str) -> &'static str {
 /// Max turns for local enforcement (Codex has no --max-turns flag).
 fn mode_max_turns(mode: &str) -> &'static str {
     match mode {
+        // Legacy modes
         "generate" => "8",
         "refine" => "6",
+        
+        // Sub-agent modes for skill-based pipeline
+        "planner" => "4",
+        "dsp" => "6",
+        "ui" => "6",
+        "review" => "3",
+        "build_fix" => "4",
+        "refine_modify" => "5",
+        
+        // Legacy fallback
         _ => "6",
     }
 }

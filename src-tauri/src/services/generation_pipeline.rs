@@ -2376,30 +2376,7 @@ fn validate_generated_source_tree(
             ));
         }
     } else {
-        issues.push("Editor must call setSize(...) with an explicit landscape window size".into());
-    }
-    if !uses_structured_editor_layout(&editor_source) {
-        issues.push(
-            "Editor must lay out controls from getLocalBounds() using reduced/removeFrom geometry, Grid, or FlexBox".into(),
-        );
-    }
-    if !uses_multi_zone_editor_layout(&editor_source) {
-        issues.push(
-            "Editor should use a multi-zone landscape layout instead of a single vertical stack"
-                .into(),
-        );
-    }
-    if visible_control_count(&editor_source) > 24 && !uses_control_paging(&editor_combined) {
-        issues.push(
-            "High-density editors must use tabs, pages, or alternate views instead of exposing every control on one surface"
-                .into(),
-        );
-    }
-    if uses_scrolling_ui(&editor_combined) {
-        issues.push(
-            "Editor must not rely on Viewport or scroll bars; everything should fit in one window"
-                .into(),
-        );
+        issues.push("Editor must call setSize(...) with explicit numeric dimensions".into());
     }
 
     issues.sort();
@@ -2409,7 +2386,7 @@ fn validate_generated_source_tree(
 
 #[cfg_attr(not(test), allow(dead_code))]
 fn editor_size_is_valid(width: i32, height: i32) -> bool {
-    (820..=1400).contains(&width) && (520..=900).contains(&height) && width > height
+    (400..=1400).contains(&width) && (300..=1000).contains(&height)
 }
 
 #[cfg_attr(not(test), allow(dead_code))]

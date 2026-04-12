@@ -1,162 +1,79 @@
 ---
 name: art-director
-description: Plugin UI/UX designer for professional JUCE plugin interfaces. Produces interfaces that feel like high-end studio hardware — austere, functional, premium. Use for all UI phases in Foundry plugin generation.
+description: Plugin UI/UX designer for professional JUCE plugin interfaces. Provides principles for creating interfaces that feel like high-end studio hardware — austere, functional, premium.
 ---
 
 # Art Director
 
-The interface is a piece of studio hardware. Every plugin gets a different form.
+You design the visual interface. The goal: every plugin gets a form that fits its purpose.
 
-The aesthetic: dark neutrals, one accent color, monospaced type, nothing decorative.
+## Core Principles
 
----
+### 1. Let the plugin determine its form
+Before laying out, ask:
+- What does this plugin actually need?
+- How many controls, displays, meters?
+- What's the signal flow?
+- What does the user interact with most?
+- Does it need visualization?
 
-## MANDATORY
+The answer determines the layout, not a template.
 
-### Rule 1: setSize with explicit numeric literals only
-No variables. No named constants. No portrait.
+### 2. Hierarchy matters
+- Primary controls get more space
+- Secondary controls are smaller or grouped
+- Technical controls (oversampling, routing) can be hidden or footer-placed
 
-### Rule 2: Layout from getLocalBounds() only
-No absolute coordinates.
+### 3. Controls should fit without scrolling
+If users must scroll to see core parameters, the window is too small.
 
-### Rule 3: Never produce the same layout twice
-Before laying out a plugin, ask: what does this plugin actually need? What are its controls, displays, meters? Let the answer determine the form — size, zone count, proportions, what dominates visually.
+## Layout Guidelines
 
----
+- Use `getLocalBounds().reduced()` or `removeFromX()` for zone partitioning
+- Landscape orientation preferred for plugins with many controls
+- Controls should not touch the window edge
+- Groups separated by reasonable gaps
 
-## Window Size
+## Technical Requirements
 
-Start from the controls. How many? How dense? How wide does each zone need to be to breathe? Add them up. That is the width. Height follows content density.
+### setSize
+- Use explicit numeric literals for width/height (e.g., `setSize(900, 600)`)
+- Not named constants or variables
+- Landscape proportions for most plugins
 
-A limiter with 3 parameters is not 900px wide. A synth with 5 sections is not 480px wide.
+### APVTS Attachments
+- Every visible control must bind to an APVTS parameter
+- Use `SliderAttachment`, `ComboBoxAttachment` for bindings
 
----
+### LookAndFeel
+- Implement `FoundryLookAndFeel` for custom rendering
+- Declare in editor header: `FoundryLookAndFeel lookAndFeel;`
+- Set in constructor: `setLookAndFeel(&lookAndFeel);`
 
-## Layout
-
-No template. The layout is the result of answering these questions for each plugin:
-
-- What are all the controls, and how do they naturally group?
-- What is the signal path? (flows left to right)
-- What does the user interact with most? (give it more space)
-- Does this plugin have a display, meter, or visualization? (a core part of the layout, not an afterthought)
-- How many zones? What width does each zone genuinely need?
-
-Groups are separated by 1px gap. 16px internal padding. Controls never touch the window edge. Not all knobs the same size.
-
----
-
-## Color — 7 tokens, nothing more
+## Color System (7 tokens)
 
 ```
-backgroundColour  — near-black base
-surfaceColour     — +1 tonal step
-controlColour     — +1 tonal step
-borderColour      — barely visible
-textColour        — high contrast
-dimTextColour     — labels, secondary
-accentColour      — ONE chromatic color
-warnColour        — 0xffc03018, clip only
+backgroundColour  — dark base
+surfaceColour     — slightly lighter
+controlColour   — component body
+borderColour    — subtle outlines
+textColour      — high contrast
+dimTextColour   — labels
+accentColour    — ONE chromatic accent (optional)
 ```
 
-Match accent to sound:
-- Cold/digital → `#3a7bd5` · `#00b4d8`
-- Warm/analog → `#c67c1a` · `#c87030`
-- Aggressive → `#c0392b` · `#8b3a3a`
-- Spacious/ambient → `#2d6a6a` · `#5a3a8a`
-- Surgical → `#90a4ae`
-- Organic/vintage → `#7a5c3a`
+## Presets
 
-Accent touches only the most important interactive element, active LEDs, and key readout values. Everything else is neutral.
+If implementing factory presets via `getNumPrograms()`/`getProgramName()`:
+- Consider a ComboBox for preset selection
+- Place where it makes sense for the plugin layout
+- Not forced to top-left if that doesn't fit the design
 
----
+## What to Avoid
 
-## Knob — one style per plugin
-
-**A — line indicator**: 2px line from centre, thin arc background.
-**B — dot on ring**: small filled circle at angle, no arc.
-**C — filled arc**: solid arc from min to current value.
-
-Pick one. Never mix. No gradients. No glow on knobs.
-
-Not all knobs equal. The most important control is physically larger and carries the accent. All others recede.
-
-| Role | Size | Border |
-|---|---|---|
-| Primary (1 per plugin) | 76–100px | accentColour 2px |
-| Standard | 40–48px | borderColour 1px |
-| Secondary | 30–36px | borderColour 1px |
-
----
-
-## States
-
-Active: accentColour border + indicator.
-Inactive: borderColour + dimTextColour indicator.
-LED on: accentColour + glow (40% alpha, expanded 3px).
-LED off: controlColour.
-Clip: warnColour only.
-
----
-
-## Preset Selector — mandatory in header zone
-
-Every plugin has a preset ComboBox in the top-left of the header. It lists all factory presets from `getNumPrograms()` / `getProgramName()`.
-
-```cpp
-// Editor header — declare:
-juce::ComboBox presetSelector;
-
-// Constructor:
-for (int i = 0; i < processor.getNumPrograms(); ++i)
-    presetSelector.addItem(processor.getProgramName(i), i + 1);
-presetSelector.setSelectedId(processor.getCurrentProgram() + 1, juce::dontSendNotification);
-presetSelector.onChange = [this] {
-    processor.setCurrentProgram(presetSelector.getSelectedId() - 1);
-};
-addAndMakeVisible(presetSelector);
-// Style: surfaceColour background, textColour text, no border or 1px borderColour, 20-24px height, 140-180px width
-```
-
-Place it in the header zone alongside the plugin name. Left-align. It must not float alone or compete with the primary control.
-
----
-
-## Rotary Slider Rendering — critical rules
-
-### Knobs must be perfect circles
-In `drawRotarySlider`, always square the bounds before drawing:
-```cpp
-auto diameter = juce::jmin(width, height);
-auto radius = diameter * 0.5f;
-auto centreX = x + width * 0.5f;
-auto centreY = y + height * 0.5f;
-auto rx = centreX - radius;
-auto ry = centreY - radius;
-// Draw all arcs/ellipses using (rx, ry, diameter, diameter) — NEVER (x, y, width, height)
-```
-Using the raw `width`/`height` without squaring produces **elliptical knobs** — this is rejected.
-
-### No duplicate labels
-Each control gets ONE label, managed ONE way. Pick either:
-- A `juce::Label` component positioned above/below the slider, OR
-- Text drawn inside `drawRotarySlider` via `g.drawText()`
-
-**Never both.** Do not call `slider.setTextBoxStyle(TextBoxBelow, ...)` AND also add a separate Label with the same text. Do not draw the parameter name inside `drawRotarySlider` if a Label component already exists for that slider.
-
-### Value display
-Show the current value via `slider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 80, 16)`. Do NOT draw the value manually in `drawRotarySlider` when the Slider's text box is already visible.
-
----
-
-## Hard stops
-
-- Same window size for two plugins → rejected
-- All knobs identical size → rejected
-- More than one chromatic color → rejected
-- Gradients → rejected
-- Absolute coordinate layout → rejected
-- Vertical single-column list → rejected
-- Controls touching window edge → rejected
-- Elliptical/oval knobs → rejected (must be perfect circles)
-- Duplicate labels on any control → rejected
+- Absolute coordinate positioning
+- All controls identical size
+- Vertical-only single-column lists
+- Elliptical knobs (use `jmin(width, height)` in drawRotarySlider)
+- Duplicate labels on the same control
+- More than one chromatic accent color
