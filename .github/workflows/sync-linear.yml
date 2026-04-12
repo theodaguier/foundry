@@ -2,11 +2,16 @@ name: Sync GitHub Issues to Linear
 
 on:
   issues:
-    types: [opened, closed, reopened, labeled]
+    types: [opened, closed, reopened]
+
+concurrency:
+  group: linear-sync-${{ github.event.issue.number }}
+  cancel-in-progress: true
 
 jobs:
   sync:
     runs-on: ubuntu-latest
+    if: github.actor != 'github-actions[bot]'
     steps:
       - name: Sync to Linear
         env:
@@ -18,7 +23,7 @@ jobs:
           python3 << 'PYEOF'
           import os, json, urllib.request
 
-          LINEAR_API_KEY = os.environ["LINEAR_API_KEY"]
+          LINEAR_API_KEY=os.environ["LINEAR_API_KEY"]
           TEAM_ID = os.environ["LINEAR_TEAM_ID"]
           PROJECT_ID = os.environ["LINEAR_PROJECT_ID"]
           LINEAR_URL = "https://api.linear.app/graphql"
@@ -69,7 +74,7 @@ jobs:
 
           if action == "opened":
               if existing:
-                  print(f"Issue #{gh_number} already exists in Linear as {existing['identifier']}")
+                  print(f"Issue #{gh_number} already exists in Linear as {existing['identifier']} — skipping")
               else:
                   desc = gh_body + f"\n\n## Refs\n\n{gh_url}"
                   r = gql("""
