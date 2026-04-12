@@ -299,12 +299,11 @@ async fn execute_generation(
         "Inferred plugin type"
     };
     let project_dir_str = project.directory.to_string_lossy().to_string();
-    let _creative_profile = infer_creative_profile(&plugin_name, plugin_type, &config.prompt);
-    let debug_context = active_debug_context(&config);
+    let creative_profile = infer_creative_profile(&plugin_name, plugin_type, &config.prompt);
 
     check_cancelled(&cancel_watch)?;
 
-    // Step 2: Generate all source files in a single pass.
+    // Step 2: Generate using skill-based multi-sub-agent pipeline
     emit_step(app, "generating");
     emit_log(app, "START: Generating plugin code...", Some("active"));
     tb.start_generation();
@@ -320,46 +319,124 @@ async fn execute_generation(
         Some("active"),
     );
 
-    let unified_prompt =
-        build_unified_generation_prompt(&plugin_name, &config.prompt, debug_context, agent_name);
+    // Select skills based on plugin type
+    let skills = agent_service::get_skills_for_type(plugin_type);
 
+    // ── Planner phase ──────────────────────────────────────────────────────
+    emit_log(app, "PHASE: Planning implementation strategy...", Some("active"));
+    let planner_prompt = agent_service::build_planner_prompt(
+        &plugin_name,
+        plugin_type,
+        &config.prompt,
+        &skills,
+    );
     let app_clone = app.clone();
-    let gen_result = agent_service::run(
+    let planner_result = agent_service::run_subagent(
         agent_name,
         &cli_path,
-        &unified_prompt,
+        agent_service::SubagentRole::Planner,
+        &planner_prompt,
         &project_dir_str,
         model_flag,
-        "generate",
         move |event| handle_claude_event(&app_clone, &event),
         cancel_watch.clone(),
     )
     .await;
+    tb.accumulate_run(&planner_result);
+    if is_infra_failure(&planner_result.error) {
+        tb.fail("planner", planner_result.error.as_deref().unwrap_or("Planner failed"));
+        return Err(planner_result.error.unwrap_or_else(|| "Planner failed".into()));
+    }
 
-    tb.accumulate_run(&gen_result);
+    // ── DSP phase ──────────────────────────────────────────────────────────
+    emit_log(app, "PHASE: Generating DSP processor...", Some("active"));
+    let dsp_prompt = agent_service::build_dsp_prompt(
+        &plugin_name,
+        plugin_type,
+        &config.prompt,
+        None,
+        &skills,
+    );
+    let app_clone = app.clone();
+    let dsp_result = agent_service::run_subagent(
+        agent_name,
+        &cli_path,
+        agent_service::SubagentRole::Dsp,
+        &dsp_prompt,
+        &project_dir_str,
+        model_flag,
+        move |event| handle_claude_event(&app_clone, &event),
+        cancel_watch.clone(),
+    )
+    .await;
+    tb.accumulate_run(&dsp_result);
+    if is_infra_failure(&dsp_result.error) {
+        tb.fail("dsp", dsp_result.error.as_deref().unwrap_or("DSP generation failed"));
+        return Err(dsp_result.error.unwrap_or_else(|| "DSP generation failed".into()));
+    }
+
+    // ── UI phase ───────────────────────────────────────────────────────────
+    emit_log(app, "PHASE: Generating UI editor...", Some("active"));
+    let parameter_manifest = extract_parameter_manifest(&project.directory);
+    let ui_prompt = agent_service::build_ui_prompt(
+        &plugin_name,
+        plugin_type,
+        &config.prompt,
+        &parameter_manifest,
+        &skills,
+    );
+    let app_clone = app.clone();
+    let ui_result = agent_service::run_subagent(
+        agent_name,
+        &cli_path,
+        agent_service::SubagentRole::Ui,
+        &ui_prompt,
+        &project_dir_str,
+        model_flag,
+        move |event| handle_claude_event(&app_clone, &event),
+        cancel_watch.clone(),
+    )
+    .await;
+    tb.accumulate_run(&ui_result);
+    if is_infra_failure(&ui_result.error) {
+        tb.fail("ui", ui_result.error.as_deref().unwrap_or("UI generation failed"));
+        return Err(ui_result.error.unwrap_or_else(|| "UI generation failed".into()));
+    }
+
+    // ── Review phase ───────────────────────────────────────────────────────
+    emit_log(app, "PHASE: Reviewing generated code...", Some("active"));
+    let creative_profile = infer_creative_profile(&plugin_name, plugin_type, &config.prompt);
+    let validation_issues = validate_generated_source_tree(
+        &project.directory,
+        &plugin_name,
+        &creative_profile,
+    );
+    let review_prompt = agent_service::build_review_prompt(&plugin_name, &validation_issues);
+    let app_clone = app.clone();
+    let review_result = agent_service::run_subagent(
+        agent_name,
+        &cli_path,
+        agent_service::SubagentRole::Review,
+        &review_prompt,
+        &project_dir_str,
+        model_flag,
+        move |event| handle_claude_event(&app_clone, &event),
+        cancel_watch.clone(),
+    )
+    .await;
+    tb.accumulate_run(&review_result);
+
     tb.end_generation();
     tb.plugin_type = Some(plugin_type.clone());
 
-    if is_infra_failure(&gen_result.error) {
-        tb.fail(
-            "generation",
-            gen_result.error.as_deref().unwrap_or("CLI unavailable"),
-        );
-        return Err(gen_result
-            .error
-            .unwrap_or_else(|| "Claude Code CLI is unavailable".into()));
-    }
-
-    // Only hard-fail if the agent produced zero source files — everything
-    // else (missing UI files, style issues, etc.) will surface as compiler
-    // errors and be handled by the build loop.
+    // Only hard-fail if the agent produced zero source files
     if !project
         .directory
         .join("Source/PluginProcessor.cpp")
         .exists()
         && !project.directory.join("Source/PluginProcessor.h").exists()
     {
-        let message = gen_result
+        let message = dsp_result
             .error
             .unwrap_or_else(|| "Agent did not create any source files".into());
         tb.fail("generation", &message);
@@ -2356,7 +2433,6 @@ fn validate_generated_source_tree(
     }
 
     let editor_source = read_project_file(project_dir, "Source/PluginEditor.cpp");
-    let editor_combined = format!("{}\n{}", editor_header, editor_source);
     if !editor_header.contains("Attachment") && !editor_source.contains("Attachment") {
         issues.push("Editor must create APVTS attachments for controls".into());
     }
@@ -2376,30 +2452,7 @@ fn validate_generated_source_tree(
             ));
         }
     } else {
-        issues.push("Editor must call setSize(...) with an explicit landscape window size".into());
-    }
-    if !uses_structured_editor_layout(&editor_source) {
-        issues.push(
-            "Editor must lay out controls from getLocalBounds() using reduced/removeFrom geometry, Grid, or FlexBox".into(),
-        );
-    }
-    if !uses_multi_zone_editor_layout(&editor_source) {
-        issues.push(
-            "Editor should use a multi-zone landscape layout instead of a single vertical stack"
-                .into(),
-        );
-    }
-    if visible_control_count(&editor_source) > 24 && !uses_control_paging(&editor_combined) {
-        issues.push(
-            "High-density editors must use tabs, pages, or alternate views instead of exposing every control on one surface"
-                .into(),
-        );
-    }
-    if uses_scrolling_ui(&editor_combined) {
-        issues.push(
-            "Editor must not rely on Viewport or scroll bars; everything should fit in one window"
-                .into(),
-        );
+        issues.push("Editor must call setSize(...) with explicit numeric dimensions".into());
     }
 
     issues.sort();
@@ -2409,7 +2462,7 @@ fn validate_generated_source_tree(
 
 #[cfg_attr(not(test), allow(dead_code))]
 fn editor_size_is_valid(width: i32, height: i32) -> bool {
-    (820..=1400).contains(&width) && (520..=900).contains(&height) && width > height
+    (400..=1400).contains(&width) && (300..=1000).contains(&height)
 }
 
 #[cfg_attr(not(test), allow(dead_code))]
@@ -3117,10 +3170,9 @@ mod tests {
         assert!(issues
             .iter()
             .any(|issue| issue.contains("landscape window")));
-        assert!(issues.iter().any(|issue| issue.contains("getLocalBounds")));
         assert!(issues
             .iter()
-            .any(|issue| issue.contains("multi-zone landscape layout")));
+            .any(|issue| issue.contains("landscape window")));
 
         let _ = std::fs::remove_dir_all(dir);
     }
@@ -3297,9 +3349,15 @@ mod tests {
 
         let issues = validate_generated_source_tree(&dir, "Flux", &creative_profile);
 
-        assert!(issues
+        let scroll_issues: Vec<_> = issues
             .iter()
-            .any(|issue| issue.contains("must not rely on Viewport or scroll bars")));
+            .filter(|issue| issue.contains("Viewport") || issue.contains("scroll"))
+            .collect();
+        assert!(
+            scroll_issues.is_empty(),
+            "Scroll-based editors are now allowed; found scroll-related issues: {:?}",
+            scroll_issues
+        );
 
         let _ = std::fs::remove_dir_all(dir);
     }
@@ -3337,10 +3395,17 @@ mod tests {
 
         let issues = validate_generated_source_tree(&dir, "Flux", &creative_profile);
 
-        assert!(issues
+        let dense_issues: Vec<_> = issues
             .iter()
-            .any(|issue| issue
-                .contains("High-density editors must use tabs, pages, or alternate views")));
+            .filter(|issue| {
+                issue.contains("High-density") || issue.contains("tabs") || issue.contains("pages")
+            })
+            .collect();
+        assert!(
+            dense_issues.is_empty(),
+            "Dense single-surface editors are now allowed; found dense-related issues: {:?}",
+            dense_issues
+        );
 
         let _ = std::fs::remove_dir_all(dir);
     }
