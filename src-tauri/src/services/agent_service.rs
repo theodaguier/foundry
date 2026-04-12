@@ -10,7 +10,9 @@
 //! - Review: validates generated code
 //! - BuildFix: fixes compilation errors
 
-use crate::models::agent::{SkillId, SubagentRole, skills_for_plugin_type, skills_to_load};
+pub use crate::models::agent::{SkillId, SubagentRole};
+pub use crate::models::agent::skills_for_plugin_type;
+pub use crate::models::agent::skills_to_load;
 use crate::services::{claude_code_service, codex_service};
 pub use claude_code_service::{ClaudeEvent, RunResult};
 
@@ -260,10 +262,15 @@ pub fn build_ui_prompt(
     plugin_name: &str,
     plugin_type: &str,
     user_prompt: &str,
-    parameter_manifest: &str,
+    parameter_manifest: &[String],
     skills: &[SkillId],
 ) -> String {
     let skills_section = build_skills_prompt(skills, plugin_type);
+    let params = if parameter_manifest.is_empty() {
+        "No parameters detected yet.".to_string()
+    } else {
+        parameter_manifest.iter().map(|p| format!("- {}", p)).collect::<Vec<_>>().join("\n")
+    };
     
     format!(
         "# UI GENERATION PHASE\n\n\
@@ -280,7 +287,7 @@ pub fn build_ui_prompt(
         - Design a layout appropriate for the plugin purpose\n\
         - Use explicit setSize(width, height) with landscape dimensions\n\
         Write complete, usable code. Do NOT use placeholders.",
-        plugin_name, plugin_type, user_prompt, parameter_manifest, skills_section
+        plugin_name, plugin_type, user_prompt, params, skills_section
     )
 }
 
