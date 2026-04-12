@@ -95,8 +95,25 @@ fn path_from_cached_env(cmd: &str) -> Option<String> {
 }
 
 /// Resolve a command path using the cached login shell environment.
+/// Falls back to managed tool installations for cmake, npm, and node.
 pub fn resolve_command(cmd: &str) -> String {
-    path_from_cached_env(cmd).unwrap_or_else(|| cmd.to_string())
+    if let Some(resolved) = path_from_cached_env(cmd) {
+        if resolved != cmd {
+            return resolved;
+        }
+    }
+
+    let managed = match cmd {
+        "cmake" => foundry_paths::managed_cmake_binary(),
+        "npm" => foundry_paths::managed_npm_binary(),
+        "node" => foundry_paths::managed_node_binary(),
+        _ => return cmd.to_string(),
+    };
+    if managed.is_file() {
+        return managed.to_string_lossy().to_string();
+    }
+
+    cmd.to_string()
 }
 
 fn resolve_known_cli(cmd: &str) -> Option<String> {

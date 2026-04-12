@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { FoundryLogo } from "@/components/app/foundry-logo"
 import { useAppStore } from "@/stores/app-store"
+import { useSettingsStore } from "@/stores/settings-store"
 import * as commands from "@/lib/commands"
 import { interpretDependencyInstallResult } from "@/lib/dependency-install"
 import * as analytics from "@/lib/analytics"
@@ -59,6 +60,7 @@ const DEP_KEY_BY_NAME: Record<string, string> = {
 
 const OPTIONAL_DEPS = new Set(["Codex CLI", "Claude Code CLI"])
 const PROVIDER_DEPS = new Set(["claude_code", "codex"])
+const PRIMARY_PROVIDER = "claude_code"
 
 const DEP_ORDER = [
   "Xcode Command Line Tools",
@@ -268,6 +270,7 @@ export default function Onboarding() {
   const [phase, setPhase] = useState<SetupPhase>("checking")
   const [deps, setDeps] = useState<Dep[]>([])
   const [appeared, setAppeared] = useState(false)
+  const [selectedProvider, setSelectedProvider] = useState<string>(PRIMARY_PROVIDER)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const authPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const abortedRef = useRef(false)
@@ -439,10 +442,8 @@ export default function Onboarding() {
     setPhase("installing")
     analytics.trackOnboardingStarted()
 
-    // Re-check first to get latest state
     const fresh = await checkDeps()
 
-    // Install required deps (build tools, cmake, git, juce)
     const missingRequired = fresh.filter(d => d.status === "missing" && d.required)
     for (const dep of missingRequired) {
       if (abortedRef.current) return
@@ -450,21 +451,20 @@ export default function Onboarding() {
       await new Promise(r => setTimeout(r, 600))
     }
 
-    // Install first available provider if none installed
     const providers = fresh.filter(d => PROVIDER_DEPS.has(d.key))
     const hasAnyProvider = providers.some(d => d.status === "installed")
     if (!hasAnyProvider) {
-      // Install Claude Code first (primary), skip if it fails and try Codex
-      const claude = providers.find(d => d.key === "claude_code" && d.status === "missing")
-      if (claude) {
-        await installSingle(claude)
+      const chosen = providers.find(d => d.key === selectedProvider && d.status === "missing")
+        ?? providers.find(d => d.key === PRIMARY_PROVIDER && d.status === "missing")
+        ?? providers.find(d => d.status === "missing")
+      if (chosen) {
+        await installSingle(chosen)
         await new Promise(r => setTimeout(r, 600))
       }
     }
 
-    // Final recheck
     await checkDeps()
-  }, [checkDeps, installSingle])
+  }, [checkDeps, installSingle, selectedProvider])
 
   // ---- Initial check on mount ----
 
@@ -509,6 +509,7 @@ export default function Onboarding() {
   const finish = async () => {
     analytics.trackOnboardingCompleted()
     await commands.completeOnboarding()
+    await useSettingsStore.getState().refreshModels()
     useAppStore.getState().checkOnboarding()
   }
 
@@ -619,7 +620,7 @@ export default function Onboarding() {
                         </span>
                         {PROVIDER_DEPS.has(dep.key) && (
                           <span className="text-[10px] uppercase tracking-wider text-muted-foreground/50 font-medium">
-                            {hasProvider ? "Optional" : "Pick one"}
+                            {hasProvider ? "Optional" : dep.key === selectedProvider ? "Recommended" : "Alternative"}
                           </span>
                         )}
                       </div>
@@ -643,15 +644,26 @@ export default function Onboarding() {
                       {dep.status === "installed" && "Ready"}
                       {dep.status === "installing" && pct !== undefined && `${pct}%`}
                       {dep.status === "missing" && (
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          disabled={isInstalling}
-                          onClick={() => installSingle(dep)}
-                          className="text-[11px] h-6 px-2"
-                        >
-                          Install
-                        </Button>
+                        PROVIDER_DEPS.has(dep.key) && !hasProvider && !isInstalling ? (
+                          <Button
+                            size="sm"
+                            variant={dep.key === selectedProvider ? "default" : "secondary"}
+                            onClick={() => setSelectedProvider(dep.key)}
+                            className="text-[11px] h-6 px-2"
+                          >
+                            {dep.key === selectedProvider ? "Selected" : "Select"}
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            disabled={isInstalling}
+                            onClick={() => installSingle(dep)}
+                            className="text-[11px] h-6 px-2"
+                          >
+                            Install
+                          </Button>
+                        )
                       )}
                       {dep.status === "auth_required" && (
                         <Button

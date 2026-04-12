@@ -275,8 +275,17 @@ async fn inspect_environment(
 }
 
 fn collect_dependency_issues() -> Vec<BuildEnvironmentIssue> {
-    platform::required_dependencies()
-        .into_iter()
+    let deps = platform::required_dependencies();
+
+    let has_claude = deps.iter().any(|spec| {
+        spec.name == "Claude Code CLI" && platform::check_dependency(spec).is_some()
+    });
+    let has_codex = deps.iter().any(|spec| {
+        spec.name == "Codex CLI" && platform::check_dependency(spec).is_some()
+    });
+    let has_any_agent = has_claude || has_codex;
+
+    deps.into_iter()
         .filter_map(|spec| {
             if platform::check_dependency(&spec).is_some() {
                 return None;
@@ -303,14 +312,17 @@ fn collect_dependency_issues() -> Vec<BuildEnvironmentIssue> {
                     "Ninja is required before Foundry can build JUCE projects.",
                     Some("Install Ninja"),
                 ),
-                "Claude Code CLI" => (
-                    "claude_cli_missing",
-                    "Claude Code CLI is required before Foundry can generate code.",
-                    Some("Install Claude CLI"),
-                ),
-                "Codex CLI" => {
-                    // Codex is optional — don't block the build environment
-                    return None;
+                "Claude Code CLI" | "Codex CLI" => {
+                    if has_any_agent {
+                        return None;
+                    }
+                    return Some(BuildEnvironmentIssue {
+                        code: "agent_cli_missing".into(),
+                        title: "AI engine not installed".into(),
+                        detail: "Install Claude Code or Codex CLI to generate plugins.".into(),
+                        recoverable: false,
+                        action_label: Some("Open Setup".into()),
+                    });
                 }
                 _ => (
                     "dependency_missing",

@@ -22,10 +22,15 @@ function classifyFailure(message: string) {
     lower.includes("ninja is required") ||
     lower.includes("cmake is required") ||
     lower.includes("claude code cli") ||
+    lower.includes("codex cli") ||
     lower.includes("claude_code_git_bash_path") ||
     lower.includes("git bash")
   ) {
     return { title: "Environment Not Ready", subtitle: "JUCE, Git Bash, or the local build toolchain is not configured correctly.", kind: "environment" }
+  }
+
+  if (lower.includes("ai engine not installed") || lower.includes("agent_cli_missing")) {
+    return { title: "No AI Engine", subtitle: "Install Claude Code or Codex CLI to generate plugins.", kind: "environment" }
   }
 
   if (lower.includes("did not create the required source files") || lower.includes("missing source")) {

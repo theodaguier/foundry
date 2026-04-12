@@ -97,8 +97,20 @@ export default function Prompt() {
   const modelCatalog = useSettingsStore((s) => s.modelCatalog)
   const installPaths = useSettingsStore((s) => s.installPaths)
   const [prompt, setPrompt] = useState("")
-  const [selectedAgent, setSelectedAgent] = useState("Claude Code")
-  const [selectedModel, setSelectedModel] = useState("sonnet")
+  const [selectedAgent, setSelectedAgent] = useState(
+    () => {
+      const catalog = useSettingsStore.getState().modelCatalog
+      const first = catalog[0]
+      return first?.name ?? "Claude Code"
+    }
+  )
+  const [selectedModel, setSelectedModel] = useState(
+    () => {
+      const catalog = useSettingsStore.getState().modelCatalog
+      const defaultModel = catalog[0]?.models.find(m => m.default)
+      return defaultModel?.flag ?? defaultModel?.id ?? "sonnet"
+    }
+  )
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const isEmpty = !prompt.trim()
 

@@ -28,6 +28,142 @@ fn silent_command(cmd: &str) -> Command {
     c
 }
 
+#[cfg(target_os = "macos")]
+const CMAKE_DOWNLOAD_URL: &str = "https://github.com/Kitware/CMake/releases/download/v{version}/cmake-{version}-macos-universal.tar.gz";
+
+#[cfg(target_os = "macos")]
+const NODE_DOWNLOAD_URL: &str =
+    "https://nodejs.org/dist/v{version}/node-v{version}-darwin-{arch}.tar.gz";
+
+#[cfg(target_os = "macos")]
+fn macos_node_arch() -> &'static str {
+    if std::env::consts::ARCH == "aarch64" {
+        "arm64"
+    } else {
+        "x64"
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn download_file_sync(url: &str, dest: &Path) -> Result<(), String> {
+    let runtime = tokio::runtime::Handle::current();
+    let url = url.to_string();
+    let dest = dest.to_path_buf();
+    runtime.block_on(async {
+        let response = reqwest::get(&url)
+            .await
+            .map_err(|e| format!("Download failed: {}", e))?;
+        if !response.status().is_success() {
+            return Err(format!(
+                "Download returned status {} for {}",
+                response.status(),
+                url
+            ));
+        }
+        let bytes = response
+            .bytes()
+            .await
+            .map_err(|e| format!("Download failed: {}", e))?;
+        std::fs::write(&dest, &bytes)
+            .map_err(|e| format!("Failed to write {}: {}", dest.display(), e))?;
+        Ok(())
+    })
+}
+
+#[cfg(target_os = "macos")]
+fn extract_tarball(archive_path: &Path, extract_dir: &Path) -> Result<(), String> {
+    let output = Command::new("tar")
+        .args([
+            "-xzf",
+            &archive_path.to_string_lossy(),
+            "-C",
+            &extract_dir.to_string_lossy(),
+        ])
+        .output()
+        .map_err(|e| format!("Failed to run tar: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("Extraction failed: {}", stderr.trim()));
+    }
+
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn install_managed_cmake() -> Result<PathBuf, String> {
+    let cmake_binary = foundry_paths::managed_cmake_binary();
+    if cmake_binary.is_file() {
+        info!("Managed CMake already installed at {}", cmake_binary.display());
+        return Ok(cmake_binary);
+    }
+
+    let version = foundry_paths::MANAGED_CMAKE_VERSION;
+    let url = CMAKE_DOWNLOAD_URL.replace("{version}", version);
+    let cmake_dir = foundry_paths::managed_cmake_dir();
+    let temp_root = foundry_paths::application_support_dir().join("tmp");
+    std::fs::create_dir_all(&cmake_dir).map_err(|e| format!("Failed to create CMake dir: {}", e))?;
+    std::fs::create_dir_all(&temp_root).map_err(|e| format!("Failed to create temp dir: {}", e))?;
+
+    let archive_path = temp_root.join(format!("cmake-{}.tar.gz", version));
+    info!("Downloading CMake {} from {}", version, url);
+    download_file_sync(&url, &archive_path)?;
+    info!("Extracting CMake {}...", version);
+    extract_tarball(&archive_path, &cmake_dir)?;
+    let _ = std::fs::remove_file(&archive_path);
+
+    if cmake_binary.is_file() {
+        info!("Managed CMake installed at {}", cmake_binary.display());
+        Ok(cmake_binary)
+    } else {
+        Err(format!(
+            "CMake archive extracted but binary not found at {}",
+            cmake_binary.display()
+        ))
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn install_managed_node() -> Result<PathBuf, String> {
+    let npm_binary = foundry_paths::managed_npm_binary();
+    if npm_binary.is_file() {
+        info!("Managed Node.js already installed at {}", npm_binary.display());
+        return Ok(npm_binary);
+    }
+
+    let version = foundry_paths::MANAGED_NODE_VERSION;
+    let arch = macos_node_arch();
+    let url = NODE_DOWNLOAD_URL
+        .replace("{version}", version)
+        .replace("{arch}", arch);
+    let node_dir = foundry_paths::managed_node_dir();
+    let temp_root = foundry_paths::application_support_dir().join("tmp");
+    std::fs::create_dir_all(&node_dir).map_err(|e| format!("Failed to create Node dir: {}", e))?;
+    std::fs::create_dir_all(&temp_root).map_err(|e| format!("Failed to create temp dir: {}", e))?;
+
+    let archive_name = format!("node-v{}-darwin-{}.tar.gz", version, arch);
+    let archive_path = temp_root.join(&archive_name);
+    info!("Downloading Node.js {} from {}", version, url);
+    download_file_sync(&url, &archive_path)?;
+    info!("Extracting Node.js {}...", version);
+    extract_tarball(&archive_path, &node_dir)?;
+    let _ = std::fs::remove_file(&archive_path);
+
+    let node_binary = foundry_paths::managed_node_binary();
+    if node_binary.is_file() {
+        info!(
+            "Managed Node.js installed at {}",
+            node_binary.display()
+        );
+        Ok(npm_binary)
+    } else {
+        Err(format!(
+            "Node.js archive extracted but binary not found at {}",
+            node_binary.display()
+        ))
+    }
+}
+
 /// Try to acquire the install lock. Returns true if acquired.
 pub fn try_acquire_install_lock() -> bool {
     INSTALL_ACTIVE
@@ -854,6 +990,14 @@ pub fn install_cmake() -> DependencyInstallResult {
 
     #[cfg(not(target_os = "windows"))]
     {
+        #[cfg(target_os = "macos")]
+        if install_managed_cmake().is_ok() {
+            return DependencyInstallResult::verified(format!(
+                "CMake {} installed successfully.",
+                foundry_paths::MANAGED_CMAKE_VERSION
+            ));
+        }
+
         let brew = match resolve_brew_path() {
             Some(path) => path,
             None => {
@@ -1131,8 +1275,13 @@ fn ensure_npm() -> Result<String, String> {
 
     #[cfg(not(target_os = "windows"))]
     {
+        #[cfg(target_os = "macos")]
+        if let Ok(npm) = install_managed_node() {
+            return Ok(npm.to_string_lossy().to_string());
+        }
+
         let brew = resolve_brew_path().ok_or_else(|| {
-            "npm is not installed and Homebrew is not available. Please install Node.js from https://nodejs.org".to_string()
+            "npm is not installed. Please install Node.js from https://nodejs.org or install Homebrew.".to_string()
         })?;
 
         let result = silent_command(&brew)
