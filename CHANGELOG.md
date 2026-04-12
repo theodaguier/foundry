@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.61.9](https://github.com/theodaguier/foundry/compare/v1.61.8...v1.61.9) (2026-04-12)
+
+
+### Bug Fixes
+
+* enable fresh-mac onboarding without Homebrew/sudo ([#411](https://github.com/theodaguier/foundry/issues/411)) ([d14c8f3](https://github.com/theodaguier/foundry/commit/d14c8f30251e3fe7009d2305c1786a5945743632))
+
 ## [1.61.8](https://github.com/theodaguier/foundry/compare/v1.61.7...v1.61.8) (2026-04-12)
 
 
