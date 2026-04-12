@@ -15,6 +15,7 @@ import {
   trackRefineStarted,
 } from "@/lib/analytics";
 import { useAppStore } from "@/stores/app-store";
+import { useSettingsStore } from "@/stores/settings-store";
 
 function stripDebugConfig(config: GenerationConfig): GenerationConfig {
   const { debugPipeline, debugContext, ...baseConfig } = config;
@@ -106,12 +107,18 @@ function inferFormat(plugin: Plugin): GenerationConfig["format"] {
 
 function inferAgent(plugin: Plugin): string {
   if (plugin.generationConfig?.agent) return plugin.generationConfig.agent;
-  if (plugin.agent === "Codex") return "Codex";
-  return "Claude Code";
+  if (plugin.agent) return plugin.agent;
+  const catalog = useSettingsStore.getState().modelCatalog;
+  return catalog[0]?.name ?? "Claude Code";
 }
 
 function inferModel(plugin: Plugin): string {
-  return plugin.generationConfig?.model || plugin.model?.flag || plugin.model?.id || "sonnet";
+  if (plugin.generationConfig?.model) return plugin.generationConfig.model;
+  if (plugin.model?.flag) return plugin.model.flag;
+  if (plugin.model?.id) return plugin.model.id;
+  const catalog = useSettingsStore.getState().modelCatalog;
+  const defaultModel = catalog[0]?.models.find(m => m.default);
+  return defaultModel?.flag ?? defaultModel?.id ?? "sonnet";
 }
 
 function buildRetryConfig(plugin: Plugin): GenerationConfig {

@@ -161,6 +161,18 @@ describe("onboarding readiness logic", () => {
     return { allReady, hasProvider, allRequiredReady, hasAuthRequired, hasFailed }
   }
 
+  it("reports allReady when all required installed + Codex provider ready", () => {
+    const deps: Dep[] = [
+      mapDependency({ name: "Xcode Command Line Tools", installed: true, authRequired: false }),
+      mapDependency({ name: "CMake", installed: true, authRequired: false }),
+      mapDependency({ name: "Claude Code CLI", installed: false, authRequired: false }),
+      mapDependency({ name: "Codex CLI", installed: true, authRequired: false }),
+    ]
+    const r = computeReadiness(deps)
+    expect(r.allReady).toBe(true)
+    expect(r.hasProvider).toBe(true)
+  })
+
   it("reports allReady when all required installed + provider ready", () => {
     const deps: Dep[] = [
       mapDependency({ name: "Xcode Command Line Tools", installed: true, authRequired: false }),

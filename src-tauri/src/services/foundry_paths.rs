@@ -3,6 +3,12 @@ use std::path::PathBuf;
 
 pub const DEFAULT_MANAGED_JUCE_VERSION: &str = "8.0.12";
 
+#[cfg(target_os = "macos")]
+pub const MANAGED_CMAKE_VERSION: &str = "3.31.6";
+
+#[cfg(target_os = "macos")]
+pub const MANAGED_NODE_VERSION: &str = "22.14.0";
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 struct EnvironmentConfig {
@@ -40,6 +46,62 @@ pub fn managed_juce_root_dir() -> PathBuf {
 
 pub fn managed_juce_dir(version: &str) -> PathBuf {
     managed_juce_root_dir().join(version)
+}
+
+#[cfg(target_os = "macos")]
+pub fn managed_cmake_root_dir() -> PathBuf {
+    application_support_dir().join("CMake")
+}
+
+#[cfg(target_os = "macos")]
+pub fn managed_cmake_dir() -> PathBuf {
+    managed_cmake_root_dir().join(MANAGED_CMAKE_VERSION)
+}
+
+#[cfg(target_os = "macos")]
+pub fn managed_cmake_binary() -> PathBuf {
+    managed_cmake_dir()
+        .join(format!("cmake-{}-macos-universal", MANAGED_CMAKE_VERSION))
+        .join("CMake.app")
+        .join("Contents")
+        .join("bin")
+        .join("cmake")
+}
+
+#[cfg(target_os = "macos")]
+pub fn managed_node_root_dir() -> PathBuf {
+    application_support_dir().join("Node")
+}
+
+#[cfg(target_os = "macos")]
+pub fn managed_node_dir() -> PathBuf {
+    managed_node_root_dir().join(MANAGED_NODE_VERSION)
+}
+
+#[cfg(target_os = "macos")]
+pub fn managed_node_binary() -> PathBuf {
+    let arch = if std::env::consts::ARCH == "aarch64" {
+        "arm64"
+    } else {
+        "x64"
+    };
+    managed_node_dir()
+        .join(format!("node-v{}-darwin-{}", MANAGED_NODE_VERSION, arch))
+        .join("bin")
+        .join("node")
+}
+
+#[cfg(target_os = "macos")]
+pub fn managed_npm_binary() -> PathBuf {
+    let arch = if std::env::consts::ARCH == "aarch64" {
+        "arm64"
+    } else {
+        "x64"
+    };
+    managed_node_dir()
+        .join(format!("node-v{}-darwin-{}", MANAGED_NODE_VERSION, arch))
+        .join("bin")
+        .join("npm")
 }
 
 /// Read a custom install path override for the given plugin format.
