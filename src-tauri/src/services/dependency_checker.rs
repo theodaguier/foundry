@@ -139,6 +139,24 @@ pub async fn check_all() -> Result<Vec<DependencyStatus>, String> {
         });
     }
 
+    // Re-check AI providers using the same resolution chain as
+    // verify_provider_install() so that path overrides and fallback
+    // resolution are consistent between install, verify, and recheck.
+    // check_dependency_with_path() uses plain resolve_command() which does
+    // not follow the provider override + fallback chain.
+    for (provider, spec_name) in [
+        (ProviderCli::Claude, "Claude Code CLI"),
+        (ProviderCli::Codex, "Codex CLI"),
+    ] {
+        let existing = deps.iter().find(|d| d.name == spec_name);
+        if existing.is_none() {
+            // Not in the flat dep list — add it via provider resolution.
+            if let Some(status) = provider_status(provider, None)? {
+                deps.push(status);
+            }
+        }
+    }
+
     let environment = build_environment::get_build_environment().await?;
     deps.push(DependencyStatus {
         name: "JUCE SDK".into(),

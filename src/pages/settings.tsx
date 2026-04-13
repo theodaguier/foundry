@@ -440,9 +440,40 @@ function ModelsTab() {
           if (key === "codex") await launchCodexAuth();
           else await launchClaudeAuth();
         } else if (outcome.state === "failed") {
-          toast.error(`Failed to install ${label}`, {
-            description: outcome.message,
-          });
+          // Fix (ghost installations): When the install returns "could not verify",
+          // perform a delayed recheck to see if the binary appeared after the
+          // verification timeout expired. If it did, update the UI accordingly
+          // instead of leaving the user with a misleading failure.
+          const isVerificationFailure = outcome.message.includes("could not verify");
+          if (isVerificationFailure) {
+            toast.error(`Verifying ${label}…`, {
+              description: "Installation completed but verification is still in progress. Will recheck shortly.",
+            });
+            // Recheck after a short delay (the install likely succeeded but the
+            // 30s verification window wasn't enough)
+            setTimeout(async () => {
+              try {
+                const recheck = await invalidateAndCheckDependencies();
+                await refreshModels();
+                const installed = recheck?.find(
+                  (d: DependencyStatus) => d.name === (key === "claude_code" ? "Claude Code CLI" : "Codex CLI")
+                );
+                if (installed?.installed) {
+                  toast.success(label + " is now available");
+                } else {
+                  toast.error(`${label} verification failed`, {
+                    description: "Please click Install again or install manually.",
+                  });
+                }
+              } catch {
+                toast.error(`${label} recheck failed`);
+              }
+            }, 5000);
+          } else {
+            toast.error(`Failed to install ${label}`, {
+              description: outcome.message,
+            });
+          }
         } else {
           toast.success(outcome.message);
         }
