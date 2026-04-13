@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.61.10](https://github.com/theodaguier/foundry/compare/v1.61.9...v1.61.10) (2026-04-13)
+
+
+### Bug Fixes
+
+* comprehensive onboarding overhaul for 3 critical bugs ([#415](https://github.com/theodaguier/foundry/issues/415)) ([3275c46](https://github.com/theodaguier/foundry/commit/3275c46363847238adba4cccccb4a894b5ad27d3))
+
 ## [1.61.9](https://github.com/theodaguier/foundry/compare/v1.61.8...v1.61.9) (2026-04-12)
 
 
