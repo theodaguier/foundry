@@ -463,7 +463,31 @@ export default function Onboarding() {
       }
     }
 
-    await checkDeps()
+    // Fix: Do a thorough fresh recheck after all installs. The previous code
+    // only called checkDeps() but didn't verify that at least one provider was
+    // actually installed (vs. auth_required or still installing). This caused
+    // Bug 3: "No provider installed after onboarding flow" — the onboarding
+    // would show "done" even though verification was still pending or had
+    // timed out.
+    const recheckResults = await checkDeps()
+    const recheckProviders = recheckResults.filter(d => PROVIDER_DEPS.has(d.key))
+    const recheckHasProvider = recheckProviders.some(d => d.status === "installed")
+
+    // If no provider is verified after the primary install, try Codex as
+    // fallback — but only when Claude is genuinely missing or failed.
+    // Do NOT fallback when Claude is auth_required: the browser sign-in flow
+    // is in progress and switching to Codex would silently discard it.
+    if (!recheckHasProvider) {
+      const codex = recheckProviders.find(d => d.key === "codex" && d.status === "missing")
+      const claudeStatus = recheckProviders.find(d => d.key === "claude_code")?.status
+      // Only try Codex when Claude is provably absent (not just waiting for auth).
+      if (codex && (claudeStatus === "missing" || claudeStatus === "failed")) {
+        await installSingle(codex)
+        await new Promise(r => setTimeout(r, 600))
+      }
+      // Final recheck after fallback attempt
+      await checkDeps()
+    }
   }, [checkDeps, installSingle, selectedProvider])
 
   // ---- Initial check on mount ----

@@ -16,7 +16,13 @@ use crate::services::{
 /// Global lock: only one install can run at a time.
 static INSTALL_ACTIVE: AtomicBool = AtomicBool::new(false);
 
-/// Create a Command that hides console windows on Windows.
+/// Create a Command that hides console windows on Windows and inherits the
+/// current process environment.
+///
+/// Inheriting env is important for npm: npm scripts use `#!/usr/bin/env node`
+/// and rely on `env` finding `node` in PATH. If the subprocess does not
+/// inherit a PATH that includes the managed Node binary directory, the
+/// shebang lookup fails at runtime even when npm itself is correctly invoked.
 fn silent_command(cmd: &str) -> Command {
     #[allow(unused_mut)]
     let mut c = Command::new(cmd);
@@ -25,6 +31,10 @@ fn silent_command(cmd: &str) -> Command {
         use std::os::windows::process::CommandExt;
         c.creation_flags(0x08000000); // CREATE_NO_WINDOW
     }
+    // Inherit current process environment so that PATH (and other vars) are
+    // available to subprocesses. This is especially important on macOS where
+    // the managed Node binary directory needs to be in PATH for npm's shebang.
+    c.envs(std::env::vars());
     c
 }
 
@@ -1275,14 +1285,56 @@ fn ensure_npm() -> Result<String, String> {
 
     #[cfg(not(target_os = "windows"))]
     {
+        // --- macOS path ---
         #[cfg(target_os = "macos")]
-        if let Ok(npm) = install_managed_node() {
-            return Ok(npm.to_string_lossy().to_string());
+        {
+            // Strategy 1: Install a managed Node.js (downloaded tarball into app support).
+            // This works without Homebrew and is fully self-contained.
+            if let Ok(npm) = install_managed_node() {
+                return Ok(npm.to_string_lossy().to_string());
+            }
         }
 
-        let brew = resolve_brew_path().ok_or_else(|| {
-            "npm is not installed. Please install Node.js from https://nodejs.org or install Homebrew.".to_string()
-        })?;
+        // Strategy 2: Use Homebrew to install Node.js.
+        // On a fresh Mac, brew may not be available, so we install it first.
+        let brew = match resolve_brew_path() {
+            Some(path) => path,
+            None => {
+                #[cfg(target_os = "macos")]
+                {
+                    // Fix: On macOS without Homebrew, install it first using the
+                    // existing install_homebrew() helper (same approach used by
+                    // install_cmake()). Without this, ensure_npm() would fail
+                    // silently on fresh Macs, causing "node: No such file or
+                    // directory" errors when installing Codex CLI.
+                    info!("Homebrew not found — installing it first");
+                    if let Err(e) = install_homebrew() {
+                        return Err(format!(
+                            "Could not install Node.js: Homebrew is required but not available. \
+                             Attempted to install Homebrew but failed: {}. \
+                             Please install Node.js manually from https://nodejs.org",
+                            e
+                        ));
+                    }
+                    // After installing Homebrew, give the shell a moment to settle
+                    // and try resolving again.
+                    platform::invalidate_shell_cache();
+                    std::thread::sleep(std::time::Duration::from_secs(2));
+                    resolve_brew_path().ok_or_else(|| {
+                        "Homebrew was installed but could not be found on PATH. \
+                         Please restart Foundry and try again."
+                            .to_string()
+                    })?
+                }
+                #[cfg(not(target_os = "macos"))]
+                {
+                    return Err(
+                        "npm is not installed. Please install Node.js from https://nodejs.org."
+                            .to_string(),
+                    );
+                }
+            }
+        };
 
         let result = silent_command(&brew)
             .args(["install", "node"])
@@ -1299,8 +1351,38 @@ fn ensure_npm() -> Result<String, String> {
         // Invalidate cache after installing Node
         platform::invalidate_shell_cache();
 
-        resolve_npm_path()
-            .ok_or_else(|| "Node.js installed but npm could not be found on PATH.".to_string())
+        let npm = resolve_npm_path()
+            .ok_or_else(|| "Node.js installed but npm could not be found on PATH.".to_string())?;
+
+        // Fix: Verify that `node` itself is resolvable (not just npm). The Codex
+        // CLI shebang references `node` directly, so if only npm is on PATH but
+        // node is not, Codex will fail at runtime with "node: No such file or
+        // directory".
+        let resolved_node = platform::resolve_command("node");
+        if resolved_node == "node" {
+            // node is not resolvable even though npm is — try brew node path directly
+            #[cfg(target_os = "macos")]
+            for node_candidate in &[
+                "/opt/homebrew/bin/node",
+                "/usr/local/bin/node",
+            ] {
+                if std::path::Path::new(node_candidate).is_file() {
+                    return Ok(npm);
+                }
+            }
+            // Also check managed node binary
+            #[cfg(target_os = "macos")]
+            if foundry_paths::managed_node_binary().is_file() {
+                return Ok(npm);
+            }
+            warn!(
+                "npm is resolvable ({}) but `node` is not on PATH. \
+                 Codex CLI requires Node.js to be on PATH.",
+                npm
+            );
+        }
+
+        Ok(npm)
     }
 }
 
@@ -1400,7 +1482,10 @@ fn provider_not_detected_result(
 pub async fn verify_provider_install(
     preparation: ProviderInstallPreparation,
 ) -> Result<DependencyInstallResult, String> {
-    const VERIFY_TIMEOUT: Duration = Duration::from_secs(15);
+    // Fix: Increased from 15s to 30s. On fresh Macs, npm install can take longer
+    // because Homebrew/managed Node.js may need to be installed first, and the
+    // shell environment cache needs extra cycles to pick up new PATH entries.
+    const VERIFY_TIMEOUT: Duration = Duration::from_secs(30);
     const VERIFY_INTERVAL: Duration = Duration::from_secs(1);
 
     info!(
@@ -1417,25 +1502,45 @@ pub async fn verify_provider_install(
     loop {
         platform::invalidate_shell_cache();
 
+        // --- Strategy 1: Check the expected_path from the preparation struct ---
         let expected_candidate = preparation
             .expected_path
             .as_deref()
             .filter(|path| Path::new(path).is_file())
             .map(ToOwned::to_owned);
 
+        // --- Strategy 2: Resolve via platform (shell env, known paths, overrides) ---
+        let platform_candidate = match preparation.provider {
+            ProviderCli::Claude => platform::resolve_claude_path(),
+            ProviderCli::Codex => platform::resolve_codex_path(),
+        };
+
+        // --- Strategy 3: Direct npm prefix check (Fix for ghost installations) ---
+        // After npm install, the binary lands in the npm global prefix bin dir.
+        // The shell cache may not reflect this immediately, so we check the
+        // filesystem directly using the npm prefix from the preparation struct.
+        let npm_prefix_candidate = preparation.npm_path.as_deref().and_then(|npm_path| {
+            npm_global_prefix(npm_path).ok().map(|prefix| {
+                provider_cli_from_prefix(&prefix, preparation.provider.command())
+                    .to_string_lossy()
+                    .to_string()
+            })
+        }).filter(|path| Path::new(path).is_file());
+
         let detected_path = expected_candidate
             .clone()
-            .or_else(|| match preparation.provider {
-                ProviderCli::Claude => platform::resolve_claude_path(),
-                ProviderCli::Codex => platform::resolve_codex_path(),
-            });
+            .or_else(|| platform_candidate.clone())
+            .or_else(|| npm_prefix_candidate.clone());
 
         if let Some(path) = detected_path.clone() {
             last_detected_path = Some(path.clone());
             info!(
-                "Provider install candidate detected: provider={} path={}",
+                "Provider install candidate detected: provider={} path={} source={}",
                 preparation.provider.command(),
-                path
+                path,
+                if expected_candidate.as_deref() == Some(&path) { "expected_path" }
+                else if platform_candidate.as_deref() == Some(&path) { "platform" }
+                else { "npm_prefix" }
             );
 
             if let Some(status) =
@@ -1457,10 +1562,12 @@ pub async fn verify_provider_install(
 
         if started_at.elapsed() >= VERIFY_TIMEOUT {
             warn!(
-                "Provider install verification timed out: provider={} installer={} expected_path={:?} last_detected_path={:?}",
+                "Provider install verification timed out after {:?}: provider={} installer={} expected_path={:?} npm_prefix_candidate={:?} last_detected_path={:?}",
+                started_at.elapsed(),
                 preparation.provider.command(),
                 preparation.installer,
                 preparation.expected_path,
+                npm_prefix_candidate,
                 last_detected_path
             );
 
@@ -1477,7 +1584,8 @@ pub async fn verify_provider_install(
 #[cfg(test)]
 mod tests {
     use super::{
-        provider_not_detected_result, user_local_cli_path, DependencyInstallVerification,
+        provider_not_detected_result, verified_provider_result, provider_cli_from_prefix,
+        user_local_cli_path, DependencyInstallVerification, DependencyStatus,
         DependencyResetItem, DependencyResetResult, DependencyResetStatus, ProviderCli,
     };
 
@@ -1545,6 +1653,51 @@ mod tests {
             homebrew_path.to_string_lossy().as_ref(),
             "claude"
         ));
+    }
+
+    /// Test that provider_not_detected_result includes clear guidance about
+    /// next steps (ghost-installation fix: the error message should mention
+    /// manual install as a fallback).
+    #[test]
+    fn not_detected_result_message_includes_manual_install_guidance() {
+        let result = provider_not_detected_result(
+            ProviderCli::Claude,
+            None,
+        );
+        assert!(!result.success);
+        assert!(
+            result.message.contains("Claude Code manually")
+                || result.message.contains("manually"),
+            "message should mention manual install fallback: {}",
+            result.message
+        );
+        assert_eq!(result.verification, DependencyInstallVerification::NotDetected);
+    }
+
+    /// Test that verified_provider_result correctly sets auth_required state.
+    #[test]
+    fn verified_result_with_auth_required() {
+        let status = DependencyStatus {
+            name: "Claude Code CLI".to_string(),
+            installed: true,
+            auth_required: true,
+            detail: Some("1.0.0".to_string()),
+            version: Some("1.0.0".to_string()),
+        };
+        let result = verified_provider_result(ProviderCli::Claude, status, "/usr/local/bin/claude".to_string());
+        assert!(result.success);
+        assert_eq!(result.verification, DependencyInstallVerification::AuthRequired);
+        assert!(result.message.contains("Sign in"));
+    }
+
+    /// Test that provider_cli_from_prefix constructs the correct path.
+    #[test]
+    fn provider_cli_from_prefix_creates_correct_unix_path() {
+        let path = provider_cli_from_prefix("/usr/local", "claude");
+        #[cfg(target_os = "windows")]
+        assert_eq!(path, std::path::PathBuf::from("/usr/local/claude.cmd"));
+        #[cfg(not(target_os = "windows"))]
+        assert_eq!(path, std::path::PathBuf::from("/usr/local/bin/claude"));
     }
 }
 
@@ -1647,6 +1800,10 @@ pub fn install_claude_code() -> DependencyInstallDispatchResult {
 
     match result {
         Ok(output) if output.status.success() => {
+            // Invalidate cache after install so the newly installed binary
+            // becomes visible to the verification loop.
+            platform::invalidate_shell_cache();
+
             DependencyInstallDispatchResult::Provider(ProviderInstallPreparation {
                 provider: ProviderCli::Claude,
                 installer: "npm",
@@ -1679,6 +1836,10 @@ pub fn install_codex() -> DependencyInstallDispatchResult {
         });
     }
 
+    // Let ensure_npm() handle all Node.js installation strategies:
+    // - Strategy 1 (macOS): install_managed_node() — downloads a Node tarball directly
+    // - Strategy 2 (macOS): install Homebrew first, then brew install node
+    // - Strategy 3 (Windows): winget install OpenJS.NodeJS.LTS
     let npm = match ensure_npm() {
         Ok(path) => path,
         Err(error) => {
@@ -1686,11 +1847,33 @@ pub fn install_codex() -> DependencyInstallDispatchResult {
         }
     };
 
+    // After ensure_npm(), verify that `node` is actually resolvable in Foundry's
+    // environment. The Codex CLI is a Node.js application whose shebang
+    // references `node` directly — not an absolute path. If npm was found
+    // (e.g. via Homebrew) but node is still not on the resolved PATH, the
+    // installed codex binary will fail at runtime with "node: No such file or
+    // directory", producing a confusing generic "could not verify" from the
+    // verification loop. Catch it here with an actionable message.
+    #[cfg(not(target_os = "windows"))]
+    {
+        let resolved_node = platform::resolve_command("node");
+        if resolved_node == "node" {
+            return DependencyInstallDispatchResult::Final(DependencyInstallResult::failed(
+                "Node.js is required to run Codex but could not be found on PATH. \
+                 Please install Node.js from https://nodejs.org or let Foundry install it automatically."
+                    .to_string(),
+            ));
+        }
+    }
+
     let expected_path = expected_cli_path_from_npm(&npm, ProviderCli::Codex.command());
     info!(
         "Installing Codex via npm: npm={} expected_path={:?}",
         npm, expected_path
     );
+
+    // Invalidate shell cache before install to get fresh PATH state
+    platform::invalidate_shell_cache();
 
     let result = silent_command(&npm)
         .args(["install", "-g", "@openai/codex"])
@@ -1698,6 +1881,10 @@ pub fn install_codex() -> DependencyInstallDispatchResult {
 
     match result {
         Ok(output) if output.status.success() => {
+            // Invalidate cache after install so the newly installed binary
+            // becomes visible to the verification loop.
+            platform::invalidate_shell_cache();
+
             DependencyInstallDispatchResult::Provider(ProviderInstallPreparation {
                 provider: ProviderCli::Codex,
                 installer: "npm",
