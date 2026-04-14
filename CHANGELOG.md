@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.61.14](https://github.com/theodaguier/foundry/compare/v1.61.13...v1.61.14) (2026-04-14)
+
+
+### Bug Fixes
+
+* launch auth commands use canonical resolver, add non-runnable binary regression test ([685057d](https://github.com/theodaguier/foundry/commit/685057d2d5fb9d614c16871768a66477eeea9906))
+
 ## [1.61.13](https://github.com/theodaguier/foundry/compare/v1.61.12...v1.61.13) (2026-04-14)
 
 
