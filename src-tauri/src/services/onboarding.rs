@@ -228,28 +228,48 @@ fn install_managed_codex() -> Result<PathBuf, String> {
     download_file_sync(&url, &archive_path)?;
     info!("Extracting Codex {}...", version);
 
-    // Extract to temp_root — the subdirectory lands at:
-    // temp_root/codex-{arch}-apple-darwin/
+    // Extract to temp_root — may produce a directory (codex-{arch}-apple-darwin/)
+    // or a single file (codex-{arch}-apple-darwin) depending on archive format.
     extract_tarball(&archive_path, &temp_root)?;
     let _ = std::fs::remove_file(&archive_path);
 
     let extracted_subdir = temp_root.join(format!("codex-{}-apple-darwin", arch));
-    if !extracted_subdir.exists() {
-        return Err(format!(
-            "Codex archive extracted but directory not found at {}",
-            extracted_subdir.display()
-        ));
-    }
+    let extracted_file = temp_root.join(format!("codex-{}-apple-darwin", arch));
 
-    // Staging location: extract to a .tmp sibling of the final dir.
-    // This ensures the final directory path is never empty during install.
+    // The archive may contain a directory or a single binary file.
+    // Normalise to the staging directory either way.
     let staging_dir = codex_root.join(format!("{}.tmp", version));
     if staging_dir.exists() {
         std::fs::remove_dir_all(&staging_dir)
             .map_err(|e| format!("Failed to clean staging dir: {}", e))?;
     }
-    std::fs::rename(&extracted_subdir, &staging_dir)
-        .map_err(|e| format!("Failed to stage Codex dir: {}", e))?;
+
+    if extracted_subdir.is_dir() {
+        // Old multi-file layout: directory → rename to staging
+        std::fs::rename(&extracted_subdir, &staging_dir)
+            .map_err(|e| format!("Failed to stage Codex dir: {}", e))?;
+    } else if extracted_file.is_file() {
+        // Single-binary layout: create version dir and copy binary into it
+        std::fs::create_dir_all(&codex_dir)
+            .map_err(|e| format!("Failed to create Codex version dir: {}", e))?;
+        let target_binary = foundry_paths::managed_codex_binary();
+        std::fs::copy(&extracted_file, &target_binary)
+            .map_err(|e| format!("Failed to copy Codex binary: {}", e))?;
+        let _ = std::fs::remove_file(&extracted_file);
+        // Single-binary install skips the atomic-swap block below (no old dir to swap)
+        platform::invalidate_shell_cache();
+        info!(
+            "Managed Codex installed at {}",
+            target_binary.display()
+        );
+        return Ok(target_binary);
+    } else {
+        return Err(format!(
+            "Codex archive extracted but neither directory nor file found at {} or {}",
+            extracted_subdir.display(),
+            extracted_file.display()
+        ));
+    }
 
     // Atomic swap: replace the old versioned dir with the new staging dir.
     // On macOS, rename() is atomic for directories on the same filesystem.
