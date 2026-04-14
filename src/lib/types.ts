@@ -160,6 +160,8 @@ export type {
   DependencyInstallResult,
   DependencyResetItem,
   DependencyResetResult,
+  SetupState,
+  ProviderSummary,
 } from "@/lib/schemas";
 
 export type PluginFilter = "ALL" | "INSTRUMENTS" | "EFFECTS" | "UTILITIES";

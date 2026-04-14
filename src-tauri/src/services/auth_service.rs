@@ -52,6 +52,15 @@ pub struct SupabaseAuth {
     session: Mutex<Option<AuthSession>>,
 }
 
+impl Clone for SupabaseAuth {
+    fn clone(&self) -> Self {
+        Self {
+            client: self.client.clone(),
+            session: Mutex::new(self.session.lock().unwrap().clone()),
+        }
+    }
+}
+
 impl SupabaseAuth {
     pub fn new() -> Self {
         let client = Client::new();
@@ -93,6 +102,13 @@ impl SupabaseAuth {
     fn clear_session_file() {
         let path = Self::session_file_path();
         let _ = std::fs::remove_file(&path);
+    }
+
+    /// Clear the local auth session without making a network call.
+    /// Use this for local dev resets — it does not call Supabase logout.
+    pub fn clear_local_session(&self) {
+        *self.session.lock().unwrap() = None;
+        Self::clear_session_file();
     }
 
     fn extract_error(body: &str) -> String {

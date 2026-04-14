@@ -59,6 +59,29 @@ export const DependencyResetResultSchema = z.object({
   summary: z.string(),
 });
 
+export const ProviderSetupStatusSchema = z.enum([
+  "installed_and_authenticated",
+  "installed_needs_auth",
+  "not_installed",
+]);
+
+export const ProviderSummarySchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  status: ProviderSetupStatusSchema,
+  version: z.string().nullish(),
+  authUrl: z.string().nullish(),
+});
+
+export const SetupStateSchema = z.object({
+  ready: z.boolean(),
+  buildEnvironmentReady: z.boolean(),
+  providers: z.array(ProviderSummarySchema),
+  hasAuthenticatedProvider: z.boolean(),
+  blockedReason: z.string().nullish(),
+  remoteCompletedAt: z.string().nullish(),
+});
+
 // ---------------------------------------------------------------------------
 // Inferred types — use these instead of the manual interfaces
 // ---------------------------------------------------------------------------
@@ -74,3 +97,5 @@ export type DependencyInstallResult = z.infer<
 >;
 export type DependencyResetItem = z.infer<typeof DependencyResetItemSchema>;
 export type DependencyResetResult = z.infer<typeof DependencyResetResultSchema>;
+export type SetupState = z.infer<typeof SetupStateSchema>;
+export type ProviderSummary = z.infer<typeof ProviderSummarySchema>;

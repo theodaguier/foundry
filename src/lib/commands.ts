@@ -5,6 +5,7 @@ import {
   OnboardingStateSchema,
   DependencyInstallResultSchema,
   DependencyResetResultSchema,
+  SetupStateSchema,
 } from "@/lib/schemas";
 import type {
   Plugin,
@@ -94,6 +95,9 @@ export const clearJuceOverridePath =
 export const getOnboardingState = async (): Promise<OnboardingState> =>
   OnboardingStateSchema.parse(await invoke("get_onboarding_state"));
 
+export const getSetupState = async () =>
+  SetupStateSchema.parse(await invoke("get_setup_state"));
+
 export const completeOnboarding = async (): Promise<OnboardingState> =>
   OnboardingStateSchema.parse(await invoke("complete_onboarding"));
 
@@ -107,6 +111,10 @@ export const installDependency = async (
 export const resetDebugDependencies =
   async (): Promise<DependencyResetResult> =>
     DependencyResetResultSchema.parse(await invoke("reset_debug_dependencies"));
+
+export const resetLocalAppState =
+  async (): Promise<DependencyResetResult> =>
+    DependencyResetResultSchema.parse(await invoke("reset_local_app_state"));
 
 export const launchClaudeAuth = () => invoke<boolean>("launch_claude_auth");
 export const launchCodexAuth = () => invoke<boolean>("launch_codex_auth");

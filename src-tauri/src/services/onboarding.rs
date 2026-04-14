@@ -46,6 +46,10 @@ const NODE_DOWNLOAD_URL: &str =
     "https://nodejs.org/dist/v{version}/node-v{version}-darwin-{arch}.tar.gz";
 
 #[cfg(target_os = "macos")]
+const CODEX_DOWNLOAD_URL: &str =
+    "https://github.com/openai/codex/releases/download/{version}/codex-{arch}-apple-darwin.tar.gz";
+
+#[cfg(target_os = "macos")]
 fn macos_node_arch() -> &'static str {
     if std::env::consts::ARCH == "aarch64" {
         "arm64"
@@ -174,6 +178,78 @@ fn install_managed_node() -> Result<PathBuf, String> {
     }
 }
 
+#[cfg(target_os = "macos")]
+fn install_managed_codex() -> Result<PathBuf, String> {
+    let codex_binary = foundry_paths::managed_codex_binary();
+    if codex_binary.is_file() {
+        info!(
+            "Managed Codex already installed at {}",
+            codex_binary.display()
+        );
+        return Ok(codex_binary);
+    }
+
+    let version = foundry_paths::MANAGED_CODEX_VERSION;
+    let arch = if std::env::consts::ARCH == "aarch64" {
+        "aarch64"
+    } else {
+        "x86_64"
+    };
+    let url = CODEX_DOWNLOAD_URL
+        .replace("{version}", version)
+        .replace("{arch}", arch);
+
+    let codex_dir = foundry_paths::managed_codex_dir();
+    let temp_root = foundry_paths::application_support_dir().join("tmp");
+    let archive_path = temp_root.join(format!(
+        "codex-{}-{}.tar.gz",
+        version.replace("/", "-"),
+        uuid::Uuid::new_v4().simple()
+    ));
+
+    std::fs::create_dir_all(&codex_dir)
+        .map_err(|e| format!("Failed to create Codex dir: {}", e))?;
+    std::fs::create_dir_all(&temp_root)
+        .map_err(|e| format!("Failed to create temp dir: {}", e))?;
+
+    info!("Downloading Codex {} from {}", version, url);
+    download_file_sync(&url, &archive_path)?;
+    info!("Extracting Codex {}...", version);
+    // The tarball extracts into a subdirectory: codex-{arch}-apple-darwin/
+    // We extract to temp_root so the subdirectory lands there.
+    extract_tarball(&archive_path, &temp_root)?;
+    let _ = std::fs::remove_file(&archive_path);
+
+    // Find the extracted subdirectory inside temp_root
+    let extracted_subdir = temp_root.join(format!("codex-{}-apple-darwin", arch));
+    if !extracted_subdir.exists() {
+        return Err(format!(
+            "Codex archive extracted but directory not found at {}",
+            extracted_subdir.display()
+        ));
+    }
+
+    if codex_dir.exists() {
+        std::fs::remove_dir_all(&codex_dir)
+            .map_err(|e| format!("Failed to clean Codex dir: {}", e))?;
+    }
+    std::fs::rename(&extracted_subdir, &codex_dir)
+        .map_err(|e| format!("Failed to move Codex dir: {}", e))?;
+
+    if codex_binary.is_file() {
+        info!(
+            "Managed Codex installed at {}",
+            codex_binary.display()
+        );
+        Ok(codex_binary)
+    } else {
+        Err(format!(
+            "Codex archive extracted but binary not found at {}",
+            codex_binary.display()
+        ))
+    }
+}
+
 /// Try to acquire the install lock. Returns true if acquired.
 pub fn try_acquire_install_lock() -> bool {
     INSTALL_ACTIVE
@@ -204,6 +280,47 @@ fn push_reset_item(
 pub struct OnboardingState {
     pub completed: bool,
     pub completed_at: Option<String>,
+}
+
+/// Aggregated local machine readiness state.
+/// This is the single source of truth for whether the app should show
+/// the onboarding screen — computed entirely from local machine state,
+/// not from a remote Supabase flag.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SetupState {
+    /// True when the machine is fully set up and a provider is authenticated.
+    pub ready: bool,
+    /// True when the build toolchain and JUCE are ready.
+    pub build_environment_ready: bool,
+    /// List of provider summaries (Claude + Codex) with their install/auth status.
+    pub providers: Vec<ProviderSummary>,
+    /// True when at least one provider is installed and authenticated.
+    pub has_authenticated_provider: bool,
+    /// Human-readable summary of what's missing, if anything.
+    pub blocked_reason: Option<String>,
+    /// When true, the onboarding has been completed at least once on this account
+    /// (fetched from Supabase). This is informational only — it does NOT gate
+    /// the app; `ready` does.
+    pub remote_completed_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ProviderSetupStatus {
+    InstalledAndAuthenticated,
+    InstalledNeedsAuth,
+    NotInstalled,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderSummary {
+    pub id: String,
+    pub name: String,
+    pub status: ProviderSetupStatus,
+    pub version: Option<String>,
+    pub auth_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -598,6 +715,30 @@ pub fn reset_debug_dependencies() -> DependencyResetResult {
     platform::invalidate_shell_cache();
     uninstall_provider_cli(ProviderCli::Claude, "@anthropic-ai/claude-code", &mut items);
     uninstall_provider_cli(ProviderCli::Codex, "@openai/codex", &mut items);
+
+    // Also remove managed Codex directory if present (native install)
+    #[cfg(target_os = "macos")]
+    {
+        use crate::services::foundry_paths;
+        let codex_dir = foundry_paths::managed_codex_root_dir();
+        if codex_dir.exists() {
+            match std::fs::remove_dir_all(&codex_dir) {
+                Ok(()) => push_reset_item(
+                    &mut items,
+                    "Codex CLI",
+                    DependencyResetStatus::Removed,
+                    "Removed managed Codex install.",
+                ),
+                Err(e) => push_reset_item(
+                    &mut items,
+                    "Codex CLI",
+                    DependencyResetStatus::Failed,
+                    format!("Failed to remove managed Codex: {}", e),
+                ),
+            }
+        }
+    }
+
     uninstall_cmake(&mut items);
 
     match build_environment::reset_managed_juce_state() {
@@ -648,6 +789,132 @@ pub fn reset_debug_dependencies() -> DependencyResetResult {
     DependencyResetResult { items, summary }
 }
 
+/// Reset local app state files for development testing.
+/// Does NOT touch PluginBuilds/ or Telemetry/.
+/// Does NOT call Supabase logout — only clears local session.
+pub fn reset_local_app_state(auth: &SupabaseAuth) -> DependencyResetResult {
+    let mut items = Vec::new();
+
+    // environment.json
+    let env_path = foundry_paths::environment_config_path();
+    if env_path.exists() {
+        match std::fs::remove_file(&env_path) {
+            Ok(()) => push_reset_item(
+                &mut items,
+                "Environment Config",
+                DependencyResetStatus::Removed,
+                "Removed environment.json.",
+            ),
+            Err(e) => push_reset_item(
+                &mut items,
+                "Environment Config",
+                DependencyResetStatus::Failed,
+                format!("Failed to remove environment.json: {}", e),
+            ),
+        }
+    } else {
+        push_reset_item(
+            &mut items,
+            "Environment Config",
+            DependencyResetStatus::Skipped,
+            "No environment.json to remove.",
+        );
+    }
+
+    // auth_session.json (local clear only, no network call)
+    let auth_path = foundry_paths::application_support_dir().join("auth_session.json");
+    if auth_path.exists() {
+        auth.clear_local_session();
+        push_reset_item(
+            &mut items,
+            "Auth Session",
+            DependencyResetStatus::Removed,
+            "Cleared local auth session.",
+        );
+    } else {
+        push_reset_item(
+            &mut items,
+            "Auth Session",
+            DependencyResetStatus::Skipped,
+            "No auth session file to clear.",
+        );
+    }
+
+    // plugins.json
+    let plugins_path = foundry_paths::plugins_json_path();
+    if plugins_path.exists() {
+        match std::fs::remove_file(&plugins_path) {
+            Ok(()) => push_reset_item(
+                &mut items,
+                "Plugin Library",
+                DependencyResetStatus::Removed,
+                "Removed plugins.json.",
+            ),
+            Err(e) => push_reset_item(
+                &mut items,
+                "Plugin Library",
+                DependencyResetStatus::Failed,
+                format!("Failed to remove plugins.json: {}", e),
+            ),
+        }
+    } else {
+        push_reset_item(
+            &mut items,
+            "Plugin Library",
+            DependencyResetStatus::Skipped,
+            "No plugins.json to remove.",
+        );
+    }
+
+    // models.json (user model overrides)
+    let models_path = foundry_paths::models_user_override_path();
+    if models_path.exists() {
+        match std::fs::remove_file(&models_path) {
+            Ok(()) => push_reset_item(
+                &mut items,
+                "Model Overrides",
+                DependencyResetStatus::Removed,
+                "Removed models.json.",
+            ),
+            Err(e) => push_reset_item(
+                &mut items,
+                "Model Overrides",
+                DependencyResetStatus::Failed,
+                format!("Failed to remove models.json: {}", e),
+            ),
+        }
+    } else {
+        push_reset_item(
+            &mut items,
+            "Model Overrides",
+            DependencyResetStatus::Skipped,
+            "No models.json to remove.",
+        );
+    }
+
+    let removed = items
+        .iter()
+        .filter(|item| item.status == DependencyResetStatus::Removed)
+        .count();
+    let failed = items
+        .iter()
+        .filter(|item| item.status == DependencyResetStatus::Failed)
+        .count();
+
+    let summary = if failed > 0 {
+        format!(
+            "Local app state reset finished with {} removal(s) and {} failure(s).",
+            removed, failed
+        )
+    } else if removed > 0 {
+        format!("Removed {} local app state file(s).", removed)
+    } else {
+        "No local app state files to remove.".to_string()
+    };
+
+    DependencyResetResult { items, summary }
+}
+
 /// Read onboarding state from the user's Supabase profile.
 pub async fn get_onboarding_state(auth: &SupabaseAuth) -> OnboardingState {
     let session = match auth.get_session() {
@@ -686,6 +953,118 @@ pub async fn get_onboarding_state(auth: &SupabaseAuth) -> OnboardingState {
             }
         }
         _ => OnboardingState::default(),
+    }
+}
+
+/// Compute the aggregated local machine readiness state.
+///
+/// This function is the single entry point for determining whether the app
+/// should show the onboarding screen. It combines:
+/// - Build environment readiness (toolchain + JUCE)
+/// - Provider install + auth status
+///
+/// Unlike `get_onboarding_state()`, this does NOT read from Supabase to
+/// decide if onboarding should be shown. The remote `onboarding_completed_at`
+/// field is fetched only for informational purposes (e.g. showing "Welcome back").
+pub async fn get_setup_state(auth: &SupabaseAuth) -> SetupState {
+    let build_env = build_environment::get_build_environment()
+        .await
+        .unwrap_or_else(|_| build_environment::BuildEnvironmentStatus {
+            state: "blocked".into(),
+            issues: vec![],
+            juce_source: None,
+            juce_path: None,
+            juce_version: String::new(),
+        });
+
+    let deps = dependency_checker::check_all()
+        .await
+        .unwrap_or_default();
+
+    let build_ready = build_env.state == "ready";
+
+    let mut providers = Vec::new();
+    let mut has_authenticated = false;
+
+    for (id, name, dep_name) in [
+        ("claude_code", "Claude Code", "Claude Code CLI"),
+        ("codex", "Codex", "Codex CLI"),
+    ] {
+        let dep = deps.iter().find(|d| d.name == dep_name);
+        let (status, version) = match dep {
+            Some(d) if d.installed && !d.auth_required => {
+                has_authenticated = true;
+                (ProviderSetupStatus::InstalledAndAuthenticated, d.version.clone())
+            }
+            Some(d) if d.installed && d.auth_required => {
+                (ProviderSetupStatus::InstalledNeedsAuth, d.version.clone())
+            }
+            _ => (ProviderSetupStatus::NotInstalled, None),
+        };
+        providers.push(ProviderSummary {
+            id: id.to_string(),
+            name: name.to_string(),
+            status,
+            version,
+            auth_url: None,
+        });
+    }
+
+    let ready = build_ready && has_authenticated;
+
+    let blocked_reason = if !build_ready {
+        // Surface the actual toolchain issues (Xcode CLT, CMake, etc.)
+        // rather than a generic "not ready" message.
+        Some(build_environment::format_blocked_message(&build_env))
+    } else if !has_authenticated {
+        let missing: Vec<_> = providers
+            .iter()
+            .filter(|p| p.status != ProviderSetupStatus::InstalledAndAuthenticated)
+            .map(|p| p.name.as_str())
+            .collect();
+        if missing.len() == 2 {
+            Some("Claude Code and Codex are not installed or not signed in.".to_string())
+        } else if missing.len() == 1 {
+            Some(format!("{} is not installed or not signed in.", missing[0]))
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    let remote_completed_at = if let Some(session) = auth.get_session() {
+        let url = format!(
+            "{}/rest/v1/profiles?id=eq.{}&select=onboarding_completed_at",
+            *SUPABASE_URL, session.user_id
+        );
+        let client = reqwest::Client::new();
+        let resp = client
+            .get(&url)
+            .header("apikey", SUPABASE_ANON_KEY.as_str())
+            .header("Authorization", format!("Bearer {}", session.access_token))
+            .send()
+            .await;
+        let text = match resp {
+            Ok(r) => r.text().await.unwrap_or_default(),
+            Err(_) => String::new(),
+        };
+        let rows: Vec<serde_json::Value> = serde_json::from_str(&text).unwrap_or_default();
+        rows.first()
+            .and_then(|row| row.get("onboarding_completed_at"))
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string())
+    } else {
+        None
+    };
+
+    SetupState {
+        ready,
+        build_environment_ready: build_ready,
+        providers,
+        has_authenticated_provider: has_authenticated,
+        blocked_reason,
+        remote_completed_at,
     }
 }
 
@@ -1824,7 +2203,8 @@ pub fn install_claude_code() -> DependencyInstallDispatchResult {
     }
 }
 
-/// Install Codex CLI via npm.
+/// Install Codex CLI using the native binary from GitHub releases (macOS).
+/// Falls back to npm on non-macOS platforms or if the native install fails.
 pub fn install_codex() -> DependencyInstallDispatchResult {
     if let Some(existing_path) = platform::resolve_codex_path() {
         info!("Codex already resolvable at {}", existing_path);
@@ -1836,14 +2216,33 @@ pub fn install_codex() -> DependencyInstallDispatchResult {
         });
     }
 
-    // Let ensure_npm() handle all Node.js installation strategies:
-    // - Strategy 1 (macOS): install_managed_node() — downloads a Node tarball directly
-    // - Strategy 2 (macOS): install Homebrew first, then brew install node
-    // - Strategy 3 (Windows): winget install OpenJS.NodeJS.LTS
+    // Strategy 1 (macOS): Download the official native binary from GitHub releases.
+    #[cfg(target_os = "macos")]
+    {
+        match install_managed_codex() {
+            Ok(managed_path) => {
+                info!(
+                    "Codex native install succeeded, expected path: {}",
+                    managed_path.display()
+                );
+                return DependencyInstallDispatchResult::Provider(ProviderInstallPreparation {
+                    provider: ProviderCli::Codex,
+                    installer: "native",
+                    npm_path: None,
+                    expected_path: Some(managed_path.to_string_lossy().to_string()),
+                });
+            }
+            Err(e) => {
+                warn!("Codex native install failed: {}. Falling back to npm.", e);
+            }
+        }
+    }
+
+    // Strategy 2: Fall back to npm
     let npm = match ensure_npm() {
         Ok(path) => path,
         Err(error) => {
-            return DependencyInstallDispatchResult::Final(DependencyInstallResult::failed(error))
+            return DependencyInstallDispatchResult::Final(DependencyInstallResult::failed(error));
         }
     };
 

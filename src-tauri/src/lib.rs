@@ -58,9 +58,11 @@ pub fn run() {
             commands::telemetry::submit_plugin_feedback,
             commands::filesystem::show_in_finder,
             commands::onboarding::get_onboarding_state,
+            commands::onboarding::get_setup_state,
             commands::onboarding::complete_onboarding,
             commands::onboarding::install_dependency,
             commands::onboarding::reset_debug_dependencies,
+            commands::onboarding::reset_local_app_state,
             commands::onboarding::launch_claude_auth,
             commands::onboarding::launch_codex_auth,
         ])
