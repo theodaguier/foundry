@@ -39,6 +39,37 @@ fn silent_command(cmd: &str) -> Command {
 }
 
 #[cfg(target_os = "macos")]
+fn command_with_npm_path(npm_path: &str, cmd: &str) -> Command {
+    let mut c = Command::new(cmd);
+    c.envs(std::env::vars());
+    if let Some(npm_dir) = std::path::Path::new(npm_path).parent() {
+        if let Ok(current_path) = std::env::var("PATH") {
+            let enriched = format!("{}:{}", npm_dir.display(), current_path);
+            c.env("PATH", enriched);
+        }
+    }
+    c
+}
+
+#[cfg(not(target_os = "macos"))]
+fn command_with_npm_path(npm_path: &str, cmd: &str) -> Command {
+    let mut c = Command::new(cmd);
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        c.creation_flags(0x08000000);
+    }
+    c.envs(std::env::vars());
+    if let Some(npm_dir) = std::path::Path::new(npm_path).parent() {
+        if let Ok(current_path) = std::env::var("PATH") {
+            let enriched = format!("{}:{}", npm_dir.display(), current_path);
+            c.env("PATH", enriched);
+        }
+    }
+    c
+}
+
+#[cfg(target_os = "macos")]
 const CMAKE_DOWNLOAD_URL: &str = "https://github.com/Kitware/CMake/releases/download/v{version}/cmake-{version}-macos-universal.tar.gz";
 
 #[cfg(target_os = "macos")]
@@ -228,28 +259,48 @@ fn install_managed_codex() -> Result<PathBuf, String> {
     download_file_sync(&url, &archive_path)?;
     info!("Extracting Codex {}...", version);
 
-    // Extract to temp_root — the subdirectory lands at:
-    // temp_root/codex-{arch}-apple-darwin/
+    // Extract to temp_root — may produce a directory (codex-{arch}-apple-darwin/)
+    // or a single file (codex-{arch}-apple-darwin) depending on archive format.
     extract_tarball(&archive_path, &temp_root)?;
     let _ = std::fs::remove_file(&archive_path);
 
     let extracted_subdir = temp_root.join(format!("codex-{}-apple-darwin", arch));
-    if !extracted_subdir.exists() {
-        return Err(format!(
-            "Codex archive extracted but directory not found at {}",
-            extracted_subdir.display()
-        ));
-    }
+    let extracted_file = temp_root.join(format!("codex-{}-apple-darwin", arch));
 
-    // Staging location: extract to a .tmp sibling of the final dir.
-    // This ensures the final directory path is never empty during install.
+    // The archive may contain a directory or a single binary file.
+    // Normalise to the staging directory either way.
     let staging_dir = codex_root.join(format!("{}.tmp", version));
     if staging_dir.exists() {
         std::fs::remove_dir_all(&staging_dir)
             .map_err(|e| format!("Failed to clean staging dir: {}", e))?;
     }
-    std::fs::rename(&extracted_subdir, &staging_dir)
-        .map_err(|e| format!("Failed to stage Codex dir: {}", e))?;
+
+    if extracted_subdir.is_dir() {
+        // Old multi-file layout: directory → rename to staging
+        std::fs::rename(&extracted_subdir, &staging_dir)
+            .map_err(|e| format!("Failed to stage Codex dir: {}", e))?;
+    } else if extracted_file.is_file() {
+        // Single-binary layout: create version dir and copy binary into it
+        std::fs::create_dir_all(&codex_dir)
+            .map_err(|e| format!("Failed to create Codex version dir: {}", e))?;
+        let target_binary = foundry_paths::managed_codex_binary();
+        std::fs::copy(&extracted_file, &target_binary)
+            .map_err(|e| format!("Failed to copy Codex binary: {}", e))?;
+        let _ = std::fs::remove_file(&extracted_file);
+        // Single-binary install skips the atomic-swap block below (no old dir to swap)
+        platform::invalidate_shell_cache();
+        info!(
+            "Managed Codex installed at {}",
+            target_binary.display()
+        );
+        return Ok(target_binary);
+    } else {
+        return Err(format!(
+            "Codex archive extracted but neither directory nor file found at {} or {}",
+            extracted_subdir.display(),
+            extracted_file.display()
+        ));
+    }
 
     // Atomic swap: replace the old versioned dir with the new staging dir.
     // On macOS, rename() is atomic for directories on the same filesystem.
@@ -2122,6 +2173,50 @@ mod tests {
         #[cfg(not(target_os = "windows"))]
         assert_eq!(path, std::path::PathBuf::from("/usr/local/bin/claude"));
     }
+
+    /// Test that install_managed_codex detects single-binary archive layout
+    /// (the current Codex release format where the archive contains a single
+    /// executable file, not a subdirectory).
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn codex_single_binary_layout_detection() {
+        use std::fs;
+        use std::io::Write;
+
+        let temp_dir = std::env::temp_dir().join(format!(
+            "foundry-test-codex-layout-{}",
+            uuid::Uuid::new_v4().simple()
+        ));
+        let _ = fs::remove_dir_all(&temp_dir);
+        fs::create_dir_all(&temp_dir).unwrap();
+
+        // Simulate a single-binary tarball: write a dummy file with the
+        // codex-{arch}-apple-darwin name (no extension, as it appears in
+        // the real release asset).
+        let arch = if std::env::consts::ARCH == "aarch64" {
+            "aarch64"
+        } else {
+            "x86_64"
+        };
+        let dummy_binary = temp_dir.join(format!("codex-{}-apple-darwin", arch));
+        fs::write(&dummy_binary, "fake-codex-binary").unwrap();
+
+        // Verify our detection logic: when extracted_file.is_file() and
+        // extracted_subdir.is_dir() is false, the single-binary path is taken.
+        let extracted_subdir = temp_dir.join(format!("codex-{}-apple-darwin", arch));
+        let extracted_file = temp_dir.join(format!("codex-{}-apple-darwin", arch));
+
+        assert!(
+            !extracted_subdir.is_dir(),
+            "dummy path should not be a directory"
+        );
+        assert!(
+            extracted_file.is_file(),
+            "dummy binary path should be a file"
+        );
+
+        let _ = fs::remove_dir_all(&temp_dir);
+    }
 }
 
 /// Install Claude Code using the native installer (no Node.js required).
@@ -2217,7 +2312,7 @@ pub fn install_claude_code() -> DependencyInstallDispatchResult {
         "Installing Claude Code via npm: npm={} expected_path={:?}",
         npm, expected_path
     );
-    let result = silent_command(&npm)
+    let result = command_with_npm_path(&npm, &npm)
         .args(["install", "-g", "@anthropic-ai/claude-code"])
         .output();
 
@@ -2314,7 +2409,7 @@ pub fn install_codex() -> DependencyInstallDispatchResult {
     // Invalidate shell cache before install to get fresh PATH state
     platform::invalidate_shell_cache();
 
-    let result = silent_command(&npm)
+    let result = command_with_npm_path(&npm, &npm)
         .args(["install", "-g", "@openai/codex"])
         .output();
 
