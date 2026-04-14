@@ -51,10 +51,7 @@ fn resolve_provider_path(command: &str) -> Option<String> {
         provider_fallback_paths(command),
     );
 
-    if resolution.clear_override {
-        let _ = foundry_paths::clear_provider_path_override(command);
-    }
-
+    // NOTE: Override is never cleared on read — see macos.rs for rationale.
     resolution.path
 }
 

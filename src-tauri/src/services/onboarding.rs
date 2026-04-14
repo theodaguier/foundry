@@ -181,25 +181,36 @@ fn install_managed_node() -> Result<PathBuf, String> {
 #[cfg(target_os = "macos")]
 fn install_managed_codex() -> Result<PathBuf, String> {
     let codex_binary = foundry_paths::managed_codex_binary();
-    if codex_binary.is_file() {
-        info!(
-            "Managed Codex already installed at {}",
-            codex_binary.display()
-        );
-        return Ok(codex_binary);
-    }
-
+    let codex_dir = foundry_paths::managed_codex_dir();
+    let codex_root = foundry_paths::managed_codex_root_dir();
     let version = foundry_paths::MANAGED_CODEX_VERSION;
     let arch = if std::env::consts::ARCH == "aarch64" {
         "aarch64"
     } else {
         "x86_64"
     };
+
+    // If already present and runnable, short-circuit immediately.
+    // Use canonical provider resolution to check runnability.
+    if codex_binary.is_file() {
+        if let Ok(Some(status)) = crate::services::dependency_checker::provider_status(
+            ProviderCli::Codex,
+            Some(&codex_binary.to_string_lossy()),
+        ) {
+            if status.installed {
+                info!(
+                    "Managed Codex already installed and runnable at {}",
+                    codex_binary.display()
+                );
+                return Ok(codex_binary);
+            }
+        }
+    }
+
     let url = CODEX_DOWNLOAD_URL
         .replace("{version}", version)
         .replace("{arch}", arch);
 
-    let codex_dir = foundry_paths::managed_codex_dir();
     let temp_root = foundry_paths::application_support_dir().join("tmp");
     let archive_path = temp_root.join(format!(
         "codex-{}-{}.tar.gz",
@@ -207,20 +218,21 @@ fn install_managed_codex() -> Result<PathBuf, String> {
         uuid::Uuid::new_v4().simple()
     ));
 
-    std::fs::create_dir_all(&codex_dir)
-        .map_err(|e| format!("Failed to create Codex dir: {}", e))?;
+    // Create parent dirs first so we can extract into a staging subdirectory
+    // directly under the root, not inside the versioned directory.
+    // This avoids the race where codex_dir is deleted and no version exists.
     std::fs::create_dir_all(&temp_root)
         .map_err(|e| format!("Failed to create temp dir: {}", e))?;
 
     info!("Downloading Codex {} from {}", version, url);
     download_file_sync(&url, &archive_path)?;
     info!("Extracting Codex {}...", version);
-    // The tarball extracts into a subdirectory: codex-{arch}-apple-darwin/
-    // We extract to temp_root so the subdirectory lands there.
+
+    // Extract to temp_root — the subdirectory lands at:
+    // temp_root/codex-{arch}-apple-darwin/
     extract_tarball(&archive_path, &temp_root)?;
     let _ = std::fs::remove_file(&archive_path);
 
-    // Find the extracted subdirectory inside temp_root
     let extracted_subdir = temp_root.join(format!("codex-{}-apple-darwin", arch));
     if !extracted_subdir.exists() {
         return Err(format!(
@@ -229,25 +241,43 @@ fn install_managed_codex() -> Result<PathBuf, String> {
         ));
     }
 
+    // Staging location: extract to a .tmp sibling of the final dir.
+    // This ensures the final directory path is never empty during install.
+    let staging_dir = codex_root.join(format!("{}.tmp", version));
+    if staging_dir.exists() {
+        std::fs::remove_dir_all(&staging_dir)
+            .map_err(|e| format!("Failed to clean staging dir: {}", e))?;
+    }
+    std::fs::rename(&extracted_subdir, &staging_dir)
+        .map_err(|e| format!("Failed to stage Codex dir: {}", e))?;
+
+    // Atomic swap: replace the old versioned dir with the new staging dir.
+    // On macOS, rename() is atomic for directories on the same filesystem.
     if codex_dir.exists() {
         std::fs::remove_dir_all(&codex_dir)
-            .map_err(|e| format!("Failed to clean Codex dir: {}", e))?;
+            .map_err(|e| format!("Failed to remove old Codex dir: {}", e))?;
     }
-    std::fs::rename(&extracted_subdir, &codex_dir)
-        .map_err(|e| format!("Failed to move Codex dir: {}", e))?;
+    std::fs::rename(&staging_dir, &codex_dir)
+        .map_err(|e| format!("Failed to install Codex dir: {}", e))?;
 
-    if codex_binary.is_file() {
-        info!(
-            "Managed Codex installed at {}",
+    // Validate the binary is runnable before declaring success.
+    if !codex_binary.is_file() {
+        return Err(format!(
+            "Codex installed but binary not found at {}",
             codex_binary.display()
-        );
-        Ok(codex_binary)
-    } else {
-        Err(format!(
-            "Codex archive extracted but binary not found at {}",
-            codex_binary.display()
-        ))
+        ));
     }
+
+    // Invalidate the shell cache so the new binary is picked up immediately.
+    // This is the only place we need to invalidate — the override is written
+    // by verify_provider_install() after this function returns.
+    platform::invalidate_shell_cache();
+
+    info!(
+        "Managed Codex installed at {}",
+        codex_binary.display()
+    );
+    Ok(codex_binary)
 }
 
 /// Try to acquire the install lock. Returns true if acquired.
@@ -1925,17 +1955,31 @@ pub async fn verify_provider_install(
             if let Some(status) =
                 dependency_checker::provider_status(preparation.provider, Some(&path))?
             {
-                foundry_paths::set_provider_path_override(preparation.provider.command(), &path)?;
-                platform::invalidate_shell_cache();
+                // Only accept the install as successful if the binary is actually
+                // runnable (installed == true). provider_status() calls --version
+                // via the canonical provider resolution chain — if that fails,
+                // status.installed will be false even though the file exists.
+                // We must NOT write an override or return success in that case.
+                if !status.installed {
+                    info!(
+                        "Provider binary detected at {} but not runnable (--version failed). \
+                         Will keep polling.",
+                        path
+                    );
+                    last_detected_path = Some(path);
+                } else {
+                    foundry_paths::set_provider_path_override(preparation.provider.command(), &path)?;
+                    platform::invalidate_shell_cache();
 
-                info!(
-                    "Provider install verified: provider={} path={} auth_required={}",
-                    preparation.provider.command(),
-                    path,
-                    status.auth_required
-                );
+                    info!(
+                        "Provider install verified: provider={} path={} auth_required={}",
+                        preparation.provider.command(),
+                        path,
+                        status.auth_required
+                    );
 
-                return Ok(verified_provider_result(preparation.provider, status, path));
+                    return Ok(verified_provider_result(preparation.provider, status, path));
+                }
             }
         }
 
