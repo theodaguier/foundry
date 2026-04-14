@@ -250,11 +250,6 @@ fn install_managed_codex() -> Result<PathBuf, String> {
     }
 }
 
-#[cfg(not(target_os = "macos"))]
-fn install_managed_codex() -> Result<PathBuf, String> {
-    Err("Managed Codex install is only supported on macOS.".into())
-}
-
 /// Try to acquire the install lock. Returns true if acquired.
 pub fn try_acquire_install_lock() -> bool {
     INSTALL_ACTIVE
