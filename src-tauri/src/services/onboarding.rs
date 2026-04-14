@@ -39,6 +39,37 @@ fn silent_command(cmd: &str) -> Command {
 }
 
 #[cfg(target_os = "macos")]
+fn command_with_npm_path(npm_path: &str, cmd: &str) -> Command {
+    let mut c = Command::new(cmd);
+    c.envs(std::env::vars());
+    if let Some(npm_dir) = std::path::Path::new(npm_path).parent() {
+        if let Ok(current_path) = std::env::var("PATH") {
+            let enriched = format!("{}:{}", npm_dir.display(), current_path);
+            c.env("PATH", enriched);
+        }
+    }
+    c
+}
+
+#[cfg(not(target_os = "macos"))]
+fn command_with_npm_path(npm_path: &str, cmd: &str) -> Command {
+    let mut c = Command::new(cmd);
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        c.creation_flags(0x08000000);
+    }
+    c.envs(std::env::vars());
+    if let Some(npm_dir) = std::path::Path::new(npm_path).parent() {
+        if let Ok(current_path) = std::env::var("PATH") {
+            let enriched = format!("{}:{}", npm_dir.display(), current_path);
+            c.env("PATH", enriched);
+        }
+    }
+    c
+}
+
+#[cfg(target_os = "macos")]
 const CMAKE_DOWNLOAD_URL: &str = "https://github.com/Kitware/CMake/releases/download/v{version}/cmake-{version}-macos-universal.tar.gz";
 
 #[cfg(target_os = "macos")]
@@ -2237,7 +2268,7 @@ pub fn install_claude_code() -> DependencyInstallDispatchResult {
         "Installing Claude Code via npm: npm={} expected_path={:?}",
         npm, expected_path
     );
-    let result = silent_command(&npm)
+    let result = command_with_npm_path(&npm, &npm)
         .args(["install", "-g", "@anthropic-ai/claude-code"])
         .output();
 
@@ -2334,7 +2365,7 @@ pub fn install_codex() -> DependencyInstallDispatchResult {
     // Invalidate shell cache before install to get fresh PATH state
     platform::invalidate_shell_cache();
 
-    let result = silent_command(&npm)
+    let result = command_with_npm_path(&npm, &npm)
         .args(["install", "-g", "@openai/codex"])
         .output();
 
