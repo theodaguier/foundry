@@ -3,6 +3,14 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.61.13](https://github.com/theodaguier/foundry/compare/v1.61.12...v1.61.13) (2026-04-14)
+
+
+### Bug Fixes
+
+* provider recheck consistency, CTA improvements, machine→done transition ([ea4f62a](https://github.com/theodaguier/foundry/commit/ea4f62a5980a7ac25840d0708bbd721f68788b89))
+* provider recheck consistency, CTA improvements, machine→done transition ([1841f53](https://github.com/theodaguier/foundry/commit/1841f5350cd9267318492e2f02413ad77c69438f))
+
 ## [1.61.12](https://github.com/theodaguier/foundry/compare/v1.61.11...v1.61.12) (2026-04-14)
 
 
