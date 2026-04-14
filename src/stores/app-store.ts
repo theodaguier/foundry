@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { Plugin, AuthState, UserProfile, PluginFilter, RawUserProfile } from "@/lib/types"
+import type { Plugin, AuthState, UserProfile, PluginFilter, RawUserProfile, SetupState } from "@/lib/types"
 import * as commands from "@/lib/commands"
 import { identifyUser, resetUser } from "@/lib/analytics"
 
@@ -22,7 +22,7 @@ interface AppStore {
   filter: PluginFilter;
   selectedPlugin: Plugin | null;
   showSetup: boolean;
-  onboardingComplete: boolean | null;
+  setupState: SetupState | null;
   mainView: MainView;
   sidebarCollapsed: boolean;
 
@@ -37,8 +37,9 @@ interface AppStore {
   deletePlugin: (id: string) => Promise<void>;
   renamePlugin: (id: string, newName: string) => Promise<void>;
   signOut: () => Promise<void>;
+  resetLocalAppState: () => Promise<void>;
   checkSession: () => Promise<void>;
-  checkOnboarding: () => Promise<void>;
+  checkSetup: () => Promise<void>;
   filteredPlugins: () => Plugin[];
 }
 
@@ -49,7 +50,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   filter: "ALL",
   selectedPlugin: null,
   showSetup: false,
-  onboardingComplete: null,
+  setupState: null,
   mainView: { kind: "empty" },
   sidebarCollapsed: false,
 
@@ -96,6 +97,19 @@ export const useAppStore = create<AppStore>((set, get) => ({
     resetUser();
   },
 
+  resetLocalAppState: async () => {
+    try { await commands.resetLocalAppState(); } catch {}
+    set({
+      authState: "unauthenticated",
+      userProfile: null,
+      plugins: [],
+      selectedPlugin: null,
+      setupState: null,
+      mainView: { kind: "empty" },
+    });
+    resetUser();
+  },
+
   checkSession: async () => {
     set({ authState: "checking" });
     try {
@@ -132,13 +146,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }
   },
 
-  checkOnboarding: async () => {
+  checkSetup: async () => {
     try {
-      const state = await commands.getOnboardingState();
-      set({ onboardingComplete: state.completed });
+      const state = await commands.getSetupState();
+      set({ setupState: state });
     } catch (e) {
-      console.error("Failed to check onboarding:", e);
-      set({ onboardingComplete: false });
+      console.error("Failed to check setup state:", e);
+      set({ setupState: null });
     }
   },
 

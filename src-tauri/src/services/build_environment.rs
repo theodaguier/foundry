@@ -32,15 +32,6 @@ pub struct BuildEnvironmentStatus {
     pub juce_version: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[serde(rename_all = "camelCase")]
-struct EnvironmentConfig {
-    managed_juce_version: Option<String>,
-    juce_override_path: Option<String>,
-    last_resolved_juce_path: Option<String>,
-    last_validation_at: Option<String>,
-}
-
 #[derive(Clone, serde::Serialize)]
 struct StepEvent {
     step: String,
@@ -277,14 +268,6 @@ async fn inspect_environment(
 fn collect_dependency_issues() -> Vec<BuildEnvironmentIssue> {
     let deps = platform::required_dependencies();
 
-    let has_claude = deps.iter().any(|spec| {
-        spec.name == "Claude Code CLI" && platform::check_dependency(spec).is_some()
-    });
-    let has_codex = deps.iter().any(|spec| {
-        spec.name == "Codex CLI" && platform::check_dependency(spec).is_some()
-    });
-    let has_any_agent = has_claude || has_codex;
-
     deps.into_iter()
         .filter_map(|spec| {
             if platform::check_dependency(&spec).is_some() {
@@ -312,18 +295,9 @@ fn collect_dependency_issues() -> Vec<BuildEnvironmentIssue> {
                     "Ninja is required before Foundry can build JUCE projects.",
                     Some("Install Ninja"),
                 ),
-                "Claude Code CLI" | "Codex CLI" => {
-                    if has_any_agent {
-                        return None;
-                    }
-                    return Some(BuildEnvironmentIssue {
-                        code: "agent_cli_missing".into(),
-                        title: "AI engine not installed".into(),
-                        detail: "Install Claude Code or Codex CLI to generate plugins.".into(),
-                        recoverable: false,
-                        action_label: Some("Open Setup".into()),
-                    });
-                }
+                // Provider CLIs (Claude Code, Codex) are handled separately in
+                // SetupState.providers. They do not block the build environment.
+                "Claude Code CLI" | "Codex CLI" => return None,
                 _ => (
                     "dependency_missing",
                     "A required build dependency is missing.",
@@ -471,29 +445,12 @@ fn validate_juce_directory(path: &Path) -> Result<(), String> {
     Ok(())
 }
 
-fn read_environment_config() -> Result<EnvironmentConfig, String> {
-    let path = foundry_paths::environment_config_path();
-    if !path.exists() {
-        return Ok(EnvironmentConfig::default());
-    }
-
-    let content = fs::read_to_string(&path).map_err(|error| error.to_string())?;
-    serde_json::from_str(&content).or_else(|error| {
-        log::warn!(
-            "Failed to parse {}: {}. Falling back to default build environment config.",
-            path.display(),
-            error
-        );
-        Ok(EnvironmentConfig::default())
-    })
+fn read_environment_config() -> Result<foundry_paths::EnvironmentConfig, String> {
+    foundry_paths::load_environment_config()
 }
 
-fn write_environment_config(config: &EnvironmentConfig) -> Result<(), String> {
-    let app_support = foundry_paths::application_support_dir();
-    fs::create_dir_all(&app_support).map_err(|error| error.to_string())?;
-
-    let content = serde_json::to_string_pretty(config).map_err(|error| error.to_string())?;
-    fs::write(foundry_paths::environment_config_path(), content).map_err(|error| error.to_string())
+fn write_environment_config(config: &foundry_paths::EnvironmentConfig) -> Result<(), String> {
+    foundry_paths::save_environment_config(config)
 }
 
 #[cfg(test)]

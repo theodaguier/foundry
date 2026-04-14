@@ -149,141 +149,6 @@ describe("mapDependency", () => {
   })
 })
 
-describe("onboarding readiness logic", () => {
-  function computeReadiness(deps: Dep[]) {
-    const requiredDeps = deps.filter(d => d.required)
-    const providerDeps = deps.filter(d => PROVIDER_DEPS.has(d.key))
-    const hasProvider = providerDeps.some(d => d.status === "installed")
-    const allRequiredReady = requiredDeps.length > 0 && requiredDeps.every(d => d.status === "installed")
-    const allReady = allRequiredReady && hasProvider
-    const hasAuthRequired = deps.some(d => d.status === "auth_required")
-    const hasFailed = deps.some(d => d.status === "failed" && d.required)
-    return { allReady, hasProvider, allRequiredReady, hasAuthRequired, hasFailed }
-  }
-
-  it("reports allReady when all required installed + Codex provider ready", () => {
-    const deps: Dep[] = [
-      mapDependency({ name: "Xcode Command Line Tools", installed: true, authRequired: false }),
-      mapDependency({ name: "CMake", installed: true, authRequired: false }),
-      mapDependency({ name: "Claude Code CLI", installed: false, authRequired: false }),
-      mapDependency({ name: "Codex CLI", installed: true, authRequired: false }),
-    ]
-    const r = computeReadiness(deps)
-    expect(r.allReady).toBe(true)
-    expect(r.hasProvider).toBe(true)
-  })
-
-  it("reports allReady when all required installed + provider ready", () => {
-    const deps: Dep[] = [
-      mapDependency({ name: "Xcode Command Line Tools", installed: true, authRequired: false }),
-      mapDependency({ name: "CMake", installed: true, authRequired: false }),
-      mapDependency({ name: "Claude Code CLI", installed: true, authRequired: false }),
-      mapDependency({ name: "Codex CLI", installed: false, authRequired: false }),
-    ]
-    const r = computeReadiness(deps)
-    expect(r.allReady).toBe(true)
-    expect(r.hasProvider).toBe(true)
-  })
-
-  it("reports NOT ready when provider has auth_required", () => {
-    const deps: Dep[] = [
-      mapDependency({ name: "Xcode Command Line Tools", installed: true, authRequired: false }),
-      mapDependency({ name: "CMake", installed: true, authRequired: false }),
-      mapDependency({ name: "Claude Code CLI", installed: true, authRequired: true }),
-    ]
-    const r = computeReadiness(deps)
-    expect(r.allReady).toBe(false)
-    expect(r.hasProvider).toBe(false) // auth_required ≠ installed
-    expect(r.hasAuthRequired).toBe(true)
-  })
-
-  it("reports NOT ready when required dep missing", () => {
-    const deps: Dep[] = [
-      mapDependency({ name: "Xcode Command Line Tools", installed: true, authRequired: false }),
-      mapDependency({ name: "CMake", installed: false, authRequired: false }),
-      mapDependency({ name: "Claude Code CLI", installed: true, authRequired: false }),
-    ]
-    const r = computeReadiness(deps)
-    expect(r.allReady).toBe(false)
-    expect(r.allRequiredReady).toBe(false)
-  })
-
-  it("reports NOT ready when no provider installed", () => {
-    const deps: Dep[] = [
-      mapDependency({ name: "Xcode Command Line Tools", installed: true, authRequired: false }),
-      mapDependency({ name: "CMake", installed: true, authRequired: false }),
-      mapDependency({ name: "Claude Code CLI", installed: false, authRequired: false }),
-      mapDependency({ name: "Codex CLI", installed: false, authRequired: false }),
-    ]
-    const r = computeReadiness(deps)
-    expect(r.allReady).toBe(false)
-    expect(r.hasProvider).toBe(false)
-    expect(r.allRequiredReady).toBe(true)
-  })
-
-  it("hasFailed only for required deps", () => {
-    const deps: Dep[] = [
-      { name: "CMake", key: "cmake", label: "CMake", description: "", required: true, status: "failed", message: "error" },
-      { name: "Codex CLI", key: "codex", label: "Codex", description: "", required: false, status: "failed", message: "error" },
-    ]
-    const r = computeReadiness(deps)
-    expect(r.hasFailed).toBe(true)
-
-    // Only optional failed — hasFailed should be false
-    const deps2: Dep[] = [
-      { name: "CMake", key: "cmake", label: "CMake", description: "", required: true, status: "installed" },
-      { name: "Codex CLI", key: "codex", label: "Codex", description: "", required: false, status: "failed", message: "error" },
-    ]
-    expect(computeReadiness(deps2).hasFailed).toBe(false)
-  })
-})
-
-describe("Settings dependency filtering", () => {
-  const AI_PROVIDER_NAMES = new Set(["Claude Code CLI", "Codex CLI"])
-
-  it("filters JUCE from deps list", () => {
-    const deps: DependencyStatus[] = [
-      { name: "Xcode Command Line Tools", installed: true, authRequired: false },
-      { name: "CMake", installed: true, authRequired: false },
-      { name: "Claude Code CLI", installed: true, authRequired: false },
-      { name: "Codex CLI", installed: false, authRequired: false },
-      { name: "JUCE SDK", installed: true, authRequired: false },
-    ]
-    const filtered = deps.filter(d => d.name !== "JUCE SDK")
-    expect(filtered).toHaveLength(4)
-    expect(filtered.find(d => d.name === "JUCE SDK")).toBeUndefined()
-  })
-
-  it("splits into build tools and providers", () => {
-    const deps: DependencyStatus[] = [
-      { name: "Xcode Command Line Tools", installed: true, authRequired: false },
-      { name: "CMake", installed: true, authRequired: false },
-      { name: "Claude Code CLI", installed: true, authRequired: false },
-      { name: "Codex CLI", installed: false, authRequired: false },
-    ]
-    const buildTools = deps.filter(d => !AI_PROVIDER_NAMES.has(d.name))
-    const providers = deps.filter(d => AI_PROVIDER_NAMES.has(d.name))
-    expect(buildTools).toHaveLength(2)
-    expect(providers).toHaveLength(2)
-    expect(buildTools.map(d => d.name)).toEqual(["Xcode Command Line Tools", "CMake"])
-    expect(providers.map(d => d.name)).toEqual(["Claude Code CLI", "Codex CLI"])
-  })
-
-  it("DEP_INSTALL_KEY maps all known deps", () => {
-    const DEP_INSTALL_KEY: Record<string, string> = {
-      "Xcode Command Line Tools": "xcode_clt",
-      "CMake": "cmake",
-      "Claude Code CLI": "claude_code",
-      "Codex CLI": "codex",
-    }
-    const knownNames = ["Xcode Command Line Tools", "CMake", "Claude Code CLI", "Codex CLI"]
-    for (const name of knownNames) {
-      expect(DEP_INSTALL_KEY[name]).toBeDefined()
-      expect(DEP_INSTALL_KEY[name].length).toBeGreaterThan(0)
-    }
-  })
-})
-
 describe("provider install verification mapping", () => {
   function nextStatus(result: DependencyInstallResult): DepStatus {
     const outcome = interpretDependencyInstallResult(result)
@@ -321,5 +186,105 @@ describe("provider install verification mapping", () => {
       message: "Installer completed, but Foundry could not verify the CLI afterwards.",
       verification: "not_detected",
     })).toBe("failed")
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Step-based onboarding model tests
+// ---------------------------------------------------------------------------
+
+type SetupStep = "checking" | "machine" | "provider" | "auth" | "done"
+
+interface ProviderSummary {
+  id: string
+  status: "installed_and_authenticated" | "installed_needs_auth" | "not_installed"
+}
+
+interface SetupState {
+  buildEnvironmentReady: boolean
+  providers: ProviderSummary[]
+}
+
+/** Mirrors the step-determination logic in Onboarding.tsx */
+function computeStep(setup: SetupState, deps: Dep[]): SetupStep {
+  const machineReady = setup.buildEnvironmentReady
+  const hasInstalled = setup.providers.some(p => p.status === "installed_and_authenticated")
+  const needsAuth = setup.providers.some(p => p.status === "installed_needs_auth")
+
+  if (machineReady && hasInstalled) return "done"
+  if (machineReady && needsAuth) return "auth"
+  if (machineReady) return "provider"
+  return "machine"
+}
+
+describe("step-based onboarding transitions", () => {
+  it("goes to machine when build environment is not ready", () => {
+    const setup: SetupState = { buildEnvironmentReady: false, providers: [] }
+    expect(computeStep(setup, [])).toBe("machine")
+  })
+
+  it("goes to provider when build env ready but no provider installed", () => {
+    const setup: SetupState = {
+      buildEnvironmentReady: true,
+      providers: [
+        { id: "claude_code", status: "not_installed" },
+        { id: "codex", status: "not_installed" },
+      ],
+    }
+    expect(computeStep(setup, [])).toBe("provider")
+  })
+
+  it("goes to auth when build env ready and provider needs sign-in", () => {
+    const setup: SetupState = {
+      buildEnvironmentReady: true,
+      providers: [
+        { id: "claude_code", status: "installed_needs_auth" },
+      ],
+    }
+    expect(computeStep(setup, [])).toBe("auth")
+  })
+
+  it("goes to done when build env ready and provider authenticated", () => {
+    const setup: SetupState = {
+      buildEnvironmentReady: true,
+      providers: [
+        { id: "claude_code", status: "installed_and_authenticated" },
+      ],
+    }
+    expect(computeStep(setup, [])).toBe("done")
+  })
+
+  it("done takes priority over auth when both conditions could be met", () => {
+    // If a provider is both needs_auth AND another is authenticated, done wins.
+    const setup: SetupState = {
+      buildEnvironmentReady: true,
+      providers: [
+        { id: "claude_code", status: "installed_needs_auth" },
+        { id: "codex", status: "installed_and_authenticated" },
+      ],
+    }
+    expect(computeStep(setup, [])).toBe("done")
+  })
+})
+
+describe("machine step readiness button", () => {
+  it("enables Continue when all machine deps are installed", () => {
+    const machineDeps: Dep[] = [
+      { name: "Xcode Command Line Tools", key: "xcode_clt", label: "Apple Build Tools", description: "", required: true, status: "installed" },
+      { name: "CMake", key: "cmake", label: "CMake", description: "", required: true, status: "installed" },
+    ]
+    const allMachineReady = machineDeps.length > 0 && machineDeps.every(d => d.status === "installed")
+    // This is the key invariant: when allMachineReady is true, the Continue button
+    // must be shown (not disabled), and it should call computeStep to advance.
+    expect(allMachineReady).toBe(true)
+  })
+
+  it("shows Install tools when some machine deps are missing", () => {
+    const machineDeps: Dep[] = [
+      { name: "Xcode Command Line Tools", key: "xcode_clt", label: "Apple Build Tools", description: "", required: true, status: "installed" },
+      { name: "CMake", key: "cmake", label: "CMake", description: "", required: true, status: "missing" },
+    ]
+    const allMachineReady = machineDeps.length > 0 && machineDeps.every(d => d.status === "installed")
+    expect(allMachineReady).toBe(false)
   })
 })

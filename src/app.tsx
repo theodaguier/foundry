@@ -220,8 +220,8 @@ export default function App() {
   const authState = useAppStore((s) => s.authState)
   const checkSession = useAppStore((s) => s.checkSession)
   const loadPlugins = useAppStore((s) => s.loadPlugins)
-  const onboardingComplete = useAppStore((s) => s.onboardingComplete)
-  const checkOnboarding = useAppStore((s) => s.checkOnboarding)
+  const setupState = useAppStore((s) => s.setupState)
+  const checkSetup = useAppStore((s) => s.checkSetup)
 
   const initTheme = useSettingsStore((s) => s.initTheme)
   const loadBuildEnvironment = useSettingsStore((s) => s.loadBuildEnvironment)
@@ -238,10 +238,10 @@ export default function App() {
 
   useEffect(() => {
     if (authState === "authenticated") {
-      checkOnboarding()
+      checkSetup()
       loadPlugins()
     }
-  }, [authState, checkOnboarding, loadPlugins])
+  }, [authState, checkSetup, loadPlugins])
 
   if (authState === "checking") {
     return <LaunchScreen />
@@ -251,11 +251,11 @@ export default function App() {
     return <AuthContainer />
   }
 
-  if (onboardingComplete === null) {
+  if (setupState === null) {
     return <LaunchScreen />
   }
 
-  if (!onboardingComplete) {
+  if (!setupState.ready) {
     return (
       <div className="flex flex-col h-full">
         <div

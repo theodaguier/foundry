@@ -13,6 +13,13 @@ pub async fn get_onboarding_state(
 }
 
 #[command]
+pub async fn get_setup_state(
+    state: State<'_, AppState>,
+) -> Result<onboarding::SetupState, String> {
+    Ok(onboarding::get_setup_state(&state.auth).await)
+}
+
+#[command]
 pub async fn complete_onboarding(
     state: State<'_, AppState>,
 ) -> Result<onboarding::OnboardingState, String> {
@@ -88,6 +95,28 @@ pub async fn reset_debug_dependencies() -> Result<onboarding::DependencyResetRes
     onboarding::release_install_lock();
     platform::invalidate_shell_cache();
 
+    Ok(result)
+}
+
+#[command]
+pub async fn reset_local_app_state(
+    state: State<'_, AppState>,
+) -> Result<onboarding::DependencyResetResult, String> {
+    if !onboarding::try_acquire_install_lock() {
+        return Err("Another dependency action is already in progress. Please wait.".into());
+    }
+
+    let result = tokio::task::spawn_blocking({
+        let auth = state.auth.clone();
+        move || onboarding::reset_local_app_state(&auth)
+    })
+    .await
+    .map_err(|e| {
+        onboarding::release_install_lock();
+        e.to_string()
+    })?;
+
+    onboarding::release_install_lock();
     Ok(result)
 }
 

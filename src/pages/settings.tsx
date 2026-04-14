@@ -431,6 +431,7 @@ function ModelsTab() {
         if (outcome.shouldRefreshProviderState) {
           await invalidateAndCheckDependencies();
           await refreshModels();
+          useAppStore.getState().checkSetup();
         }
 
         if (outcome.state === "verified") {
@@ -455,6 +456,7 @@ function ModelsTab() {
               try {
                 const recheck = await invalidateAndCheckDependencies();
                 await refreshModels();
+                useAppStore.getState().checkSetup();
                 const installed = recheck?.find(
                   (d: DependencyStatus) => d.name === (key === "claude_code" ? "Claude Code CLI" : "Codex CLI")
                 );
@@ -609,6 +611,7 @@ function DependenciesTab() {
   const [installing, setInstalling] = useState<string | null>(null);
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
+  const [isResetLocalStateDialogOpen, setIsResetLocalStateDialogOpen] = useState(false);
   const buildEnvironment = useSettingsStore((s) => s.buildEnvironment);
   const loadBuildEnvironment = useSettingsStore((s) => s.loadBuildEnvironment);
   const installManagedJuce = useSettingsStore((s) => s.installManagedJuce);
@@ -664,6 +667,7 @@ function DependenciesTab() {
         });
       }
       await refreshDeps();
+      useAppStore.getState().checkSetup();
       setInstalling(null);
     },
     [refreshDeps],
@@ -705,6 +709,7 @@ function DependenciesTab() {
         refreshDeps(),
         loadBuildEnvironment(),
         refreshModels(),
+        useAppStore.getState().checkSetup(),
       ]);
 
       const failures = result.items.filter((item) => item.status === "failed");
@@ -799,13 +804,8 @@ function DependenciesTab() {
             </Button>
           )}
           {!dep.installed && !key && (
-            <span
-              className={cn(
-                "text-[9px] shrink-0",
-                isProvider ? "text-muted-foreground/40" : "text-destructive",
-              )}
-            >
-              {isProvider ? "Optional" : "Missing"}
+            <span className="text-[9px] shrink-0 text-destructive">
+              Missing
             </span>
           )}
         </div>
@@ -1001,6 +1001,85 @@ function DependenciesTab() {
                 <>
                   <Trash2 className="size-3" />
                   Reset installs
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Second reset: full local app state */}
+      <div className="flex items-center justify-between gap-3 rounded-lg border border-dashed border-destructive/40 bg-destructive/5 px-3 py-2">
+        <div className="min-w-0">
+          <div className="text-[9px] uppercase tracking-[0.18em] text-destructive/60">
+            Dev Only
+          </div>
+          <p className="text-[10px] text-muted-foreground/55">
+            Clears config, saved session, and plugin library. Resets app to
+            first-launch state. Intended for development testing only.
+          </p>
+        </div>
+        <Button
+          variant="ghost"
+          size="xs"
+          disabled={
+            installing !== null || isPreparingEnvironment || isResetting
+          }
+          onClick={() => setIsResetLocalStateDialogOpen(true)}
+          className="shrink-0 text-muted-foreground/55 hover:text-destructive"
+        >
+          <Trash2 className="size-3" />
+          Reset local state
+        </Button>
+      </div>
+
+      <Dialog open={isResetLocalStateDialogOpen} onOpenChange={setIsResetLocalStateDialogOpen}>
+        <DialogContent showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>Reset local app state?</DialogTitle>
+            <DialogDescription>
+              This removes your saved auth session, plugin library, environment
+              config, and model overrides. The app will return to its
+              first-launch state. Development testing only — this does not
+              affect installed plugins or telemetry.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              size="xs"
+              disabled={isResetting}
+              onClick={() => setIsResetLocalStateDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              size="xs"
+              disabled={isResetting}
+              onClick={async () => {
+                setIsResetting(true);
+                try {
+                  await useAppStore.getState().resetLocalAppState();
+                } catch (e) {
+                  toast.error("Failed to reset local app state", {
+                    description: String(e),
+                  });
+                } finally {
+                  setIsResetLocalStateDialogOpen(false);
+                  setIsResetting(false);
+                }
+              }}
+            >
+              {isResetting ? (
+                <>
+                  <Loader2 className="size-3 animate-spin" />
+                  Resetting…
+                </>
+              ) : (
+                <>
+                  <Trash2 className="size-3" />
+                  Reset local state
                 </>
               )}
             </Button>
