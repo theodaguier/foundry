@@ -231,6 +231,8 @@ fn apply_windows_creation_flags(cmd: &mut Command) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Write;
+    use std::process::Command;
 
     /// Regression test: canonical_provider_path() must use platform provider
     /// resolution (override-aware, cached), not plain resolve_command().
@@ -283,5 +285,43 @@ mod tests {
         assert!(status.is_ok());
         let s = status.unwrap().unwrap();
         assert!(!s.installed);
+    }
+
+    /// Regression test: verify_provider_install() must not accept a binary
+    /// that exists but is not runnable (--version fails).
+    ///
+    /// We simulate this by creating a fake executable that exists but exits
+    /// with a non-zero status. provider_status() with an explicit path to
+    /// this fake binary should return installed=false.
+    #[test]
+    fn provider_status_rejects_non_runnable_binary() {
+        let temp_dir = std::env::temp_dir();
+        let fake_path = temp_dir.join("fake_codex_test_bin");
+        {
+            let mut f = std::fs::File::create(&fake_path).unwrap();
+            f.write_all(b"#!/bin/sh\nexit 1\n").unwrap();
+        }
+        #[cfg(target_os = "macos")]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perms = std::fs::metadata(&fake_path).unwrap().permissions();
+            perms.set_mode(0o755);
+            std::fs::metadata(&fake_path).unwrap().permissions().set_mode(0o755);
+        }
+
+        let status = provider_status(ProviderCli::Codex, Some(&fake_path.to_string_lossy()));
+        // Binary exists but --version fails → installed=false
+        assert!(status.is_ok());
+        let s = status.unwrap().unwrap();
+        assert!(!s.installed, "Non-runnable binary should not be marked installed");
+
+        let _ = std::fs::remove_file(&fake_path);
+    }
+
+    /// Verify that canonical_provider_path with an explicit path returns that path.
+    #[test]
+    fn canonical_provider_path_with_explicit_path_returns_it() {
+        let result = canonical_provider_path(ProviderCli::Codex, Some("/my/explicit/path"));
+        assert_eq!(result, Some("/my/explicit/path".to_string()));
     }
 }
