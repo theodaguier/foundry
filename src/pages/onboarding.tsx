@@ -453,7 +453,6 @@ export default function Onboarding() {
     }
     // Refresh state to determine next step
     const recheck = await commands.getSetupState()
-    const recheckDeps = await checkDeps()
     const machineReady = recheck.buildEnvironmentReady
     const needsAuth = recheck.providers.some(p => p.status === "installed_needs_auth")
     const hasInstalled = recheck.providers.some(p => p.status === "installed_and_authenticated")
@@ -494,7 +493,7 @@ export default function Onboarding() {
     let mounted = true
     async function init() {
       try {
-        const [setupResults, depsResults] = await Promise.all([
+        const [setupResults] = await Promise.all([
           commands.getSetupState(),
           checkDeps(),
         ])

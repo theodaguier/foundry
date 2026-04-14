@@ -2251,6 +2251,13 @@ pub fn install_codex() -> DependencyInstallDispatchResult {
         }
     };
 
+    // After ensure_npm(), verify that `node` is actually resolvable in Foundry's
+    // environment. The Codex CLI is a Node.js application whose shebang
+    // references `node` directly — not an absolute path. If npm was found
+    // (e.g. via Homebrew) but node is still not on the resolved PATH, the
+    // installed codex binary will fail at runtime with "node: No such file or
+    // directory", producing a confusing generic "could not verify" from the
+    // verification loop. Catch it here with an actionable message.
     #[cfg(not(target_os = "windows"))]
     {
         let resolved_node = platform::resolve_command("node");
@@ -2269,6 +2276,7 @@ pub fn install_codex() -> DependencyInstallDispatchResult {
         npm, expected_path
     );
 
+    // Invalidate shell cache before install to get fresh PATH state
     platform::invalidate_shell_cache();
 
     let result = silent_command(&npm)
@@ -2277,6 +2285,8 @@ pub fn install_codex() -> DependencyInstallDispatchResult {
 
     match result {
         Ok(output) if output.status.success() => {
+            // Invalidate cache after install so the newly installed binary
+            // becomes visible to the verification loop.
             platform::invalidate_shell_cache();
 
             DependencyInstallDispatchResult::Provider(ProviderInstallPreparation {
