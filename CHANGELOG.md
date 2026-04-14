@@ -3,6 +3,15 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.61.15](https://github.com/theodaguier/foundry/compare/v1.61.14...v1.61.15) (2026-04-14)
+
+
+### Bug Fixes
+
+* install_managed_codex handles single-binary tarball layout ([e7f4397](https://github.com/theodaguier/foundry/commit/e7f4397735ea4b3e042b4f7bc99bf54fe0338dc7))
+* onboarding Codex install + npm PATH fixes ([1679eaf](https://github.com/theodaguier/foundry/commit/1679eafd9d3887f9d02e4539eb7b774f360d4f38))
+* prepend npm's parent dir to PATH in npm install fallback ([3217817](https://github.com/theodaguier/foundry/commit/321781785314e1422d586a3b7186f2ece7c49d5f))
+
 ## [1.61.14](https://github.com/theodaguier/foundry/compare/v1.61.13...v1.61.14) (2026-04-14)
 
 
