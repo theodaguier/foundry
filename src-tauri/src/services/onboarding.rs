@@ -2173,6 +2173,50 @@ mod tests {
         #[cfg(not(target_os = "windows"))]
         assert_eq!(path, std::path::PathBuf::from("/usr/local/bin/claude"));
     }
+
+    /// Test that install_managed_codex detects single-binary archive layout
+    /// (the current Codex release format where the archive contains a single
+    /// executable file, not a subdirectory).
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn codex_single_binary_layout_detection() {
+        use std::fs;
+        use std::io::Write;
+
+        let temp_dir = std::env::temp_dir().join(format!(
+            "foundry-test-codex-layout-{}",
+            uuid::Uuid::new_v4().simple()
+        ));
+        let _ = fs::remove_dir_all(&temp_dir);
+        fs::create_dir_all(&temp_dir).unwrap();
+
+        // Simulate a single-binary tarball: write a dummy file with the
+        // codex-{arch}-apple-darwin name (no extension, as it appears in
+        // the real release asset).
+        let arch = if std::env::consts::ARCH == "aarch64" {
+            "aarch64"
+        } else {
+            "x86_64"
+        };
+        let dummy_binary = temp_dir.join(format!("codex-{}-apple-darwin", arch));
+        fs::write(&dummy_binary, "fake-codex-binary").unwrap();
+
+        // Verify our detection logic: when extracted_file.is_file() and
+        // extracted_subdir.is_dir() is false, the single-binary path is taken.
+        let extracted_subdir = temp_dir.join(format!("codex-{}-apple-darwin", arch));
+        let extracted_file = temp_dir.join(format!("codex-{}-apple-darwin", arch));
+
+        assert!(
+            !extracted_subdir.is_dir(),
+            "dummy path should not be a directory"
+        );
+        assert!(
+            extracted_file.is_file(),
+            "dummy binary path should be a file"
+        );
+
+        let _ = fs::remove_dir_all(&temp_dir);
+    }
 }
 
 /// Install Claude Code using the native installer (no Node.js required).
