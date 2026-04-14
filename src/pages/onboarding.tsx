@@ -471,11 +471,13 @@ export default function Onboarding() {
     analytics.trackOnboardingStarted()
     const fresh = await checkDeps()
     const providerDep = fresh.find(d => d.key === selectedProvider)
-    if (!providerDep || providerDep.status !== "missing") return
-    setInstallingDep(providerDep.key)
-    await installSingle(providerDep)
-    setInstallingDep(null)
-    await new Promise(r => setTimeout(r, 600))
+    if (!providerDep) return
+    if (providerDep.status === "missing") {
+      setInstallingDep(providerDep.key)
+      await installSingle(providerDep)
+      setInstallingDep(null)
+      await new Promise(r => setTimeout(r, 600))
+    }
     // Refresh state — if installed and needs auth go to auth step, else done
     const recheck = await commands.getSetupState()
     const needsAuth = recheck.providers.some(p => p.status === "installed_needs_auth")
@@ -809,14 +811,21 @@ export default function Onboarding() {
 
                 <div className="flex flex-col items-center gap-3">
                   {!isInstalling && (
-                    <Button
-                      size="lg"
-                      onClick={installSelectedProvider}
-                      className="w-full"
-                      disabled={!deps.find(d => d.key === selectedProvider && d.status === "missing")}
-                    >
-                      Install {deps.find(d => d.key === selectedProvider)?.label ?? "engine"}
-                    </Button>
+                    (() => {
+                      const selectedDep = deps.find(d => d.key === selectedProvider)
+                      if (!selectedDep) return null
+                      const isMissing = selectedDep.status === "missing"
+                      return (
+                        <Button
+                          size="lg"
+                          onClick={installSelectedProvider}
+                          className="w-full"
+                          disabled={isInstalling}
+                        >
+                          {isMissing ? `Install ${selectedDep.label}` : "Continue"}
+                        </Button>
+                      )
+                    })()
                   )}
                   {isInstalling && (
                     <Button size="lg" disabled className="w-full">
@@ -894,24 +903,41 @@ export default function Onboarding() {
                 </div>
 
                 <div className="flex flex-col items-center gap-3">
-                  {hasAuthRequired && !isInstalling && (
+                  {!isInstalling && (
                     <div className="flex flex-col items-center gap-2 w-full">
-                      <p className="text-[12px] text-muted-foreground text-center">
-                        Complete the sign-in in your browser, then click Continue.
-                      </p>
-                      <Button
-                        variant="secondary"
-                        onClick={async () => {
-                          await checkDeps()
-                          const s = await commands.getSetupState()
-                          if (s.providers.some(p => p.status === "installed_and_authenticated")) {
-                            setStep("done")
-                          }
-                        }}
-                        className="w-full"
-                      >
-                        Continue
-                      </Button>
+                      {hasAuthRequired ? (
+                        <>
+                          <p className="text-[12px] text-muted-foreground text-center">
+                            Complete the sign-in in your browser, then click Continue.
+                          </p>
+                          <Button
+                            variant="secondary"
+                            onClick={async () => {
+                              await checkDeps()
+                              const s = await commands.getSetupState()
+                              if (s.providers.some(p => p.status === "installed_and_authenticated")) {
+                                setStep("done")
+                              }
+                            }}
+                            className="w-full"
+                          >
+                            Continue
+                          </Button>
+                        </>
+                      ) : (
+                        <Button
+                          variant="secondary"
+                          onClick={async () => {
+                            const s = await commands.getSetupState()
+                            if (s.providers.some(p => p.status === "installed_and_authenticated")) {
+                              setStep("done")
+                            }
+                          }}
+                          className="w-full"
+                        >
+                          Continue
+                        </Button>
+                      )}
                     </div>
                   )}
                   <Button

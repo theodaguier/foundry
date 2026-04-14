@@ -2205,18 +2205,14 @@ pub fn install_claude_code() -> DependencyInstallDispatchResult {
 
 /// Install Codex CLI using the native binary from GitHub releases (macOS).
 /// Falls back to npm on non-macOS platforms or if the native install fails.
+/// Unlike `install_claude()`, this function does NOT check for an existing system
+/// Codex binary first — doing so would bypass the native install when a broken
+/// Homebrew shim (e.g. `#!/usr/bin/env node` with incomplete PATH) is present.
 pub fn install_codex() -> DependencyInstallDispatchResult {
-    if let Some(existing_path) = platform::resolve_codex_path() {
-        info!("Codex already resolvable at {}", existing_path);
-        return DependencyInstallDispatchResult::Provider(ProviderInstallPreparation {
-            provider: ProviderCli::Codex,
-            installer: "existing",
-            npm_path: None,
-            expected_path: Some(existing_path),
-        });
-    }
-
     // Strategy 1 (macOS): Download the official native binary from GitHub releases.
+    // Always attempt this first, even if a system codex binary is already on PATH,
+    // because any such binary may be a broken shim. The native install lands in
+    // Foundry's managed directory and is health-checked before being returned.
     #[cfg(target_os = "macos")]
     {
         match install_managed_codex() {
