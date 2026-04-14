@@ -106,9 +106,19 @@ Compilation locale = plugin souverain, pas de compte requis, pas de serveur qui 
 
 ### Message central
 
-> **"Your sound doesn't exist yet. Build it."**
+> **"Build the plugin that doesn't exist yet."**
 
-L'IA est un détail d'implémentation. Le producteur s'en fiche de comment ça marche. Il veut son plugin, son son, son identité sonore.
+### Sous-message
+
+> "5 minutes. No code. Yours."
+
+### Ce que Foundry vend réellement
+
+Foundry ne vend pas "de l'IA" ni "du code". Foundry vend **le plugin qui n'existe pas dans ton catalogue**.
+
+Sans Foundry, tu as deux options : accepter les limites des plugins existants, ou payer un développeur 3 000–15 000 $ pour te construire exactement ce que tu veux.
+
+Foundry te donne la troisième option.
 
 ### Ce que Foundry est
 
@@ -120,6 +130,18 @@ Un outil de création. Le premier outil qui permet à un producteur de musique d
 - Un marketplace de plugins
 - Un outil de mastering automatisé
 - Un concurrent de DAWs ou de plugins existants
+
+### Les mots à ne JAMAIS utiliser en premier
+
+- **"IA" / "AI-powered" / "intelligence artificielle"** — repoussoir en 2026
+- **"C++" / "JUCE" / "code"** — ça fait peur aux non-techniques
+- **"Agent" / "CLI" / "prompt engineering"** — jargon de dev
+
+### Les mots à utiliser
+
+- "plugin" / "DAW" / "son" / "ton" / "tonalité"
+- "construire" / "créer" / "concevoir"
+- "en 5 minutes" / "sans coder"
 
 ---
 

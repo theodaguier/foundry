@@ -1,25 +1,48 @@
 # Foundry
 
-**Generate audio plugins from a sentence.**
+**Build any audio plugin in minutes.**
 
-Foundry is a macOS desktop app that turns a natural language description into a real, installable AU/VST3 plugin — compiled locally, no code required.
+Foundry turns a natural language description into a real, installable AU/VST3 plugin — no code, no boilerplate.
 
-> "A warm tape saturation with drive and tone controls"
-> "A polyphonic pad synth with lush reverb and 5 presets"
-> "A stereo utility with input gain, width, and a VU meter"
+> "A warm tape saturation with drive and tone controls" → plugin loaded in Ableton in 5 minutes
+> "A polyphonic pad synth with lush reverb and 5 presets" → same
+> "A stereo utility with input gain, width, and a VU meter" → same
 
-Foundry dispatches an AI coding agent (Claude Code CLI or Codex CLI) to write the JUCE C++, builds it with CMake, and installs it directly into your DAW.
+You describe the sound you hear in your head. Foundry builds it and installs it directly into your DAW — macOS and Windows.
 
-> Currently in **private beta** on macOS. [Request access →](https://byfoundry.app)
+> Currently in **private beta**. [Request access →](https://byfoundry.app)
+
+---
+
+## What does that mean?
+
+Without Foundry, getting a custom audio plugin means:
+- Learning C++ (6–12 months)
+- Mastering JUCE (2–3 months)
+- Or paying a freelance developer ($3,000–$15,000)
+
+Foundry compresses all of that into 5 minutes.
+
+**Foundry is not an AI novelty or a code generator.** It's the first tool that lets any music producer build their own plugins — from a sentence, in their DAW, without writing a single line of code.
 
 ---
 
 ## How it works
 
 1. **Describe** your plugin in plain language
-2. **Generate** — Foundry runs two agent passes (DSP, then UI) and compiles
-3. **Wait** a few minutes while the build loop runs
+2. **Generate** — Foundry builds it locally (DSP, then UI)
+3. **Wait** 2–5 minutes while it compiles
 4. **Open** the plugin in any AU or VST3-compatible DAW
+
+---
+
+## Who is it for?
+
+- **Music producers** who want custom tools without learning to code
+- **Sound designers** who prototype ideas fast
+- **Audio developers** who want a faster starting point for JUCE projects
+
+Foundry works entirely locally. Your plugins are yours — no cloud, no account required, no subscription.
 
 ---
 
