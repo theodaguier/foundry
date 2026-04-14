@@ -122,10 +122,14 @@ pub async fn reset_local_app_state(
 
 /// Launch `claude auth login` directly — opens the browser for OAuth.
 /// No terminal window needed.
+///
+/// Uses the canonical provider resolution chain so that the auth command
+/// is sent to the same binary that Foundry uses for install, verify, and
+/// execution — not a stale shim that may be on the system PATH.
 #[command]
 pub async fn launch_claude_auth() -> Result<bool, String> {
-    let claude_path =
-        platform::resolve_claude_path().unwrap_or_else(|| platform::resolve_command("claude"));
+    let claude_path = platform::resolve_claude_path()
+        .ok_or_else(|| "Claude Code not found. Please install it first.".to_string())?;
 
     Command::new(&claude_path)
         .args(["auth", "login"])
@@ -136,10 +140,14 @@ pub async fn launch_claude_auth() -> Result<bool, String> {
 }
 
 /// Launch `codex login` directly — opens the browser for OAuth.
+///
+/// Uses the canonical provider resolution chain so that the auth command
+/// is sent to the same binary that Foundry uses for install, verify, and
+/// execution — not a stale shim that may be on the system PATH.
 #[command]
 pub async fn launch_codex_auth() -> Result<bool, String> {
-    let codex_path =
-        platform::resolve_codex_path().unwrap_or_else(|| platform::resolve_command("codex"));
+    let codex_path = platform::resolve_codex_path()
+        .ok_or_else(|| "Codex CLI not found. Please install it first.".to_string())?;
 
     Command::new(&codex_path)
         .args(["login"])

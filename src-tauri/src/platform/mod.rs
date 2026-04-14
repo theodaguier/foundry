@@ -33,6 +33,7 @@ pub enum ProviderPlatform {
 #[derive(Debug, Clone)]
 pub struct ProviderResolution {
     pub path: Option<String>,
+    #[allow(dead_code)]
     pub clear_override: bool,
 }
 

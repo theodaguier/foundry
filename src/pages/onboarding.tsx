@@ -6,6 +6,7 @@ import { useSettingsStore } from "@/stores/settings-store"
 import * as commands from "@/lib/commands"
 import { interpretDependencyInstallResult } from "@/lib/dependency-install"
 import * as analytics from "@/lib/analytics"
+import type { SetupState } from "@/lib/schemas"
 
 // ---------------------------------------------------------------------------
 // Types
@@ -73,10 +74,9 @@ const DEP_ORDER = [
   "JUCE SDK",
 ]
 
-/** Estimated install duration in seconds per dependency (used for progress) */
 const ESTIMATED_DURATION: Record<string, number> = {
-  xcode_clt: 180,      // ~3 min (GUI installer, polled)
-  cpp_build_tools: 30,  // ~30s download, then MS installer takes over
+  xcode_clt: 180,
+  cpp_build_tools: 30,
   cmake: 30,
   git: 45,
   claude_code: 20,
@@ -113,6 +113,28 @@ function mapDependency(
   }
 }
 
+function computeStepFromSetup(setup: SetupState): SetupStep {
+  if (setup.providers.some(p => p.status === "installed_and_authenticated")) {
+    return "done"
+  }
+  if (setup.providers.some(p => p.status === "installed_needs_auth")) {
+    return "auth"
+  }
+  if (setup.buildEnvironmentReady) {
+    return "provider"
+  }
+  return "machine"
+}
+
+async function reconcile(setupSignal?: AbortSignal): Promise<{ deps: Dep[]; setup: SetupState }> {
+  const [results, setup] = await Promise.all([
+    commands.checkDependencies(),
+    commands.getSetupState(),
+  ])
+  const deps = results.map(mapDependency).sort((a, b) => depSortOrder(a.name) - depSortOrder(b.name))
+  return { deps, setup }
+}
+
 // ---------------------------------------------------------------------------
 // Hook: elapsed-time progress estimation
 // ---------------------------------------------------------------------------
@@ -125,7 +147,6 @@ function useInstallProgress(deps: Dep[]) {
   useEffect(() => {
     for (const dep of deps) {
       if (dep.status === "installing" && !timersRef.current[dep.key]) {
-        // Start tracking this dep
         startTimesRef.current[dep.key] = Date.now()
         setProgress(prev => ({ ...prev, [dep.key]: 0 }))
 
@@ -133,15 +154,12 @@ function useInstallProgress(deps: Dep[]) {
 
         timersRef.current[dep.key] = setInterval(() => {
           const elapsed = Date.now() - startTimesRef.current[dep.key]
-          // Asymptotic curve: approaches 90% but never reaches it
-          // progress = 90 * (1 - e^(-2 * elapsed / estimated))
           const pct = Math.min(90, 90 * (1 - Math.exp((-2 * elapsed) / estimatedMs)))
           setProgress(prev => ({ ...prev, [dep.key]: Math.round(pct) }))
         }, 500)
       }
 
       if (dep.status === "installed" && timersRef.current[dep.key]) {
-        // Complete: jump to 100%
         clearInterval(timersRef.current[dep.key])
         delete timersRef.current[dep.key]
         delete startTimesRef.current[dep.key]
@@ -149,7 +167,6 @@ function useInstallProgress(deps: Dep[]) {
       }
 
       if (dep.status === "failed" && timersRef.current[dep.key]) {
-        // Failed: stop timer
         clearInterval(timersRef.current[dep.key])
         delete timersRef.current[dep.key]
         delete startTimesRef.current[dep.key]
@@ -162,7 +179,6 @@ function useInstallProgress(deps: Dep[]) {
     }
 
     return () => {
-      // Cleanup on unmount
       for (const key of Object.keys(timersRef.current)) {
         clearInterval(timersRef.current[key])
       }
@@ -178,30 +194,14 @@ function useInstallProgress(deps: Dep[]) {
 
 function StatusIcon({ status, progress }: { status: DepStatus; progress?: number }) {
   if (status === "installing" && progress !== undefined) {
-    // Circular progress ring
     const radius = 6
     const circumference = 2 * Math.PI * radius
     const offset = circumference - (progress / 100) * circumference
     return (
       <div className="w-5 h-5 flex items-center justify-center shrink-0">
         <svg width="16" height="16" viewBox="0 0 16 16" className="text-primary -rotate-90">
-          <circle
-            cx="8" cy="8" r={radius}
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            opacity="0.15"
-          />
-          <circle
-            cx="8" cy="8" r={radius}
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeDasharray={circumference}
-            strokeDashoffset={offset}
-            strokeLinecap="round"
-            className="transition-[stroke-dashoffset] duration-500 ease-out"
-          />
+          <circle cx="8" cy="8" r={radius} fill="none" stroke="currentColor" strokeWidth="2" opacity="0.15" />
+          <circle cx="8" cy="8" r={radius} fill="none" stroke="currentColor" strokeWidth="2" strokeDasharray={circumference} strokeDashoffset={offset} strokeLinecap="round" className="transition-[stroke-dashoffset] duration-500 ease-out" />
         </svg>
       </div>
     )
@@ -244,7 +244,6 @@ function StatusIcon({ status, progress }: { status: DepStatus; progress?: number
       </div>
     )
   }
-  // missing
   return (
     <div className="w-5 h-5 flex items-center justify-center shrink-0">
       <div className="w-3 h-3 rounded-full bg-muted-foreground/25" />
@@ -270,6 +269,7 @@ function statusColor(status: DepStatus): string {
 export default function Onboarding() {
   const [step, setStep] = useState<SetupStep>("checking")
   const [deps, setDeps] = useState<Dep[]>([])
+  const [setup, setSetup] = useState<SetupState | null>(null)
   const [appeared, setAppeared] = useState(false)
   const [selectedProvider, setSelectedProvider] = useState<string>(PRIMARY_PROVIDER)
   const [installingDep, setInstallingDep] = useState<string | null>(null)
@@ -279,13 +279,11 @@ export default function Onboarding() {
 
   const installProgress = useInstallProgress(deps)
 
-  // Entrance animation
   useEffect(() => {
     const t = setTimeout(() => setAppeared(true), 50)
     return () => clearTimeout(t)
   }, [])
 
-  // Clean up polls on unmount
   useEffect(() => {
     return () => {
       abortedRef.current = true
@@ -294,31 +292,18 @@ export default function Onboarding() {
     }
   }, [])
 
-  // ---- Dep state helpers ----
+  // ---- Sync deps and setup from backend (single reconciliation source) ----
 
-  const updateDep = useCallback((key: string, update: Partial<Dep>) => {
-    setDeps(prev => prev.map(d => d.key === key ? { ...d, ...update } : d))
-  }, [])
-
-  // ---- Check dependencies ----
-
-  const checkDeps = useCallback(async (): Promise<Dep[]> => {
-    try {
-      const results = await commands.checkDependencies()
-      const mapped = results
-        .map(mapDependency)
-        .sort((a, b) => depSortOrder(a.name) - depSortOrder(b.name))
-
-      setDeps(prev => mapped.map(dep => {
-        const current = prev.find(entry => entry.key === dep.key)
-        if (current?.status === "installing") return current
-        if (current?.status === "failed" && dep.status === "missing") return current
-        return dep
-      }))
-      return mapped
-    } catch {
-      return []
-    }
+  const syncState = useCallback(async () => {
+    const { deps: freshDeps, setup: freshSetup } = await reconcile()
+    setDeps(freshDeps)
+    setSetup(freshSetup)
+    const nextStep = computeStepFromSetup(freshSetup)
+    setStep(current => {
+      if (current === "done" || nextStep === "done") return nextStep
+      return nextStep
+    })
+    return { deps: freshDeps, setup: freshSetup }
   }, [])
 
   // ---- Install a single dependency ----
@@ -345,6 +330,10 @@ export default function Onboarding() {
           updateDep(dep.key, { status: "failed", message: msg })
           analytics.trackDependencyInstallCompleted({ dependency: dep.key, success: false, message: msg })
         }
+        // Always reconcile after install attempt
+        const { setup: s } = await syncState()
+        const next = computeStepFromSetup(s)
+        setStep(current => current === "done" ? "done" : next)
         return
       }
 
@@ -354,32 +343,27 @@ export default function Onboarding() {
       // Xcode CLT is still a GUI-based installer — poll until detected.
       const isGuiInstaller = dep.key === "xcode_clt" && outcome.state === "pending"
       if (isGuiInstaller) {
-        const depName = "Xcode Command Line Tools"
-        updateDep(dep.key, {
-          status: "installing",
-          message: outcome.message,
-        })
+        updateDep(dep.key, { status: "installing", message: outcome.message })
         if (pollRef.current) clearInterval(pollRef.current)
         pollRef.current = setInterval(async () => {
           try {
             const results = await commands.checkDependencies()
-            const found = results.find(r => r.name === depName)
+            const found = results.find(r => r.name === "Xcode Command Line Tools")
             if (found?.installed) {
               if (pollRef.current) clearInterval(pollRef.current)
               pollRef.current = null
               updateDep(dep.key, { status: "installed", message: undefined })
+              const { setup: s } = await syncState()
+              const next = computeStepFromSetup(s)
+              setStep(current => current === "done" ? "done" : next)
             }
           } catch { /* keep polling */ }
         }, 5000)
-        // Stop after 15 minutes (Build Tools can take a while)
         setTimeout(() => {
           if (pollRef.current) {
             clearInterval(pollRef.current)
             pollRef.current = null
-            updateDep(dep.key, {
-              status: "failed",
-              message: "Installation timed out. Click Retry to try again.",
-            })
+            updateDep(dep.key, { status: "failed", message: "Installation timed out. Click Retry to try again." })
           }
         }, 900_000)
         return
@@ -388,6 +372,9 @@ export default function Onboarding() {
       if (outcome.state === "verified") {
         updateDep(dep.key, { status: "installed", message: undefined })
         analytics.trackDependencyInstallCompleted({ dependency: dep.key, success: true })
+        const { setup: s } = await syncState()
+        const next = computeStepFromSetup(s)
+        setStep(current => current === "done" ? "done" : next)
         return
       }
 
@@ -412,6 +399,12 @@ export default function Onboarding() {
                 authPollRef.current = null
                 updateDep(dep.key, { status: "installed", message: undefined })
                 analytics.trackDependencyAuthCompleted({ provider: dep.key })
+                // Auth succeeded — reconcile and auto-advance
+                const { setup: s } = await syncState()
+                const next = computeStepFromSetup(s)
+                setStep(next)
+                // Refresh global app state so App.tsx sees setupState.ready change
+                await useAppStore.getState().checkSetup()
               }
             } catch { /* keep polling */ }
           }, 5000)
@@ -422,6 +415,10 @@ export default function Onboarding() {
             }
           }, 300_000)
         }
+        // Reconcile to update backend-derived step after auth_required
+        const { setup: s } = await syncState()
+        const next = computeStepFromSetup(s)
+        setStep(current => current === "done" ? "done" : next)
         return
       }
 
@@ -432,18 +429,25 @@ export default function Onboarding() {
         updateDep(dep.key, { status: "failed", message: outcome.message })
         analytics.trackDependencyInstallCompleted({ dependency: dep.key, success: false, message: outcome.message })
       }
+      // Reconcile even on failure to keep step in sync with backend
+      const { setup: s } = await syncState()
+      const next = computeStepFromSetup(s)
+      setStep(current => current === "done" ? "done" : next)
     } catch (e) {
       updateDep(dep.key, { status: "failed", message: String(e) })
       analytics.trackDependencyInstallCompleted({ dependency: dep.key, success: false, message: String(e) })
+      const { setup: s } = await syncState()
+      const next = computeStepFromSetup(s)
+      setStep(current => current === "done" ? "done" : next)
     }
-  }, [updateDep])
+  }, [syncState])
 
   // ---- Install all machine-level dependencies (serial) ----
 
   const installMachine = useCallback(async () => {
     analytics.trackOnboardingStarted()
-    const fresh = await checkDeps()
-    const machineDeps = fresh.filter(d => d.required && !PROVIDER_DEPS.has(d.key))
+    const { deps: freshDeps } = await syncState()
+    const machineDeps = freshDeps.filter(d => d.required && !PROVIDER_DEPS.has(d.key))
     for (const dep of machineDeps) {
       if (abortedRef.current) return
       setInstallingDep(dep.key)
@@ -451,26 +455,14 @@ export default function Onboarding() {
       setInstallingDep(null)
       await new Promise(r => setTimeout(r, 600))
     }
-    // Refresh state to determine next step
-    const recheck = await commands.getSetupState()
-    const machineReady = recheck.buildEnvironmentReady
-    const needsAuth = recheck.providers.some(p => p.status === "installed_needs_auth")
-    const hasInstalled = recheck.providers.some(p => p.status === "installed_and_authenticated")
-    if (hasInstalled) {
-      setStep("done")
-    } else if (machineReady && needsAuth) {
-      setStep("auth")
-    } else if (machineReady) {
-      setStep("provider")
-    }
-  }, [checkDeps, installSingle])
+  }, [syncState, installSingle])
 
   // ---- Install the selected provider ----
 
   const installSelectedProvider = useCallback(async () => {
     analytics.trackOnboardingStarted()
-    const fresh = await checkDeps()
-    const providerDep = fresh.find(d => d.key === selectedProvider)
+    const { deps: freshDeps } = await syncState()
+    const providerDep = freshDeps.find(d => d.key === selectedProvider)
     if (!providerDep) return
     if (providerDep.status === "missing") {
       setInstallingDep(providerDep.key)
@@ -478,13 +470,14 @@ export default function Onboarding() {
       setInstallingDep(null)
       await new Promise(r => setTimeout(r, 600))
     }
-    const recheck = await commands.getSetupState()
-    if (recheck.providers.some(p => p.status === "installed_and_authenticated")) {
-      setStep("done")
-    } else if (recheck.providers.some(p => p.status === "installed_needs_auth")) {
-      setStep("auth")
+    // Reconcile to determine next step from backend truth
+    const { setup: s } = await syncState()
+    const next = computeStepFromSetup(s)
+    setStep(next)
+    if (next === "done") {
+      await useAppStore.getState().checkSetup()
     }
-  }, [checkDeps, installSingle, selectedProvider])
+  }, [syncState, installSingle, selectedProvider])
 
   // ---- Initial check on mount ----
 
@@ -492,30 +485,12 @@ export default function Onboarding() {
     let mounted = true
     async function init() {
       try {
-        const [setupResults] = await Promise.all([
-          commands.getSetupState(),
-          checkDeps(),
-        ])
+        const { deps: freshDeps, setup: freshSetup } = await reconcile()
         if (!mounted) return
-
-        const machineReady = setupResults.buildEnvironmentReady
-        const providers = setupResults.providers
-        const hasInstalledProvider = providers.some(
-          p => p.status === "installed_and_authenticated"
-        )
-        const needsAuthProvider = providers.some(
-          p => p.status === "installed_needs_auth"
-        )
-
-        if (machineReady && hasInstalledProvider) {
-          setStep("done")
-        } else if (machineReady && needsAuthProvider) {
-          setStep("auth")
-        } else if (machineReady) {
-          setStep("provider")
-        } else {
-          setStep("machine")
-        }
+        setDeps(freshDeps)
+        setSetup(freshSetup)
+        const next = computeStepFromSetup(freshSetup)
+        setStep(next)
       } catch {
         if (!mounted) return
         setStep("machine")
@@ -523,12 +498,26 @@ export default function Onboarding() {
     }
     init()
     return () => { mounted = false }
-  }, [checkDeps])
+  }, [syncState])
 
   // ---- Derived state ----
 
-  const hasAuthRequired = deps.some(d => d.status === "auth_required")
   const isInstalling = installingDep !== null
+
+  // Derive provider step CTA from backend SetupState, not local deps.
+  const providerBackendStatus = setup?.providers.find(p => p.id === selectedProvider)
+  const providerCTA = (() => {
+    if (isInstalling) return null
+    if (!providerBackendStatus) return null
+    switch (providerBackendStatus.status) {
+      case "not_installed":
+        return { label: `Install ${DEP_LABELS[selectedProvider === "claude_code" ? "Claude Code CLI" : "Codex CLI"]}`, action: "install" }
+      case "installed_needs_auth":
+        return { label: "Sign in", action: "auth" }
+      case "installed_and_authenticated":
+        return { label: "Continue", action: "continue" }
+    }
+  })()
 
   // ---- Finish ----
 
@@ -536,16 +525,22 @@ export default function Onboarding() {
     analytics.trackOnboardingCompleted()
     await commands.completeOnboarding()
     await useSettingsStore.getState().refreshModels()
-    useAppStore.getState().checkSetup()
+    await useAppStore.getState().checkSetup()
   }
-
-  // ---- Auto-complete after brief delay when done ----
 
   useEffect(() => {
     if (step !== "done") return
     const t = setTimeout(() => finish(), 1500)
     return () => clearTimeout(t)
   }, [step])
+
+  // ---------------------------------------------------------------------------
+  // Dep state helpers
+  // ---------------------------------------------------------------------------
+
+  const updateDep = useCallback((key: string, update: Partial<Dep>) => {
+    setDeps(prev => prev.map(d => d.key === key ? { ...d, ...update } : d))
+  }, [])
 
   // ---------------------------------------------------------------------------
   // Render
@@ -562,14 +557,7 @@ export default function Onboarding() {
           <div className="flex flex-col items-center gap-6 text-center">
             <div className="w-16 h-16 rounded-full bg-emerald-500/10 flex items-center justify-center">
               <svg width="32" height="32" viewBox="0 0 32 32" className="text-emerald-500">
-                <path
-                  d="M8 16.5L13.5 22L24 10"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  fill="none"
-                />
+                <path d="M8 16.5L13.5 22L24 10" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
               </svg>
             </div>
             <div className="flex flex-col gap-2">
@@ -613,7 +601,7 @@ export default function Onboarding() {
               </p>
             </div>
 
-            {/* Machine step: build tools + JUCE deps */}
+            {/* Machine step */}
             {step === "machine" && (
               <div className="flex flex-col gap-6 w-full">
                 <div className="flex flex-col rounded-lg overflow-hidden border border-border/50">
@@ -624,24 +612,16 @@ export default function Onboarding() {
                       return (
                         <div
                           key={dep.key}
-                          className={`flex items-center gap-3 px-4 py-3 ${
-                            i > 0 ? "border-t border-border/30" : ""
-                          } ${installingDep === dep.key ? "bg-muted/60" : "bg-muted/30"}`}
+                          className={`flex items-center gap-3 px-4 py-3 ${i > 0 ? "border-t border-border/30" : ""} ${installingDep === dep.key ? "bg-muted/60" : "bg-muted/30"}`}
                         >
                           <StatusIcon status={dep.status} progress={pct} />
                           <div className="flex-1 min-w-0">
-                            <span className="text-[13px] font-medium text-foreground">
-                              {dep.label}
-                            </span>
+                            <span className="text-[13px] font-medium text-foreground">{dep.label}</span>
                             {dep.status === "failed" && dep.message ? (
-                              <div className="text-[11px] text-destructive/80 mt-0.5 break-words">
-                                {dep.message}
-                              </div>
+                              <div className="text-[11px] text-destructive/80 mt-0.5 break-words">{dep.message}</div>
                             ) : (
                               <div className="text-[11px] text-muted-foreground/70 mt-0.5">
-                                {installingDep === dep.key
-                                  ? dep.message ?? "Setting up…"
-                                  : dep.description}
+                                {installingDep === dep.key ? dep.message ?? "Setting up…" : dep.description}
                               </div>
                             )}
                           </div>
@@ -649,36 +629,10 @@ export default function Onboarding() {
                             {dep.status === "installed" && "Ready"}
                             {dep.status === "installing" && pct !== undefined && `${pct}%`}
                             {dep.status === "missing" && (
-                              <Button
-                                size="sm"
-                                variant="secondary"
-                                disabled={isInstalling}
-                                onClick={async () => {
-                                  setInstallingDep(dep.key)
-                                  await installSingle(dep)
-                                  setInstallingDep(null)
-                                  await checkDeps()
-                                }}
-                                className="text-[11px] h-6 px-2"
-                              >
-                                Install
-                              </Button>
+                              <Button size="sm" variant="secondary" disabled={isInstalling} onClick={async () => { setInstallingDep(dep.key); await installSingle(dep); setInstallingDep(null) }} className="text-[11px] h-6 px-2">Install</Button>
                             )}
                             {dep.status === "failed" && (
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                disabled={isInstalling}
-                                onClick={async () => {
-                                  setInstallingDep(dep.key)
-                                  await installSingle(dep)
-                                  setInstallingDep(null)
-                                  await checkDeps()
-                                }}
-                                className="text-[11px] h-6 px-2 text-destructive hover:text-destructive"
-                              >
-                                Retry
-                              </Button>
+                              <Button size="sm" variant="ghost" disabled={isInstalling} onClick={async () => { setInstallingDep(dep.key); await installSingle(dep); setInstallingDep(null) }} className="text-[11px] h-6 px-2 text-destructive hover:text-destructive">Retry</Button>
                             )}
                           </span>
                         </div>
@@ -693,33 +647,10 @@ export default function Onboarding() {
                     if (!isInstalling) {
                       if (allMachineReady) {
                         return (
-                          <Button
-                            size="lg"
-                            onClick={async () => {
-                              const s = await commands.getSetupState()
-                              if (s.providers.some(p => p.status === "installed_and_authenticated")) {
-                                setStep("done")
-                              } else if (s.providers.some(p => p.status === "installed_needs_auth")) {
-                                setStep("auth")
-                              } else {
-                                setStep("provider")
-                              }
-                            }}
-                            className="w-full"
-                          >
-                            Continue
-                          </Button>
+                          <Button size="lg" onClick={async () => { const { setup: s } = await syncState(); setStep(computeStepFromSetup(s)) }} className="w-full">Continue</Button>
                         )
                       }
-                      return (
-                        <Button
-                          size="lg"
-                          onClick={installMachine}
-                          className="w-full"
-                        >
-                          Install tools
-                        </Button>
-                      )
+                      return <Button size="lg" onClick={installMachine} className="w-full">Install tools</Button>
                     }
                     return (
                       <Button size="lg" disabled className="w-full">
@@ -732,7 +663,7 @@ export default function Onboarding() {
               </div>
             )}
 
-            {/* Provider step: select and install Claude or Codex */}
+            {/* Provider step */}
             {step === "provider" && (
               <div className="flex flex-col gap-6 w-full">
                 <div className="flex flex-col rounded-lg overflow-hidden border border-border/50">
@@ -744,31 +675,21 @@ export default function Onboarding() {
                       return (
                         <div
                           key={dep.key}
-                          className={`flex items-center gap-3 px-4 py-3 ${
-                            i > 0 ? "border-t border-border/30" : ""
-                          } ${installingDep === dep.key ? "bg-muted/60" : "bg-muted/30"}`}
+                          className={`flex items-center gap-3 px-4 py-3 ${i > 0 ? "border-t border-border/30" : ""} ${installingDep === dep.key ? "bg-muted/60" : "bg-muted/30"}`}
                         >
                           <StatusIcon status={dep.status} progress={pct} />
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
-                              <span className="text-[13px] font-medium text-foreground">
-                                {dep.label}
-                              </span>
+                              <span className="text-[13px] font-medium text-foreground">{dep.label}</span>
                               {dep.key === selectedProvider && (
-                                <span className="text-[10px] uppercase tracking-wider text-muted-foreground/50 font-medium">
-                                  Selected
-                                </span>
+                                <span className="text-[10px] uppercase tracking-wider text-muted-foreground/50 font-medium">Selected</span>
                               )}
                             </div>
                             {dep.status === "failed" && dep.message ? (
-                              <div className="text-[11px] text-destructive/80 mt-0.5 break-words">
-                                {dep.message}
-                              </div>
+                              <div className="text-[11px] text-destructive/80 mt-0.5 break-words">{dep.message}</div>
                             ) : (
                               <div className="text-[11px] text-muted-foreground/70 mt-0.5">
-                                {installingDep === dep.key
-                                  ? dep.message ?? "Setting up…"
-                                  : dep.description}
+                                {installingDep === dep.key ? dep.message ?? "Setting up…" : dep.description}
                               </div>
                             )}
                           </div>
@@ -776,31 +697,12 @@ export default function Onboarding() {
                             {dep.status === "installed" && "Ready"}
                             {dep.status === "installing" && pct !== undefined && `${pct}%`}
                             {dep.status === "missing" && (
-                              <Button
-                                size="sm"
-                                variant={isSelected ? "default" : "secondary"}
-                                disabled={isInstalling}
-                                onClick={() => setSelectedProvider(dep.key)}
-                                className="text-[11px] h-6 px-2"
-                              >
+                              <Button size="sm" variant={isSelected ? "default" : "secondary"} disabled={isInstalling} onClick={() => setSelectedProvider(dep.key)} className="text-[11px] h-6 px-2">
                                 {isSelected ? "Selected" : "Select"}
                               </Button>
                             )}
                             {dep.status === "failed" && (
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                disabled={isInstalling}
-                                onClick={async () => {
-                                  setInstallingDep(dep.key)
-                                  await installSingle(dep)
-                                  setInstallingDep(null)
-                                  await checkDeps()
-                                }}
-                                className="text-[11px] h-6 px-2 text-destructive hover:text-destructive"
-                              >
-                                Retry
-                              </Button>
+                              <Button size="sm" variant="ghost" disabled={isInstalling} onClick={async () => { setInstallingDep(dep.key); await installSingle(dep); setInstallingDep(null) }} className="text-[11px] h-6 px-2 text-destructive hover:text-destructive">Retry</Button>
                             )}
                           </span>
                         </div>
@@ -809,22 +711,20 @@ export default function Onboarding() {
                 </div>
 
                 <div className="flex flex-col items-center gap-3">
-                  {!isInstalling && (
-                    (() => {
-                      const selectedDep = deps.find(d => d.key === selectedProvider)
-                      if (!selectedDep) return null
-                      const isMissing = selectedDep.status === "missing"
-                      return (
-                        <Button
-                          size="lg"
-                          onClick={installSelectedProvider}
-                          className="w-full"
-                          disabled={isInstalling}
-                        >
-                          {isMissing ? `Install ${selectedDep.label}` : "Continue"}
-                        </Button>
-                      )
-                    })()
+                  {!isInstalling && providerCTA && (
+                    <Button size="lg" onClick={async () => {
+                      if (providerCTA.action === "install" || providerCTA.action === "auth") {
+                        await installSelectedProvider()
+                      } else {
+                        const { setup: s } = await syncState()
+                        setStep(computeStepFromSetup(s))
+                        if (computeStepFromSetup(s) === "done") {
+                          await useAppStore.getState().checkSetup()
+                        }
+                      }
+                    }} className="w-full">
+                      {providerCTA.label}
+                    </Button>
                   )}
                   {isInstalling && (
                     <Button size="lg" disabled className="w-full">
@@ -832,70 +732,36 @@ export default function Onboarding() {
                       Installing…
                     </Button>
                   )}
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={async () => {
-                      await checkDeps()
-                      await commands.getSetupState().then(s => {
-                        if (s.buildEnvironmentReady) setStep("machine")
-                      })
-                    }}
-                  >
+                  <Button variant="secondary" size="sm" onClick={async () => { await syncState(); setStep("machine") }}>
                     Back
                   </Button>
                 </div>
               </div>
             )}
 
-            {/* Auth step: sign in to the installed provider */}
+            {/* Auth step */}
             {step === "auth" && (
               <div className="flex flex-col gap-6 w-full">
                 <div className="flex flex-col rounded-lg overflow-hidden border border-border/50">
                   {deps
                     .filter(d => PROVIDER_DEPS.has(d.key) && d.status !== "missing")
                     .map((dep, i) => (
-                      <div
-                        key={dep.key}
-                        className={`flex items-center gap-3 px-4 py-3 ${
-                          i > 0 ? "border-t border-border/30" : ""
-                        } ${dep.status === "auth_required" ? "bg-muted/60" : "bg-muted/30"}`}
-                      >
+                      <div key={dep.key} className={`flex items-center gap-3 px-4 py-3 ${i > 0 ? "border-t border-border/30" : ""} ${dep.status === "auth_required" ? "bg-muted/60" : "bg-muted/30"}`}>
                         <StatusIcon status={dep.status} progress={undefined} />
                         <div className="flex-1 min-w-0">
-                          <span className="text-[13px] font-medium text-foreground">
-                            {dep.label}
-                          </span>
+                          <span className="text-[13px] font-medium text-foreground">{dep.label}</span>
                           {dep.status === "auth_required" && (
-                            <div className="text-[11px] text-amber-500/80 mt-0.5">
-                              Sign in with {dep.label} in your browser to finish setup
-                            </div>
+                            <div className="text-[11px] text-amber-500/80 mt-0.5">Sign in with {dep.label} in your browser to finish setup</div>
                           )}
                           {dep.status === "installed" && (
-                            <div className="text-[11px] text-muted-foreground/60 mt-0.5">
-                              Already signed in
-                            </div>
+                            <div className="text-[11px] text-muted-foreground/60 mt-0.5">Already signed in</div>
                           )}
                         </div>
                         {dep.status === "auth_required" && (
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            onClick={async () => {
-                              try {
-                                if (dep.key === "codex") await commands.launchCodexAuth()
-                                else await commands.launchClaudeAuth()
-                              } catch {}
-                            }}
-                            className="text-[11px] h-6 px-2 text-amber-500 hover:text-amber-500"
-                          >
-                            Sign in
-                          </Button>
+                          <Button size="sm" variant="secondary" onClick={async () => { try { if (dep.key === "codex") await commands.launchCodexAuth(); else await commands.launchClaudeAuth() } catch {} }} className="text-[11px] h-6 px-2 text-amber-500 hover:text-amber-500">Sign in</Button>
                         )}
                         {dep.status === "installed" && (
-                          <span className={`text-[11px] font-medium tabular-nums ${statusColor(dep.status)}`}>
-                            Ready
-                          </span>
+                          <span className={`text-[11px] font-medium tabular-nums ${statusColor(dep.status)}`}>Ready</span>
                         )}
                       </div>
                     ))}
@@ -904,48 +770,24 @@ export default function Onboarding() {
                 <div className="flex flex-col items-center gap-3">
                   {!isInstalling && (
                     <div className="flex flex-col items-center gap-2 w-full">
-                      {hasAuthRequired ? (
-                        <>
-                          <p className="text-[12px] text-muted-foreground text-center">
-                            Complete the sign-in in your browser, then click Continue.
-                          </p>
-                          <Button
-                            variant="secondary"
-                            onClick={async () => {
-                              await checkDeps()
-                              const s = await commands.getSetupState()
-                              if (s.providers.some(p => p.status === "installed_and_authenticated")) {
-                                setStep("done")
-                              }
-                            }}
-                            className="w-full"
-                          >
-                            Continue
-                          </Button>
-                        </>
-                      ) : (
-                        <Button
-                          variant="secondary"
-                          onClick={async () => {
-                            const s = await commands.getSetupState()
-                            if (s.providers.some(p => p.status === "installed_and_authenticated")) {
-                              setStep("done")
-                            }
-                          }}
-                          className="w-full"
-                        >
-                          Continue
-                        </Button>
-                      )}
+                      {(() => {
+                        // Drive auth CTA from backend SetupState, not local deps
+                        const needsAuth = setup?.providers.some(p => p.status === "installed_needs_auth")
+                        if (needsAuth) {
+                          return (
+                            <>
+                              <p className="text-[12px] text-muted-foreground text-center">Complete the sign-in in your browser, then click Continue.</p>
+                              <Button variant="secondary" onClick={async () => { const { setup: s } = await syncState(); setStep(computeStepFromSetup(s)); await useAppStore.getState().checkSetup() }} className="w-full">Continue</Button>
+                            </>
+                          )
+                        }
+                        return (
+                          <Button variant="secondary" onClick={async () => { const { setup: s } = await syncState(); setStep(computeStepFromSetup(s)); await useAppStore.getState().checkSetup() }} className="w-full">Continue</Button>
+                        )
+                      })()}
                     </div>
                   )}
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => setStep("provider")}
-                  >
-                    Back
-                  </Button>
+                  <Button variant="secondary" size="sm" onClick={() => setStep("provider")}>Back</Button>
                 </div>
               </div>
             )}

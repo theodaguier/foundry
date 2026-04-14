@@ -59,10 +59,11 @@ fn resolve_provider_path(command: &str, cache: &RwLock<Option<Option<String>>>) 
         provider_fallback_paths(command),
     );
 
-    if resolution.clear_override {
-        let _ = foundry_paths::clear_provider_path_override(command);
-    }
-
+    // NOTE: We intentionally do NOT clear the override here if the override target
+    // is temporarily missing (e.g. during a managed install replacement window).
+    // The override is authoritative — it was written by a deliberate install/verify
+    // action and must not be discarded by a concurrent read. Override cleanup
+    // happens only via explicit reset_local_app_state() or reset_debug_dependencies().
     *cache.write().unwrap() = Some(resolution.path.clone());
     resolution.path
 }
