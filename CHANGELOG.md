@@ -3,6 +3,14 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.61.12](https://github.com/theodaguier/foundry/compare/v1.61.11...v1.61.12) (2026-04-14)
+
+
+### Bug Fixes
+
+* 3 onboarding bugs — codex shim, provider CTA, auth step transition ([5a7e5fe](https://github.com/theodaguier/foundry/commit/5a7e5fe53d30c5651e93e372e98b9d95fc8d00ca))
+* onboarding — codex shim bypass, provider CTA, auth step transition ([5181fa3](https://github.com/theodaguier/foundry/commit/5181fa3eed83e2e7bed63010ad5c2073aeec6ce3))
+
 ## [1.61.11](https://github.com/theodaguier/foundry/compare/v1.61.10...v1.61.11) (2026-04-14)
 
 

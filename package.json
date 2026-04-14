@@ -1,6 +1,6 @@
 {
   "name": "foundry-tauri",
-  "version": "1.61.11",
+  "version": "1.61.12",
   "private": true,
   "type": "module",
   "scripts": {
