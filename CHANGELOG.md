@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.61.11](https://github.com/theodaguier/foundry/compare/v1.61.10...v1.61.11) (2026-04-14)
+
+
+### Bug Fixes
+
+* remove unused non-macos codex installer stub ([de7376b](https://github.com/theodaguier/foundry/commit/de7376b049fc340c8c858b98337b709a895a1670))
+
 ## [1.61.10](https://github.com/theodaguier/foundry/compare/v1.61.9...v1.61.10) (2026-04-13)
 
 
