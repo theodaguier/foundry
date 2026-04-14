@@ -478,13 +478,10 @@ export default function Onboarding() {
       setInstallingDep(null)
       await new Promise(r => setTimeout(r, 600))
     }
-    // Refresh state — if installed and needs auth go to auth step, else done
     const recheck = await commands.getSetupState()
-    const needsAuth = recheck.providers.some(p => p.status === "installed_needs_auth")
-    const hasInstalled = recheck.providers.some(p => p.status === "installed_and_authenticated")
-    if (hasInstalled) {
+    if (recheck.providers.some(p => p.status === "installed_and_authenticated")) {
       setStep("done")
-    } else if (needsAuth) {
+    } else if (recheck.providers.some(p => p.status === "installed_needs_auth")) {
       setStep("auth")
     }
   }, [checkDeps, installSingle, selectedProvider])
@@ -699,12 +696,14 @@ export default function Onboarding() {
                           <Button
                             size="lg"
                             onClick={async () => {
-                              // All machine deps ready — jump to the next relevant step.
-                              // Recheck setup state to know whether to go provider or auth.
                               const s = await commands.getSetupState()
-                              const needsAuth = s.providers.some(p => p.status === "installed_needs_auth")
-                              if (needsAuth) setStep("auth")
-                              else setStep("provider")
+                              if (s.providers.some(p => p.status === "installed_and_authenticated")) {
+                                setStep("done")
+                              } else if (s.providers.some(p => p.status === "installed_needs_auth")) {
+                                setStep("auth")
+                              } else {
+                                setStep("provider")
+                              }
                             }}
                             className="w-full"
                           >
