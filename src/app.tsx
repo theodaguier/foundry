@@ -129,6 +129,7 @@ function GlobalPipelineListener() {
   const handleLogAction = useBuildStore((s) => s.handleLog)
   const handleNameAction = useBuildStore((s) => s.handleName)
   const handleRegisteredAction = useBuildStore((s) => s.handleRegistered)
+  const handleSubphaseAction = useBuildStore((s) => s.handleSubphase)
   const handleErrorAction = useBuildStore((s) => s.handleError)
   const handleCompleteAction = useBuildStore((s) => s.handleComplete)
   const handleBuildAttemptAction = useBuildStore((s) => s.handleBuildAttempt)
@@ -164,6 +165,10 @@ function GlobalPipelineListener() {
   const handleStreaming = useCallback((payload: { text: string }) => {
     useBuildStore.getState().handleStreaming(payload.text)
   }, [])
+  const handleSubphase = useCallback(
+    (payload: { label: string }) => handleSubphaseAction(payload.label),
+    [handleSubphaseAction],
+  )
   const handleError = useCallback(
     (payload: { message: string }) => {
       handleErrorAction(payload.message)
@@ -190,6 +195,7 @@ function GlobalPipelineListener() {
   useTauriEvent("pipeline:name", handleName)
   useTauriEvent("pipeline:registered", handleRegistered)
   useTauriEvent("pipeline:streaming", handleStreaming)
+  useTauriEvent("pipeline:subphase", handleSubphase)
   useTauriEvent("pipeline:error", handleError)
   useTauriEvent("pipeline:complete", handleComplete)
   useTauriEvent("pipeline:build_attempt", handleBuildAttempt)

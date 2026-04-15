@@ -58,7 +58,7 @@ pub async fn run(
     // Minimal system prompts — the real context lives in CLAUDE.md and the
     // prompt itself. The agent is good enough to manage its own workflow;
     // we just set the right intent.
-    // 
+    //
     // Note: These are the new sub-agent modes for the skill-based pipeline.
     // Each mode has a distinct purpose and max turns.
     let (system_prompt, max_turns) = match mode {
@@ -71,7 +71,7 @@ pub async fn run(
             "Modify an existing JUCE plugin. Read the Source/ files, then apply targeted changes. Do NOT touch CMakeLists.txt.",
             "6",
         ),
-        
+
         // Sub-agent modes for skill-based pipeline
         "planner" => (
             "Analyze the user brief and create a plugin implementation plan. Write the plan to `.foundry/contracts/plan.md`. Do NOT write any code.",
@@ -97,7 +97,7 @@ pub async fn run(
             "Make targeted modifications to the plugin. Read Source/ files first, then apply changes. Do NOT rewrite entire files.",
             "5",
         ),
-        
+
         // Build-error fix pass (called by the build loop with compiler errors) - legacy fallback
         _ => (
             "Fix the build errors in this JUCE plugin. Only edit Source/ files. Do NOT touch CMakeLists.txt.",
@@ -371,7 +371,7 @@ pub async fn fix(
         &prompt,
         project_dir,
         model_flag,
-        "fix",
+        "build_fix",
         on_event,
         cancel_rx,
     )

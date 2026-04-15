@@ -80,6 +80,63 @@ for (int ch = 0; ch < buffer.getNumChannels(); ++ch) {
 13. Elliptical knobs: use `jmin(width, height)` before drawing arcs
 14. Duplicate labels: ONE label per control, managed ONE way
 
+## Editor Lifecycle Safety
+
+`juce::AudioProcessorEditor` construction has a sharp edge: `setSize(...)` can call `resized()` immediately.
+
+That means this order is required:
+
+1. Construct child components
+2. `addAndMakeVisible(...)` for those children
+3. Create attachments and callbacks
+4. Call `setSize(width, height)`
+5. Start timers only after the editor tree is ready
+
+If `resized()` uses `waveformDisplay->setBounds(...)`, `textureOrb->setBounds(...)`, `viewport->setBounds(...)`, or any other pointer-based child access, those child pointers must already exist before `setSize(...)` runs.
+
+Bad:
+
+```cpp
+MyEditor::MyEditor(MyProcessor& processor)
+    : AudioProcessorEditor(&processor), audioProcessor(processor)
+{
+    setLookAndFeel(&lookAndFeel);
+    setSize(1100, 700); // BAD: this can trigger resized() now
+
+    waveformDisplay = std::make_unique<WaveformDisplay>(audioProcessor, lookAndFeel);
+    addAndMakeVisible(*waveformDisplay);
+}
+
+void MyEditor::resized()
+{
+    waveformDisplay->setBounds(getLocalBounds()); // can crash during construction
+}
+```
+
+Good:
+
+```cpp
+MyEditor::MyEditor(MyProcessor& processor)
+    : AudioProcessorEditor(&processor), audioProcessor(processor)
+{
+    setLookAndFeel(&lookAndFeel);
+
+    waveformDisplay = std::make_unique<WaveformDisplay>(audioProcessor, lookAndFeel);
+    addAndMakeVisible(*waveformDisplay);
+
+    cutoffAttachment = std::make_unique<SliderAttachment>(audioProcessor.apvts, "cutoff", cutoffSlider);
+
+    setSize(1100, 700);
+    startTimerHz(30);
+}
+```
+
+Rules:
+- Assume `resized()` is callable during construction.
+- Do not dereference `std::unique_ptr` children in `resized()` unless they were initialized before `setSize(...)`.
+- If a child is truly optional, guard it in `resized()` with `if (child != nullptr)`.
+- Compiler-clean but crashy editor lifecycle code is still incorrect.
+
 ## ProcessorChain
 
 ```cpp

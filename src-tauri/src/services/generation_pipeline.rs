@@ -1,6 +1,11 @@
-use std::collections::hash_map::DefaultHasher;
+use std::collections::{hash_map::DefaultHasher, HashMap};
 use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc, Mutex,
+};
+use std::time::{Duration, Instant, SystemTime};
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::models::agent::{AgentModel, GenerationAgent};
@@ -25,6 +30,11 @@ struct LogEvent {
     timestamp: String,
     message: String,
     style: Option<String>,
+}
+
+#[derive(Clone, serde::Serialize)]
+struct SubphaseEvent {
+    label: String,
 }
 
 #[derive(Clone, serde::Serialize)]
@@ -56,6 +66,10 @@ struct CompleteEvent {
 struct BuildAttemptEvent {
     attempt: i32,
 }
+
+const SUBAGENT_IDLE_TIMEOUT_SECS: u64 = 240;
+const SUBAGENT_MONITOR_INTERVAL_SECS: u64 = 10;
+const SUBAGENT_IDLE_STATUS_SECS: u64 = 60;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct CreativeProfile {
@@ -100,8 +114,308 @@ fn emit_log(app: &AppHandle, message: &str, style: Option<&str>) {
     );
 }
 
+fn emit_subphase(app: &AppHandle, label: &str) {
+    let _ = app.emit(
+        "pipeline:subphase",
+        SubphaseEvent {
+            label: label.into(),
+        },
+    );
+}
+
 fn emit_streaming(app: &AppHandle, text: &str) {
     let _ = app.emit("pipeline:streaming", StreamingEvent { text: text.into() });
+}
+
+fn update_progress_clock(progress_clock: &Arc<Mutex<Instant>>) {
+    if let Ok(mut clock) = progress_clock.lock() {
+        *clock = Instant::now();
+    }
+}
+
+fn progress_idle_for(progress_clock: &Arc<Mutex<Instant>>) -> Duration {
+    progress_clock
+        .lock()
+        .map(|clock| clock.elapsed())
+        .unwrap_or_else(|_| Duration::from_secs(0))
+}
+
+fn format_elapsed_compact(duration: Duration) -> String {
+    let secs = duration.as_secs();
+    if secs >= 60 {
+        format!("{}m {}s", secs / 60, secs % 60)
+    } else {
+        format!("{}s", secs)
+    }
+}
+
+fn subagent_phase_label(role: agent_service::SubagentRole) -> &'static str {
+    match role {
+        agent_service::SubagentRole::Dsp => "DSP generation",
+        agent_service::SubagentRole::Ui => "UI generation",
+        _ => "generation phase",
+    }
+}
+
+fn subagent_expected_files(role: agent_service::SubagentRole) -> &'static [&'static str] {
+    match role {
+        agent_service::SubagentRole::Dsp => {
+            &["Source/PluginProcessor.h", "Source/PluginProcessor.cpp"]
+        }
+        agent_service::SubagentRole::Ui => &[
+            "Source/PluginEditor.h",
+            "Source/PluginEditor.cpp",
+            "Source/FoundryLookAndFeel.h",
+        ],
+        _ => &[],
+    }
+}
+
+fn missing_expected_files(project_dir: &Path, files: &[&str]) -> Vec<String> {
+    files
+        .iter()
+        .filter_map(|relative| {
+            let path = project_dir.join(relative);
+            if path.exists() {
+                None
+            } else {
+                Some((*relative).to_string())
+            }
+        })
+        .collect()
+}
+
+fn event_indicates_progress(event: &claude_code_service::ClaudeEvent) -> bool {
+    match event {
+        claude_code_service::ClaudeEvent::Text(text) => {
+            let trimmed = text.trim();
+            !trimmed.is_empty() && !trimmed.starts_with("Heartbeat:")
+        }
+        claude_code_service::ClaudeEvent::StreamingText(text) => !text.trim().is_empty(),
+        claude_code_service::ClaudeEvent::ToolUse { .. }
+        | claude_code_service::ClaudeEvent::ToolResult { .. }
+        | claude_code_service::ClaudeEvent::Stderr(_)
+        | claude_code_service::ClaudeEvent::Result { .. }
+        | claude_code_service::ClaudeEvent::Error(_) => true,
+    }
+}
+
+fn build_phase_status_label(
+    role: agent_service::SubagentRole,
+    ready_files: usize,
+    total_files: usize,
+    idle_for: Duration,
+) -> String {
+    let files_label = match role {
+        agent_service::SubagentRole::Dsp => "DSP files",
+        agent_service::SubagentRole::Ui => "UI files",
+        _ => "files",
+    };
+
+    let mut label = if ready_files >= total_files {
+        format!("{} ready; waiting for model to finish", files_label)
+    } else {
+        format!(
+            "Waiting for {} ({}/{})",
+            files_label, ready_files, total_files
+        )
+    };
+
+    if idle_for.as_secs() >= SUBAGENT_IDLE_STATUS_SECS {
+        label.push_str(&format!(
+            " · no meaningful progress for {}",
+            format_elapsed_compact(idle_for)
+        ));
+    }
+
+    label
+}
+
+async fn monitor_subagent_outputs(
+    app: AppHandle,
+    role: agent_service::SubagentRole,
+    project_dir: PathBuf,
+    progress_clock: Arc<Mutex<Instant>>,
+    mut stop_rx: tokio::sync::watch::Receiver<bool>,
+) {
+    let expected_files = subagent_expected_files(role);
+    if expected_files.is_empty() {
+        return;
+    }
+
+    let mut interval = tokio::time::interval(Duration::from_secs(SUBAGENT_MONITOR_INTERVAL_SECS));
+    interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+
+    let mut observed_files: HashMap<String, SystemTime> = HashMap::new();
+    let mut last_status = String::new();
+    let mut build_dir_seen = project_dir.join("build").exists();
+
+    loop {
+        tokio::select! {
+            _ = stop_rx.changed() => {
+                if *stop_rx.borrow() {
+                    break;
+                }
+            }
+            _ = interval.tick() => {
+                let mut ready_files = 0;
+
+                for relative in expected_files {
+                    let path = project_dir.join(relative);
+                    if let Ok(metadata) = std::fs::metadata(&path) {
+                        ready_files += 1;
+                        if let Ok(modified) = metadata.modified() {
+                            match observed_files.get(*relative) {
+                                Some(previous) if *previous == modified => {}
+                                Some(_) => {
+                                    emit_log(&app, &format!("FILE STATUS · {} updated", relative), Some("success"));
+                                    update_progress_clock(&progress_clock);
+                                    observed_files.insert((*relative).to_string(), modified);
+                                }
+                                None => {
+                                    emit_log(&app, &format!("FILE STATUS · {} created", relative), Some("success"));
+                                    update_progress_clock(&progress_clock);
+                                    observed_files.insert((*relative).to_string(), modified);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                let build_dir = project_dir.join("build");
+                if !build_dir_seen && build_dir.exists() {
+                    build_dir_seen = true;
+                    emit_log(
+                        &app,
+                        "MODEL STATUS · build directory appeared during code generation",
+                        Some("active"),
+                    );
+                }
+
+                let idle_for = progress_idle_for(&progress_clock);
+                let status = build_phase_status_label(role, ready_files, expected_files.len(), idle_for);
+                if status != last_status {
+                    emit_subphase(&app, &status);
+                    last_status = status;
+                }
+            }
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn run_monitored_subagent_phase(
+    app: &AppHandle,
+    agent_name: &str,
+    cli_path: &str,
+    role: agent_service::SubagentRole,
+    prompt: &str,
+    project_dir: &Path,
+    model_flag: &str,
+    cancel_watch: tokio::sync::watch::Receiver<bool>,
+) -> claude_code_service::RunResult {
+    let project_dir_string = project_dir.to_string_lossy().to_string();
+    let project_dir_path = project_dir.to_path_buf();
+    let progress_clock = Arc::new(Mutex::new(Instant::now()));
+    let timed_out = Arc::new(AtomicBool::new(false));
+    let (phase_cancel_tx, phase_cancel_rx) = tokio::sync::watch::channel(false);
+
+    let monitor_handle = tokio::spawn(monitor_subagent_outputs(
+        app.clone(),
+        role,
+        project_dir_path,
+        progress_clock.clone(),
+        phase_cancel_rx.clone(),
+    ));
+
+    let timeout_app = app.clone();
+    let timeout_progress_clock = progress_clock.clone();
+    let timeout_signal = phase_cancel_tx.clone();
+    let timeout_flag = timed_out.clone();
+    let timeout_role = role;
+    let timeout_handle = tokio::spawn(async move {
+        let mut outer_cancel = cancel_watch;
+        let mut interval =
+            tokio::time::interval(Duration::from_secs(SUBAGENT_MONITOR_INTERVAL_SECS));
+        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+
+        loop {
+            tokio::select! {
+                _ = outer_cancel.changed() => {
+                    if *outer_cancel.borrow() {
+                        let _ = timeout_signal.send(true);
+                        break;
+                    }
+                }
+                _ = interval.tick() => {
+                    let idle_for = progress_idle_for(&timeout_progress_clock);
+                    if idle_for.as_secs() >= SUBAGENT_IDLE_TIMEOUT_SECS {
+                        timeout_flag.store(true, Ordering::SeqCst);
+                        emit_log(
+                            &timeout_app,
+                            &format!(
+                                "MODEL TIMEOUT · {} had no meaningful progress for {}",
+                                subagent_phase_label(timeout_role),
+                                format_elapsed_compact(idle_for)
+                            ),
+                            Some("error"),
+                        );
+                        emit_subphase(
+                            &timeout_app,
+                            &format!(
+                                "{} timed out after {}",
+                                subagent_phase_label(timeout_role),
+                                format_elapsed_compact(idle_for)
+                            ),
+                        );
+                        let _ = timeout_signal.send(true);
+                        break;
+                    }
+                }
+            }
+        }
+    });
+
+    let event_progress_clock = progress_clock.clone();
+    let event_app = app.clone();
+    let on_event = move |event: claude_code_service::ClaudeEvent| {
+        if event_indicates_progress(&event) {
+            update_progress_clock(&event_progress_clock);
+        }
+        handle_claude_event(&event_app, &event);
+    };
+
+    let mut result = agent_service::run_subagent(
+        agent_name,
+        cli_path,
+        role,
+        prompt,
+        &project_dir_string,
+        model_flag,
+        on_event,
+        phase_cancel_rx.clone(),
+    )
+    .await;
+
+    let _ = phase_cancel_tx.send(true);
+    let _ = monitor_handle.await;
+    let _ = timeout_handle.await;
+
+    if timed_out.load(Ordering::SeqCst)
+        && result
+            .error
+            .as_deref()
+            .map(|message| message == "Cancelled")
+            .unwrap_or(true)
+    {
+        result.error = Some(format!(
+            "{} timed out after {} without meaningful progress",
+            subagent_phase_label(role),
+            format_elapsed_compact(Duration::from_secs(SUBAGENT_IDLE_TIMEOUT_SECS))
+        ));
+    }
+
+    result
 }
 
 pub async fn run_generation(
@@ -177,6 +491,8 @@ async fn execute_generation(
     cancel_watch: tokio::sync::watch::Receiver<bool>,
     tb: &mut TelemetryBuilder,
 ) -> Result<Plugin, String> {
+    const MAX_GENERATION_BUILD_ATTEMPTS: i32 = 4;
+
     // Resolve agent CLI path (Claude Code or Codex)
     let agent_name = &config.agent;
     let agent_display = agent_service::agent_display_name(agent_name);
@@ -188,7 +504,7 @@ async fn execute_generation(
     })?;
 
     let model_flag = &config.model;
-    let environment = build_environment::prepare_build_environment(false, None).await?;
+    let environment = build_environment::prepare_build_environment(true, Some(app)).await?;
     if environment.state != "ready" {
         let message = build_environment::format_blocked_message(&environment);
         tb.fail("environment", &message);
@@ -212,6 +528,7 @@ async fn execute_generation(
         .collect();
 
     // Generate the plugin name locally so the UI can show it immediately.
+    emit_subphase(app, "Generating plugin name");
     emit_log(app, "Generating plugin name...", None);
     let plugin_name = config
         .resume_plugin_name
@@ -237,6 +554,7 @@ async fn execute_generation(
     );
 
     let project = if let Some(existing_dir) = reusable_build_directory(&build_entry) {
+        emit_subphase(app, "Restoring previous workspace");
         emit_log(
             app,
             "Resuming from the previous failed workspace...",
@@ -247,6 +565,7 @@ async fn execute_generation(
             plugin_type: plugin_type_to_str(&build_entry.plugin_type).to_string(),
         }
     } else {
+        emit_subphase(app, "Assembling project files");
         emit_log(app, "Assembling project files...", None);
         let pre_profile = infer_creative_profile(
             &plugin_name,
@@ -299,7 +618,6 @@ async fn execute_generation(
     } else {
         "Inferred plugin type"
     };
-    let project_dir_str = project.directory.to_string_lossy().to_string();
     check_cancelled(&cancel_watch)?;
 
     // Step 2: Generate using skill-based multi-sub-agent pipeline
@@ -321,60 +639,62 @@ async fn execute_generation(
     // Select skills based on plugin type
     let skills = agent_service::get_skills_for_type(plugin_type);
 
-    // ── Planner phase ──────────────────────────────────────────────────────
-    emit_log(app, "PHASE: Planning implementation strategy...", Some("active"));
-    let planner_prompt = agent_service::build_planner_prompt(
-        &plugin_name,
-        plugin_type,
-        &config.prompt,
-        &skills,
-    );
-    let app_clone = app.clone();
-    let planner_result = agent_service::run_subagent(
-        agent_name,
-        &cli_path,
-        agent_service::SubagentRole::Planner,
-        &planner_prompt,
-        &project_dir_str,
-        model_flag,
-        move |event| handle_claude_event(&app_clone, &event),
-        cancel_watch.clone(),
-    )
-    .await;
-    tb.accumulate_run(&planner_result);
-    if is_infra_failure(&planner_result.error) {
-        tb.fail("planner", planner_result.error.as_deref().unwrap_or("Planner failed"));
-        return Err(planner_result.error.unwrap_or_else(|| "Planner failed".into()));
-    }
-
     // ── DSP phase ──────────────────────────────────────────────────────────
+    emit_subphase(app, "Generating DSP processor");
     emit_log(app, "PHASE: Generating DSP processor...", Some("active"));
-    let dsp_prompt = agent_service::build_dsp_prompt(
-        &plugin_name,
-        plugin_type,
-        &config.prompt,
-        None,
-        &skills,
-    );
-    let app_clone = app.clone();
-    let dsp_result = agent_service::run_subagent(
+    let dsp_prompt =
+        agent_service::build_dsp_prompt(&plugin_name, plugin_type, &config.prompt, None, &skills);
+    let dsp_result = run_monitored_subagent_phase(
+        app,
         agent_name,
         &cli_path,
         agent_service::SubagentRole::Dsp,
         &dsp_prompt,
-        &project_dir_str,
+        &project.directory,
         model_flag,
-        move |event| handle_claude_event(&app_clone, &event),
         cancel_watch.clone(),
     )
     .await;
     tb.accumulate_run(&dsp_result);
     if is_infra_failure(&dsp_result.error) {
-        tb.fail("dsp", dsp_result.error.as_deref().unwrap_or("DSP generation failed"));
-        return Err(dsp_result.error.unwrap_or_else(|| "DSP generation failed".into()));
+        tb.fail(
+            "dsp",
+            dsp_result
+                .error
+                .as_deref()
+                .unwrap_or("DSP generation failed"),
+        );
+        return Err(dsp_result
+            .error
+            .unwrap_or_else(|| "DSP generation failed".into()));
+    }
+    let missing_dsp_files = missing_expected_files(
+        &project.directory,
+        subagent_expected_files(agent_service::SubagentRole::Dsp),
+    );
+    if !missing_dsp_files.is_empty() {
+        let message = dsp_result.error.unwrap_or_else(|| {
+            format!(
+                "DSP generation ended before creating required files: {}",
+                missing_dsp_files.join(", ")
+            )
+        });
+        tb.fail("dsp", &message);
+        return Err(message);
+    }
+    if let Some(error) = &dsp_result.error {
+        emit_log(
+            app,
+            &format!(
+                "MODEL STATUS · continuing with generated DSP files after early stop: {}",
+                error
+            ),
+            Some("active"),
+        );
     }
 
     // ── UI phase ───────────────────────────────────────────────────────────
+    emit_subphase(app, "Generating UI editor");
     emit_log(app, "PHASE: Generating UI editor...", Some("active"));
     let parameter_manifest = extract_parameter_manifest(&project.directory);
     let ui_prompt = agent_service::build_ui_prompt(
@@ -384,46 +704,51 @@ async fn execute_generation(
         &parameter_manifest,
         &skills,
     );
-    let app_clone = app.clone();
-    let ui_result = agent_service::run_subagent(
+    let ui_result = run_monitored_subagent_phase(
+        app,
         agent_name,
         &cli_path,
         agent_service::SubagentRole::Ui,
         &ui_prompt,
-        &project_dir_str,
+        &project.directory,
         model_flag,
-        move |event| handle_claude_event(&app_clone, &event),
         cancel_watch.clone(),
     )
     .await;
     tb.accumulate_run(&ui_result);
     if is_infra_failure(&ui_result.error) {
-        tb.fail("ui", ui_result.error.as_deref().unwrap_or("UI generation failed"));
-        return Err(ui_result.error.unwrap_or_else(|| "UI generation failed".into()));
+        tb.fail(
+            "ui",
+            ui_result.error.as_deref().unwrap_or("UI generation failed"),
+        );
+        return Err(ui_result
+            .error
+            .unwrap_or_else(|| "UI generation failed".into()));
     }
-
-    // ── Review phase ───────────────────────────────────────────────────────
-    emit_log(app, "PHASE: Reviewing generated code...", Some("active"));
-    let creative_profile = infer_creative_profile(&plugin_name, plugin_type, &config.prompt);
-    let validation_issues = validate_generated_source_tree(
+    let missing_ui_files = missing_expected_files(
         &project.directory,
-        &plugin_name,
-        &creative_profile,
+        subagent_expected_files(agent_service::SubagentRole::Ui),
     );
-    let review_prompt = agent_service::build_review_prompt(&plugin_name, &validation_issues);
-    let app_clone = app.clone();
-    let review_result = agent_service::run_subagent(
-        agent_name,
-        &cli_path,
-        agent_service::SubagentRole::Review,
-        &review_prompt,
-        &project_dir_str,
-        model_flag,
-        move |event| handle_claude_event(&app_clone, &event),
-        cancel_watch.clone(),
-    )
-    .await;
-    tb.accumulate_run(&review_result);
+    if !missing_ui_files.is_empty() {
+        let message = ui_result.error.unwrap_or_else(|| {
+            format!(
+                "UI generation ended before creating required files: {}",
+                missing_ui_files.join(", ")
+            )
+        });
+        tb.fail("ui", &message);
+        return Err(message);
+    }
+    if let Some(error) = &ui_result.error {
+        emit_log(
+            app,
+            &format!(
+                "MODEL STATUS · continuing with generated UI files after early stop: {}",
+                error
+            ),
+            Some("active"),
+        );
+    }
 
     tb.end_generation();
     tb.plugin_type = Some(plugin_type.clone());
@@ -463,7 +788,7 @@ async fn execute_generation(
         app,
         tb,
         cancel_watch.clone(),
-        None, // unlimited attempts
+        Some(MAX_GENERATION_BUILD_ATTEMPTS),
     )
     .await?;
 
@@ -636,6 +961,13 @@ async fn execute_refine(
         return Err(format!("Build directory no longer exists: {}", build_dir));
     }
 
+    let environment = build_environment::prepare_build_environment(true, Some(app)).await?;
+    if environment.state != "ready" {
+        let message = build_environment::format_blocked_message(&environment);
+        tb.fail("environment", &message);
+        return Err(message);
+    }
+
     let project_dir = Path::new(build_dir);
     let model_flag = preferred_plugin_model_flag(&config.plugin);
 
@@ -664,6 +996,7 @@ async fn execute_refine(
 
     // Generate code
     emit_step(app, "generating");
+    emit_subphase(app, "Applying requested changes");
     emit_log(app, "START: Modifying code...", Some("active"));
     tb.start_generation();
 
@@ -1175,6 +1508,7 @@ async fn run_build_loop_with_skip(
         let _ = app.emit("pipeline:build_attempt", BuildAttemptEvent { attempt });
 
         let skip = initial_skip_configure || attempt > 1;
+        emit_subphase(app, &format!("Compiling attempt {}", attempt));
         if !skip {
             emit_log(app, "CMake: Configuring project...", None);
         }
@@ -1209,6 +1543,10 @@ async fn run_build_loop_with_skip(
                 Some("active"),
             );
             emit_step(app, "generating");
+            emit_subphase(
+                app,
+                &format!("Fixing build issues after attempt {}", attempt),
+            );
 
             let app_clone = app.clone();
             let project_dir_str = project_dir.to_string_lossy().to_string();
@@ -1280,6 +1618,10 @@ async fn run_build_loop_with_skip(
             }
         }
         emit_step(app, "generating");
+        emit_subphase(
+            app,
+            &format!("Fixing build errors after attempt {}", attempt),
+        );
 
         let app_clone = app.clone();
         let project_dir_str = project_dir.to_string_lossy().to_string();
@@ -2455,6 +2797,16 @@ fn validate_generated_source_tree(
         issues.push("Editor must call setSize(...) with explicit numeric dimensions".into());
     }
 
+    if editor_constructor_uses_uninitialized_pointer_children(
+        &editor_header,
+        &editor_source,
+        plugin_name,
+    ) {
+        issues.push(
+            "PluginEditor.cpp must initialize pointer-owned child components before calling setSize(...); resized() can run during construction".into(),
+        );
+    }
+
     issues.sort();
     issues.dedup();
     issues
@@ -2643,6 +2995,93 @@ fn uses_control_paging(editor_source: &str) -> bool {
 }
 
 #[cfg_attr(not(test), allow(dead_code))]
+fn extract_pointer_owned_child_names(editor_header: &str) -> Vec<String> {
+    editor_header
+        .lines()
+        .flat_map(|line| {
+            line.split(';').filter_map(|segment| {
+                if !segment.contains("std::unique_ptr<") {
+                    return None;
+                }
+
+                let trimmed = segment.split("//").next().unwrap_or(segment).trim();
+                let name = trimmed.split_whitespace().last()?.trim_end_matches(',');
+
+                if name.is_empty() {
+                    None
+                } else {
+                    Some(name.to_string())
+                }
+            })
+        })
+        .collect()
+}
+
+#[cfg_attr(not(test), allow(dead_code))]
+fn extract_block_body_after<'a>(source: &'a str, needle: &str) -> Option<&'a str> {
+    let start = source.find(needle)?;
+    let body_start = source[start..].find('{')? + start;
+    let mut depth = 0;
+    let mut body_end = None;
+
+    for (offset, ch) in source[body_start..].char_indices() {
+        match ch {
+            '{' => depth += 1,
+            '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    body_end = Some(body_start + offset);
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let end = body_end?;
+    Some(&source[body_start + 1..end])
+}
+
+#[cfg_attr(not(test), allow(dead_code))]
+fn editor_constructor_uses_uninitialized_pointer_children(
+    editor_header: &str,
+    editor_source: &str,
+    plugin_name: &str,
+) -> bool {
+    let constructor_body = extract_block_body_after(
+        editor_source,
+        &format!("{name}Editor::{name}Editor", name = plugin_name),
+    );
+    let resized_body =
+        extract_block_body_after(editor_source, &format!("{}Editor::resized", plugin_name));
+
+    let (Some(constructor_body), Some(resized_body)) = (constructor_body, resized_body) else {
+        return false;
+    };
+
+    let Some(set_size_index) = constructor_body.find("setSize") else {
+        return false;
+    };
+
+    let before_set_size = &constructor_body[..set_size_index];
+    let after_set_size = &constructor_body[set_size_index..];
+
+    extract_pointer_owned_child_names(editor_header)
+        .into_iter()
+        .filter(|name| resized_body.contains(&format!("{}->", name)))
+        .any(|name| {
+            let initialized_before = before_set_size
+                .contains(&format!("{} = std::make_unique", name))
+                || before_set_size.contains(&format!("{}.reset", name));
+            let initialized_after = after_set_size
+                .contains(&format!("{} = std::make_unique", name))
+                || after_set_size.contains(&format!("{}.reset", name));
+
+            !initialized_before && initialized_after
+        })
+}
+
+#[cfg_attr(not(test), allow(dead_code))]
 fn should_run_ui_recovery(missing_files: &[&str], validation_issues: &[String]) -> bool {
     missing_files
         .iter()
@@ -2749,6 +3188,10 @@ Rules:
 - Always reference files with repo-relative paths like `Source/PluginEditor.cpp`; never use bare filenames.
 - In `PluginEditor.cpp`, the constructor must contain `setSize({editor_width}, {editor_height});` or another explicit numeric landscape size of similar generosity.
 - Do not use named constants, helper variables, or portrait dimensions for `setSize(...)`.
+- Assume `setSize(...)` can trigger `resized()` immediately during construction.
+- Create child components first, then `addAndMakeVisible(...)`, then call `setSize(...)`.
+- Do not dereference pointer-owned child components in `resized()` unless they were initialized before `setSize(...)`.
+- Start timers only after the editor tree is fully initialized.
 - Use `getLocalBounds()` flow, `juce::Grid`, or `juce::FlexBox`.
 - Build a multi-zone landscape editor. Do not use `juce::Viewport`, `juce::ScrollBar`, or a single tall control column.
 - If there are many controls, use tabs, pages, or alternate views instead of a giant one-page surface.
@@ -2839,6 +3282,10 @@ Rules:
 - UI must use a generous landscape editor size with consistent padding, spacing, non-overlapping controls, and no scrolling.
 - In `PluginEditor.cpp`, the constructor must contain an explicit numeric call like `setSize({editor_width}, {editor_height});`.
 - Do not use named constants, helper variables, or portrait dimensions for that `setSize(...)` call.
+- Assume `setSize(...)` can trigger `resized()` immediately during construction.
+- Create child components first, then `addAndMakeVisible(...)`, then call `setSize(...)`.
+- Do not dereference pointer-owned child components in `resized()` unless they were initialized before `setSize(...)`.
+- Start timers only after the editor tree is fully initialized.
 - UI layout must come from `getLocalBounds()` flow, `juce::Grid`, or `juce::FlexBox`, not arbitrary scattered coordinates.
 - Do not use `juce::Viewport`, `juce::ScrollBar`, or a single tall control column. The editor must feel like a composed multi-zone instrument panel.
 - Use more than one control family when the brief allows it, and draw a curve, graph, meter, scope, or motion display when the DSP implies one.
@@ -3202,6 +3649,45 @@ mod tests {
     }
 
     #[test]
+    fn validation_reports_unsafe_editor_construction_order() {
+        let dir = make_temp_dir();
+        let creative_profile = infer_creative_profile("Flux", "effect", "Wide chorus");
+
+        std::fs::write(
+            dir.join("Source/PluginProcessor.h"),
+            "#include <JuceHeader.h>\nclass FluxProcessor { public: juce::AudioProcessorValueTreeState apvts; };",
+        )
+        .unwrap();
+        std::fs::write(
+            dir.join("Source/PluginProcessor.cpp"),
+            "#include \"PluginProcessor.h\"\n",
+        )
+        .unwrap();
+        std::fs::write(
+            dir.join("Source/PluginEditor.h"),
+            "#include <JuceHeader.h>\nclass FluxEditor { public: using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment; std::unique_ptr<juce::Component> waveformDisplay; };",
+        )
+        .unwrap();
+        std::fs::write(
+            dir.join("Source/PluginEditor.cpp"),
+            "#include \"PluginEditor.h\"\nFluxEditor::FluxEditor() { setSize(920, 600); waveformDisplay = std::make_unique<juce::Component>(); }\nvoid FluxEditor::resized() { waveformDisplay->setBounds(getLocalBounds()); }\n",
+        )
+        .unwrap();
+        std::fs::write(
+            dir.join("Source/FoundryLookAndFeel.h"),
+            "#include <JuceHeader.h>\nclass FoundryLookAndFeel {};",
+        )
+        .unwrap();
+
+        let issues = validate_generated_source_tree(&dir, "Flux", &creative_profile);
+
+        assert!(issues.iter().any(|issue| issue
+            .contains("initialize pointer-owned child components before calling setSize")));
+
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
     fn ui_prompts_require_explicit_numeric_landscape_size() {
         let creative_profile = infer_creative_profile("Flux", "effect", "Wide chorus");
         let parameter_manifest = vec!["mix".to_string()];
@@ -3233,6 +3719,8 @@ mod tests {
             assert!(prompt.contains("setSize(920, 600);"));
             assert!(prompt.contains("named constants"));
             assert!(prompt.contains("juce::Viewport"));
+            assert!(prompt.contains("trigger `resized()` immediately"));
+            assert!(prompt.contains("Create child components first"));
         }
     }
 

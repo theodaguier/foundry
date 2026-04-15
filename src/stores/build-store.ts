@@ -37,6 +37,7 @@ interface BuildStore {
   activePluginId: string | null;
   isRunning: boolean;
   currentStep: GenerationStep;
+  currentSubphase: string | null;
   logLines: PipelineLogLine[];
   streamingText: string;
   generatedPluginName: string | null;
@@ -62,6 +63,7 @@ interface BuildStore {
   tick: () => void;
   reset: () => void;
   handleStep: (step: GenerationStep) => void;
+  handleSubphase: (label: string) => void;
   handleLog: (line: PipelineLogLine) => void;
   handleStreaming: (text: string) => void;
   handleName: (name: string) => void;
@@ -140,6 +142,7 @@ export const useBuildStore = create<BuildStore>((set, get) => ({
   activePluginId: null,
   isRunning: false,
   currentStep: "preparingEnvironment",
+  currentSubphase: null,
   logLines: [],
   streamingText: "",
   generatedPluginName: null,
@@ -160,6 +163,7 @@ export const useBuildStore = create<BuildStore>((set, get) => ({
       activePluginId: config.resumePluginId ?? null,
       isRunning: true,
       currentStep: "preparingEnvironment",
+      currentSubphase: null,
       logLines: [],
       streamingText: "",
       generatedPluginName: null,
@@ -168,16 +172,12 @@ export const useBuildStore = create<BuildStore>((set, get) => ({
       completedSteps: new Set(),
       highWaterStep: 0,
       progress: 0,
+      showConsole: true,
       config: stripDebugConfig(config),
       refineConfig: null,
       lastErrorMessage: null,
     });
     try {
-      const environment = await commands.prepareBuildEnvironment(true);
-      if (environment.state !== "ready") {
-        set({ isRunning: false });
-        return;
-      }
       trackGenerationStarted({
         pluginType: config.pluginType ?? "unknown",
         agent: config.agent,
@@ -211,6 +211,7 @@ export const useBuildStore = create<BuildStore>((set, get) => ({
       activePluginId: null,
       isRunning: true,
       currentStep: "preparingEnvironment",
+      currentSubphase: null,
       logLines: [],
       streamingText: "",
       generatedPluginName: config.plugin.name,
@@ -219,16 +220,12 @@ export const useBuildStore = create<BuildStore>((set, get) => ({
       completedSteps: new Set(),
       highWaterStep: 0,
       progress: 0,
+      showConsole: true,
       config: null,
       refineConfig: config,
       lastErrorMessage: null,
     });
     try {
-      const environment = await commands.prepareBuildEnvironment(true);
-      if (environment.state !== "ready") {
-        set({ isRunning: false });
-        return;
-      }
       trackRefineStarted({ agent: config.plugin.agent ?? "unknown", model: config.plugin.model?.id ?? "unknown" });
       await commands.startRefine(config);
     } catch (error) {
@@ -257,6 +254,7 @@ export const useBuildStore = create<BuildStore>((set, get) => ({
       activePluginId: null,
       isRunning: false,
       currentStep: "preparingEnvironment",
+      currentSubphase: null,
       logLines: [],
       streamingText: "",
       generatedPluginName: null,
@@ -284,12 +282,15 @@ export const useBuildStore = create<BuildStore>((set, get) => ({
         : generationVisibleIndex[step];
       return {
         currentStep: step,
+        currentSubphase: null,
         highWaterStep: Math.max(s.highWaterStep, idx),
         completedSteps: newCompleted,
         progress: visibleIndex / Math.max(visibleSteps - 1, 1),
       };
     });
   },
+
+  handleSubphase: (label) => set({ currentSubphase: label || null }),
 
   handleLog: (line) =>
     set((s) => {
@@ -330,6 +331,7 @@ export const useBuildStore = create<BuildStore>((set, get) => ({
       activePluginId: null,
       isRunning: false,
       progress: 1,
+      currentSubphase: null,
       lastErrorMessage: null,
       lastCompletedTelemetryId: telemetryId,
       userRating: null,
@@ -345,7 +347,7 @@ export const useBuildStore = create<BuildStore>((set, get) => ({
   },
   handleError: (message) => {
     const { config, elapsedSeconds, buildAttempt } = get();
-    set({ isRunning: false, lastErrorMessage: message });
+    set({ isRunning: false, currentSubphase: null, lastErrorMessage: message });
     trackGenerationCompleted({
       pluginType: config?.pluginType ?? "unknown",
       agent: config?.agent ?? "unknown",

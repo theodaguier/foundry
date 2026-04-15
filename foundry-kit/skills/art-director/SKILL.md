@@ -50,6 +50,13 @@ If users must scroll to see core parameters, the window is too small.
 - Declare in editor header: `FoundryLookAndFeel lookAndFeel;`
 - Set in constructor: `setLookAndFeel(&lookAndFeel);`
 
+### Construction Order
+- JUCE may call `resized()` as soon as `setSize(...)` runs
+- Therefore: create child views first, add them to the editor, then call `setSize(...)`
+- If your layout uses pointer-owned children like displays, meters, or custom panels, they must exist before any `setBounds(...)` call triggered by `resized()`
+- Start timers only after the component tree is fully initialized
+- A beautiful layout that crashes on first open is a failed design
+
 ## Color System (7 tokens)
 
 ```
@@ -77,3 +84,4 @@ If implementing factory presets via `getNumPrograms()`/`getProgramName()`:
 - Elliptical knobs (use `jmin(width, height)` in drawRotarySlider)
 - Duplicate labels on the same control
 - More than one chromatic accent color
+- Calling `setSize(...)` before constructing child components used in `resized()`
