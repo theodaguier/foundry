@@ -41,7 +41,10 @@ pub async fn run(
         "exec".to_string(),
         full_prompt.clone(),
         "--json".to_string(),
-        "--dangerously-bypass-approvals-and-sandbox".to_string(),
+        "--full-auto".to_string(),
+        "--skip-git-repo-check".to_string(),
+        "-c".to_string(),
+        "model_reasoning_effort=\"medium\"".to_string(),
         "-C".to_string(),
         project_dir.to_string(),
         "-m".to_string(),
@@ -52,10 +55,8 @@ pub async fn run(
     // and kill the process if it exceeds the limit.
     let turn_limit: i64 = max_turns.parse().unwrap_or(50);
 
-    // For generate modes, add --ephemeral to avoid session persistence
-    if mode.starts_with("generate") || mode == "plan" {
-        args.push("--ephemeral".to_string());
-    }
+    // Every Foundry-run Codex session is disposable.
+    args.push("--ephemeral".to_string());
 
     let env = crate::services::claude_code_service::shell_environment();
 
@@ -234,6 +235,15 @@ pub async fn run(
                         stderr_output.push('\n');
                         let trimmed = text.trim();
                         if !trimmed.is_empty() {
+                            if is_fatal_codex_stderr(trimmed) {
+                                structured_error = Some(trimmed.to_string());
+                                final_success = false;
+                                on_event(ClaudeEvent::Error(trimmed.to_string()));
+                                let _ = child.kill().await;
+                                stdout_done = true;
+                                stderr_done = true;
+                                continue;
+                            }
                             on_event(ClaudeEvent::Stderr(trimmed.to_string()));
                         }
                     }
@@ -307,7 +317,7 @@ pub async fn fix(
         &prompt,
         project_dir,
         model_flag,
-        "refine",
+        "build_fix",
         on_event,
         cancel_rx,
     )
@@ -529,6 +539,12 @@ fn truncate(s: &str, max_len: usize) -> String {
     }
 }
 
+fn is_fatal_codex_stderr(message: &str) -> bool {
+    let lower = message.to_ascii_lowercase();
+    lower.contains("not inside a trusted directory")
+        || lower.contains("--skip-git-repo-check was not specified")
+}
+
 fn expected_output_files_exist(project_dir: &str, mode: &str) -> bool {
     let required_files: &[&str] = match mode {
         "generate" => &[
@@ -538,8 +554,8 @@ fn expected_output_files_exist(project_dir: &str, mode: &str) -> bool {
             "Source/PluginEditor.h",
             "Source/PluginEditor.cpp",
         ],
-        "generate_processor" => &["Source/PluginProcessor.h", "Source/PluginProcessor.cpp"],
-        "generate_ui" => &[
+        "generate_processor" | "dsp" => &["Source/PluginProcessor.h", "Source/PluginProcessor.cpp"],
+        "generate_ui" | "ui" => &[
             "Source/FoundryLookAndFeel.h",
             "Source/PluginEditor.h",
             "Source/PluginEditor.cpp",
@@ -559,25 +575,25 @@ fn expected_output_files_exist(project_dir: &str, mode: &str) -> bool {
 
 /// Minimal system instructions baked into the prompt for Codex.
 /// The real context is in the AGENTS.md content prepended by agent_service.
-/// 
+///
 /// These are the sub-agent modes for the skill-based pipeline.
 /// Each mode has a distinct purpose and max turns for parity with Claude.
 fn mode_system_instructions(mode: &str) -> &'static str {
     match mode {
         // Legacy modes (kept for backward compatibility)
-        "generate" => "Build a complete JUCE plugin. The prompt contains the full spec and expert knowledge. Write all Source/ files. Do NOT touch CMakeLists.txt.",
-        "refine" => "Modify an existing JUCE plugin. Read the Source/ files, then apply targeted changes. Do NOT touch CMakeLists.txt.",
-        
+        "generate" => "Build a complete JUCE plugin. The prompt contains the full spec and expert knowledge. Write all Source/ files. Do NOT touch CMakeLists.txt. Do NOT run shell commands, CMake, make, npm, cargo, git, or tests during generation.",
+        "refine" => "Modify an existing JUCE plugin. Read the Source/ files, then apply targeted changes. Do NOT touch CMakeLists.txt. Do NOT run shell commands, builds, or tests.",
+
         // Sub-agent modes for skill-based pipeline
-        "planner" => "Analyze the user brief and create a plugin implementation plan. Write the plan to `.foundry/contracts/plan.md`. Do NOT write any code.",
-        "dsp" => "Generate the DSP processor files: Source/PluginProcessor.h and Source/PluginProcessor.cpp with APVTS parameters and signal processing. Write complete, compilable code.",
-        "ui" => "Generate the UI files: Source/PluginEditor.h, Source/PluginEditor.cpp, and Source/FoundryLookAndFeel.h with real controls. Write complete, usable code.",
+        "planner" => "Analyze the user brief and create a plugin implementation plan. Write the plan to `.foundry/contracts/plan.md`. Do NOT write any code or run shell commands.",
+        "dsp" => "Generate the DSP processor files: Source/PluginProcessor.h and Source/PluginProcessor.cpp with APVTS parameters and signal processing. Write complete, compilable code. Do NOT run shell commands, builds, package managers, or git.",
+        "ui" => "Generate the UI files: Source/PluginEditor.h, Source/PluginEditor.cpp, and Source/FoundryLookAndFeel.h with real controls. Write complete, usable code. Do NOT run shell commands, builds, package managers, or git.",
         "review" => "Review the generated code for correctness and completeness. Write findings to `.foundry/review/findings.md`. Do NOT rewrite code.",
-        "build_fix" => "Fix the build errors in this JUCE plugin. Only edit Source/ files. Do NOT touch CMakeLists.txt.",
-        "refine_modify" => "Make targeted modifications to the plugin. Read Source/ files first, then apply changes. Do NOT rewrite entire files.",
-        
+        "build_fix" => "Fix the build errors in this JUCE plugin. Only edit Source/ files. Do NOT touch CMakeLists.txt. Do NOT run shell commands or builds; Foundry will recompile for you.",
+        "refine_modify" => "Make targeted modifications to the plugin. Read Source/ files first, then apply changes. Do NOT rewrite entire files. Do NOT run shell commands or builds.",
+
         // Legacy fallback
-        _ => "Fix the errors in this JUCE plugin. Only edit Source/ files. Do NOT touch CMakeLists.txt.",
+        _ => "Fix the errors in this JUCE plugin. Only edit Source/ files. Do NOT touch CMakeLists.txt. Do NOT run shell commands or builds.",
     }
 }
 
@@ -587,7 +603,7 @@ fn mode_max_turns(mode: &str) -> &'static str {
         // Legacy modes
         "generate" => "8",
         "refine" => "6",
-        
+
         // Sub-agent modes for skill-based pipeline
         "planner" => "4",
         "dsp" => "6",
@@ -595,7 +611,7 @@ fn mode_max_turns(mode: &str) -> &'static str {
         "review" => "3",
         "build_fix" => "4",
         "refine_modify" => "5",
-        
+
         // Legacy fallback
         _ => "6",
     }
@@ -603,7 +619,7 @@ fn mode_max_turns(mode: &str) -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::expected_output_files_exist;
+    use super::{expected_output_files_exist, is_fatal_codex_stderr};
 
     fn make_temp_dir() -> std::path::PathBuf {
         let dir = std::env::temp_dir().join(format!("foundry-codex-test-{}", uuid::Uuid::new_v4()));
@@ -612,20 +628,35 @@ mod tests {
     }
 
     #[test]
-    fn generate_processor_requires_both_processor_files() {
+    fn dsp_requires_both_processor_files() {
         let dir = make_temp_dir();
         std::fs::write(dir.join("Source/PluginProcessor.h"), "// header").unwrap();
-        assert!(!expected_output_files_exist(
-            dir.to_str().unwrap(),
-            "generate_processor"
-        ));
+        assert!(!expected_output_files_exist(dir.to_str().unwrap(), "dsp"));
 
         std::fs::write(dir.join("Source/PluginProcessor.cpp"), "// source").unwrap();
-        assert!(expected_output_files_exist(
-            dir.to_str().unwrap(),
-            "generate_processor"
-        ));
+        assert!(expected_output_files_exist(dir.to_str().unwrap(), "dsp"));
 
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn ui_requires_all_ui_files() {
+        let dir = make_temp_dir();
+        std::fs::write(dir.join("Source/PluginEditor.h"), "// header").unwrap();
+        std::fs::write(dir.join("Source/PluginEditor.cpp"), "// source").unwrap();
+        assert!(!expected_output_files_exist(dir.to_str().unwrap(), "ui"));
+
+        std::fs::write(dir.join("Source/FoundryLookAndFeel.h"), "// look and feel").unwrap();
+        assert!(expected_output_files_exist(dir.to_str().unwrap(), "ui"));
+
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn trusted_directory_error_is_fatal() {
+        assert!(is_fatal_codex_stderr(
+            "Not inside a trusted directory and --skip-git-repo-check was not specified."
+        ));
+        assert!(!is_fatal_codex_stderr("warning: slow network"));
     }
 }

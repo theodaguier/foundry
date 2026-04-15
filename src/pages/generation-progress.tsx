@@ -112,7 +112,7 @@ function ConsolePanel({
 }: {
   logLines: { timestamp: string; message: string; style?: string }[]
   streamingText: string
-  modelMeta: { agentLabel: string; modelLabel: string; stepLabel: string }
+  modelMeta: { agentLabel: string; modelLabel: string; phaseLabel: string; activityLabel: string }
   buildAttempt: number
   elapsedSeconds: number
   logStyleClass: (style?: string) => string
@@ -141,10 +141,13 @@ function ConsolePanel({
           <span>·</span>
           <span>{modelMeta.modelLabel}</span>
           <span>·</span>
-          <span>{modelMeta.stepLabel}</span>
+          <span>{modelMeta.phaseLabel}</span>
           {buildAttempt > 0 && <><span>·</span><span>attempt {buildAttempt}</span></>}
         </div>
         <span className="text-[9px] text-muted-foreground/30 tabular-nums">{formatTime(elapsedSeconds)}</span>
+      </div>
+      <div className="px-3 py-2 border-b border-border/30">
+        <span className="text-[10px] text-foreground/70">{modelMeta.activityLabel}</span>
       </div>
       <div
         ref={scrollRef}
@@ -181,6 +184,7 @@ export default function GenerationProgress({ mode }: Props) {
   const elapsedSeconds = useBuildStore((s) => s.elapsedSeconds)
   const logLines = useBuildStore((s) => s.logLines)
   const streamingText = useBuildStore((s) => s.streamingText)
+  const currentSubphase = useBuildStore((s) => s.currentSubphase)
   const buildAttempt = useBuildStore((s) => s.buildAttempt)
   const config = useBuildStore((s) => s.config)
   const isRunning = useBuildStore((s) => s.isRunning)
@@ -198,10 +202,12 @@ export default function GenerationProgress({ mode }: Props) {
     const selectedModel: AgentModel | null = refineConfig?.plugin.model ?? null
     const agentLabel = config?.agent ?? refineConfig?.plugin.agent ?? "claude-code"
     const modelLabel = config?.model ?? selectedModel?.name ?? selectedModel?.flag ?? "unknown-model"
+    const phaseLabel = generationStepLabel(currentStep, isRefine)
     return {
       agentLabel,
       modelLabel,
-      stepLabel: generationStepLabel(currentStep, isRefine),
+      phaseLabel,
+      activityLabel: currentSubphase ?? phaseLabel,
     }
   })()
 
@@ -274,6 +280,15 @@ export default function GenerationProgress({ mode }: Props) {
                   </div>
                 )
               })}
+            </div>
+
+            <div className="rounded-md border border-border/50 bg-card/30 px-3 py-2">
+              <div className="text-[9px] uppercase tracking-[1.4px] text-muted-foreground/40">
+                Current task
+              </div>
+              <div className="mt-1 text-[11px] text-foreground/80">
+                {modelMeta.activityLabel}
+              </div>
             </div>
 
             <div className="flex flex-col gap-1.5">

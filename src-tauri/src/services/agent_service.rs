@@ -2,7 +2,7 @@
 //!
 //! Routes `run` and `fix` calls to either `claude_code_service` or `codex_service`
 //! based on the agent identifier, allowing the generation pipeline to be backend-agnostic.
-//! 
+//!
 //! Also provides sub-agent orchestration for the skill-based pipeline:
 //! - Planner: analyzes brief and creates implementation plan
 //! - Dsp: generates PluginProcessor.h/.cpp
@@ -10,9 +10,9 @@
 //! - Review: validates generated code
 //! - BuildFix: fixes compilation errors
 
-pub use crate::models::agent::{SkillId, SubagentRole};
 pub use crate::models::agent::skills_for_plugin_type;
 pub use crate::models::agent::skills_to_load;
+pub use crate::models::agent::{SkillId, SubagentRole};
 use crate::services::{claude_code_service, codex_service};
 pub use claude_code_service::{ClaudeEvent, RunResult};
 
@@ -147,7 +147,7 @@ fn normalized_agent(agent: &str) -> &'static str {
 }
 
 /// Run a sub-agent with a specific role for the skill-based pipeline.
-/// 
+///
 /// This is the core abstraction that enables identical behavior across Claude and Codex.
 #[allow(clippy::too_many_arguments)]
 pub async fn run_subagent(
@@ -168,7 +168,7 @@ pub async fn run_subagent(
         role.system_instruction(),
         role.max_turns()
     );
-    
+
     run(
         agent,
         cli_path,
@@ -186,13 +186,18 @@ pub async fn run_subagent(
 /// This prompt tells the agent which skills to load and apply.
 pub fn build_skills_prompt(skills: &[SkillId], plugin_type: &str) -> String {
     let skill_names: Vec<&str> = skills_to_load(skills);
-    let skill_list = skill_names.iter().map(|s| format!("- {}", s)).collect::<Vec<_>>().join("\n");
-    
+    let skill_list = skill_names
+        .iter()
+        .map(|s| format!("- {}", s))
+        .collect::<Vec<_>>()
+        .join("\n");
+
     format!(
         "## SKILLS TO LOAD\n\
         Load and apply the following Foundry skills:\n\
         {}\n\n\
-        These skills provide expert knowledge for building this {} plugin.\n",
+        These skills provide expert knowledge for building this {} plugin.\n\
+        Apply them silently. Do not announce which skills you loaded, do not explain a plan, and do not narrate your next steps before editing files.\n",
         skill_list, plugin_type
     )
 }
@@ -203,6 +208,7 @@ pub fn get_skills_for_type(plugin_type: &str) -> Vec<SkillId> {
 }
 
 /// Create a planner prompt that analyzes the user brief and creates an implementation plan.
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn build_planner_prompt(
     plugin_name: &str,
     plugin_type: &str,
@@ -210,7 +216,7 @@ pub fn build_planner_prompt(
     skills: &[SkillId],
 ) -> String {
     let skills_section = build_skills_prompt(skills, plugin_type);
-    
+
     format!(
         "# PLANNING PHASE\n\n\
         ## PLUGIN SPEC\n\
@@ -238,8 +244,10 @@ pub fn build_dsp_prompt(
     skills: &[SkillId],
 ) -> String {
     let skills_section = build_skills_prompt(skills, plugin_type);
-    let plan_ref = plan_manifest.map(|p| format!("\n## IMPLEMENTATION PLAN\n{}", p)).unwrap_or_default();
-    
+    let plan_ref = plan_manifest
+        .map(|p| format!("\n## IMPLEMENTATION PLAN\n{}", p))
+        .unwrap_or_default();
+
     format!(
         "# DSP GENERATION PHASE\n\n\
         ## PLUGIN SPEC\n\
@@ -252,6 +260,8 @@ pub fn build_dsp_prompt(
         - Use APVTS for all parameters\n\
         - Implement smooth parameter changes with SmoothedValue\n\
         - Include all signal processing in processBlock\n\
+        - Your first action must create or edit one of the required Source/ files\n\
+        - Do not spend a turn explaining the architecture in chat\n\
         Write complete, compilable code. Do NOT use placeholders.",
         plugin_name, plugin_type, user_prompt, plan_ref, skills_section
     )
@@ -269,9 +279,13 @@ pub fn build_ui_prompt(
     let params = if parameter_manifest.is_empty() {
         "No parameters detected yet.".to_string()
     } else {
-        parameter_manifest.iter().map(|p| format!("- {}", p)).collect::<Vec<_>>().join("\n")
+        parameter_manifest
+            .iter()
+            .map(|p| format!("- {}", p))
+            .collect::<Vec<_>>()
+            .join("\n")
     };
-    
+
     format!(
         "# UI GENERATION PHASE\n\n\
         ## PLUGIN SPEC\n\
@@ -286,22 +300,30 @@ pub fn build_ui_prompt(
         - Create controls bound to APVTS parameters\n\
         - Design a layout appropriate for the plugin purpose\n\
         - Use explicit setSize(width, height) with landscape dimensions\n\
+        - Assume setSize(...) can trigger resized() immediately during construction\n\
+        - Create child components first, add them to the editor, then call setSize(...)\n\
+        - Do not let resized() dereference a child pointer unless that child was initialized before setSize(...)\n\
+        - Start timers only after the editor tree is fully initialized\n\
+        - Your first action must create or edit one of the required Source/ files\n\
+        - Do not spend a turn explaining the layout in chat\n\
         Write complete, usable code. Do NOT use placeholders.",
         plugin_name, plugin_type, user_prompt, params, skills_section
     )
 }
 
 /// Create a review prompt.
-pub fn build_review_prompt(
-    plugin_name: &str,
-    validation_issues: &[String],
-) -> String {
+#[cfg_attr(not(test), allow(dead_code))]
+pub fn build_review_prompt(plugin_name: &str, validation_issues: &[String]) -> String {
     let issues = if validation_issues.is_empty() {
         "No specific issues reported.".to_string()
     } else {
-        validation_issues.iter().map(|i| format!("- {}", i)).collect::<Vec<_>>().join("\n")
+        validation_issues
+            .iter()
+            .map(|i| format!("- {}", i))
+            .collect::<Vec<_>>()
+            .join("\n")
     };
-    
+
     format!(
         "# CODE REVIEW PHASE\n\n\
         ## PLUGIN\n\
@@ -317,4 +339,25 @@ pub fn build_review_prompt(
         Report findings to `.foundry/review/findings.md`.",
         plugin_name, issues
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ui_prompt_includes_editor_lifecycle_rules() {
+        let prompt = build_ui_prompt(
+            "Flux",
+            "effect",
+            "Wide chorus",
+            &["mix".to_string(), "depth".to_string()],
+            &get_skills_for_type("effect"),
+        );
+
+        assert!(prompt.contains("setSize(...) can trigger resized() immediately"));
+        assert!(prompt.contains("Create child components first"));
+        assert!(prompt.contains("dereference a child pointer"));
+        assert!(prompt.contains("Start timers only after the editor tree is fully initialized"));
+    }
 }
