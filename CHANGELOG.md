@@ -3,6 +3,13 @@
 All notable changes to Foundry are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.61.16](https://github.com/theodaguier/foundry/compare/v1.61.15...v1.61.16) (2026-04-15)
+
+
+### Bug Fixes
+
+* **generation:** harden Codex progress and JUCE editor safety ([#427](https://github.com/theodaguier/foundry/issues/427)) ([b8f9cc4](https://github.com/theodaguier/foundry/commit/b8f9cc49de486c0444f457862fa254fb9b503bd7))
+
 ## [1.61.15](https://github.com/theodaguier/foundry/compare/v1.61.14...v1.61.15) (2026-04-14)
 
 
