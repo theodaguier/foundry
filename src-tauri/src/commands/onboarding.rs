@@ -13,9 +13,7 @@ pub async fn get_onboarding_state(
 }
 
 #[command]
-pub async fn get_setup_state(
-    state: State<'_, AppState>,
-) -> Result<onboarding::SetupState, String> {
+pub async fn get_setup_state(state: State<'_, AppState>) -> Result<onboarding::SetupState, String> {
     Ok(onboarding::get_setup_state(&state.auth).await)
 }
 

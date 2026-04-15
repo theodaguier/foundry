@@ -138,12 +138,8 @@ pub fn provider_status(
 
     // Auth check — always use canonical provider resolution
     let auth_required = match provider {
-        ProviderCli::Claude if is_installed => {
-            !check_claude_auth(Some(&resolved))
-        }
-        ProviderCli::Codex if is_installed => {
-            !check_codex_auth(Some(&resolved))
-        }
+        ProviderCli::Claude if is_installed => !check_claude_auth(Some(&resolved)),
+        ProviderCli::Codex if is_installed => !check_codex_auth(Some(&resolved)),
         _ => false,
     };
 
@@ -306,14 +302,20 @@ mod tests {
             use std::os::unix::fs::PermissionsExt;
             let mut perms = std::fs::metadata(&fake_path).unwrap().permissions();
             perms.set_mode(0o755);
-            std::fs::metadata(&fake_path).unwrap().permissions().set_mode(0o755);
+            std::fs::metadata(&fake_path)
+                .unwrap()
+                .permissions()
+                .set_mode(0o755);
         }
 
         let status = provider_status(ProviderCli::Codex, Some(&fake_path.to_string_lossy()));
         // Binary exists but --version fails → installed=false
         assert!(status.is_ok());
         let s = status.unwrap().unwrap();
-        assert!(!s.installed, "Non-runnable binary should not be marked installed");
+        assert!(
+            !s.installed,
+            "Non-runnable binary should not be marked installed"
+        );
 
         let _ = std::fs::remove_file(&fake_path);
     }

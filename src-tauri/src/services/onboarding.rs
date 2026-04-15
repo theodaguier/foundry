@@ -139,7 +139,10 @@ fn extract_tarball(archive_path: &Path, extract_dir: &Path) -> Result<(), String
 fn install_managed_cmake() -> Result<PathBuf, String> {
     let cmake_binary = foundry_paths::managed_cmake_binary();
     if cmake_binary.is_file() {
-        info!("Managed CMake already installed at {}", cmake_binary.display());
+        info!(
+            "Managed CMake already installed at {}",
+            cmake_binary.display()
+        );
         return Ok(cmake_binary);
     }
 
@@ -147,7 +150,8 @@ fn install_managed_cmake() -> Result<PathBuf, String> {
     let url = CMAKE_DOWNLOAD_URL.replace("{version}", version);
     let cmake_dir = foundry_paths::managed_cmake_dir();
     let temp_root = foundry_paths::application_support_dir().join("tmp");
-    std::fs::create_dir_all(&cmake_dir).map_err(|e| format!("Failed to create CMake dir: {}", e))?;
+    std::fs::create_dir_all(&cmake_dir)
+        .map_err(|e| format!("Failed to create CMake dir: {}", e))?;
     std::fs::create_dir_all(&temp_root).map_err(|e| format!("Failed to create temp dir: {}", e))?;
 
     let archive_path = temp_root.join(format!("cmake-{}.tar.gz", version));
@@ -172,7 +176,10 @@ fn install_managed_cmake() -> Result<PathBuf, String> {
 fn install_managed_node() -> Result<PathBuf, String> {
     let npm_binary = foundry_paths::managed_npm_binary();
     if npm_binary.is_file() {
-        info!("Managed Node.js already installed at {}", npm_binary.display());
+        info!(
+            "Managed Node.js already installed at {}",
+            npm_binary.display()
+        );
         return Ok(npm_binary);
     }
 
@@ -196,10 +203,7 @@ fn install_managed_node() -> Result<PathBuf, String> {
 
     let node_binary = foundry_paths::managed_node_binary();
     if node_binary.is_file() {
-        info!(
-            "Managed Node.js installed at {}",
-            node_binary.display()
-        );
+        info!("Managed Node.js installed at {}", node_binary.display());
         Ok(npm_binary)
     } else {
         Err(format!(
@@ -252,8 +256,7 @@ fn install_managed_codex() -> Result<PathBuf, String> {
     // Create parent dirs first so we can extract into a staging subdirectory
     // directly under the root, not inside the versioned directory.
     // This avoids the race where codex_dir is deleted and no version exists.
-    std::fs::create_dir_all(&temp_root)
-        .map_err(|e| format!("Failed to create temp dir: {}", e))?;
+    std::fs::create_dir_all(&temp_root).map_err(|e| format!("Failed to create temp dir: {}", e))?;
 
     info!("Downloading Codex {} from {}", version, url);
     download_file_sync(&url, &archive_path)?;
@@ -289,10 +292,7 @@ fn install_managed_codex() -> Result<PathBuf, String> {
         let _ = std::fs::remove_file(&extracted_file);
         // Single-binary install skips the atomic-swap block below (no old dir to swap)
         platform::invalidate_shell_cache();
-        info!(
-            "Managed Codex installed at {}",
-            target_binary.display()
-        );
+        info!("Managed Codex installed at {}", target_binary.display());
         return Ok(target_binary);
     } else {
         return Err(format!(
@@ -324,10 +324,7 @@ fn install_managed_codex() -> Result<PathBuf, String> {
     // by verify_provider_install() after this function returns.
     platform::invalidate_shell_cache();
 
-    info!(
-        "Managed Codex installed at {}",
-        codex_binary.display()
-    );
+    info!("Managed Codex installed at {}", codex_binary.display());
     Ok(codex_binary)
 }
 
@@ -1058,9 +1055,7 @@ pub async fn get_setup_state(auth: &SupabaseAuth) -> SetupState {
             juce_version: String::new(),
         });
 
-    let deps = dependency_checker::check_all()
-        .await
-        .unwrap_or_default();
+    let deps = dependency_checker::check_all().await.unwrap_or_default();
 
     let build_ready = build_env.state == "ready";
 
@@ -1075,7 +1070,10 @@ pub async fn get_setup_state(auth: &SupabaseAuth) -> SetupState {
         let (status, version) = match dep {
             Some(d) if d.installed && !d.auth_required => {
                 has_authenticated = true;
-                (ProviderSetupStatus::InstalledAndAuthenticated, d.version.clone())
+                (
+                    ProviderSetupStatus::InstalledAndAuthenticated,
+                    d.version.clone(),
+                )
             }
             Some(d) if d.installed && d.auth_required => {
                 (ProviderSetupStatus::InstalledNeedsAuth, d.version.clone())
@@ -1822,10 +1820,7 @@ fn ensure_npm() -> Result<String, String> {
         if resolved_node == "node" {
             // node is not resolvable even though npm is — try brew node path directly
             #[cfg(target_os = "macos")]
-            for node_candidate in &[
-                "/opt/homebrew/bin/node",
-                "/usr/local/bin/node",
-            ] {
+            for node_candidate in &["/opt/homebrew/bin/node", "/usr/local/bin/node"] {
                 if std::path::Path::new(node_candidate).is_file() {
                     return Ok(npm);
                 }
@@ -1979,13 +1974,17 @@ pub async fn verify_provider_install(
         // After npm install, the binary lands in the npm global prefix bin dir.
         // The shell cache may not reflect this immediately, so we check the
         // filesystem directly using the npm prefix from the preparation struct.
-        let npm_prefix_candidate = preparation.npm_path.as_deref().and_then(|npm_path| {
-            npm_global_prefix(npm_path).ok().map(|prefix| {
-                provider_cli_from_prefix(&prefix, preparation.provider.command())
-                    .to_string_lossy()
-                    .to_string()
+        let npm_prefix_candidate = preparation
+            .npm_path
+            .as_deref()
+            .and_then(|npm_path| {
+                npm_global_prefix(npm_path).ok().map(|prefix| {
+                    provider_cli_from_prefix(&prefix, preparation.provider.command())
+                        .to_string_lossy()
+                        .to_string()
+                })
             })
-        }).filter(|path| Path::new(path).is_file());
+            .filter(|path| Path::new(path).is_file());
 
         let detected_path = expected_candidate
             .clone()
@@ -1998,9 +1997,13 @@ pub async fn verify_provider_install(
                 "Provider install candidate detected: provider={} path={} source={}",
                 preparation.provider.command(),
                 path,
-                if expected_candidate.as_deref() == Some(&path) { "expected_path" }
-                else if platform_candidate.as_deref() == Some(&path) { "platform" }
-                else { "npm_prefix" }
+                if expected_candidate.as_deref() == Some(&path) {
+                    "expected_path"
+                } else if platform_candidate.as_deref() == Some(&path) {
+                    "platform"
+                } else {
+                    "npm_prefix"
+                }
             );
 
             if let Some(status) =
@@ -2019,7 +2022,10 @@ pub async fn verify_provider_install(
                     );
                     last_detected_path = Some(path);
                 } else {
-                    foundry_paths::set_provider_path_override(preparation.provider.command(), &path)?;
+                    foundry_paths::set_provider_path_override(
+                        preparation.provider.command(),
+                        &path,
+                    )?;
                     platform::invalidate_shell_cache();
 
                     info!(
@@ -2058,9 +2064,9 @@ pub async fn verify_provider_install(
 #[cfg(test)]
 mod tests {
     use super::{
-        provider_not_detected_result, verified_provider_result, provider_cli_from_prefix,
-        user_local_cli_path, DependencyInstallVerification, DependencyStatus,
-        DependencyResetItem, DependencyResetResult, DependencyResetStatus, ProviderCli,
+        provider_cli_from_prefix, provider_not_detected_result, user_local_cli_path,
+        verified_provider_result, DependencyInstallVerification, DependencyResetItem,
+        DependencyResetResult, DependencyResetStatus, DependencyStatus, ProviderCli,
     };
 
     #[test]
@@ -2134,18 +2140,17 @@ mod tests {
     /// manual install as a fallback).
     #[test]
     fn not_detected_result_message_includes_manual_install_guidance() {
-        let result = provider_not_detected_result(
-            ProviderCli::Claude,
-            None,
-        );
+        let result = provider_not_detected_result(ProviderCli::Claude, None);
         assert!(!result.success);
         assert!(
-            result.message.contains("Claude Code manually")
-                || result.message.contains("manually"),
+            result.message.contains("Claude Code manually") || result.message.contains("manually"),
             "message should mention manual install fallback: {}",
             result.message
         );
-        assert_eq!(result.verification, DependencyInstallVerification::NotDetected);
+        assert_eq!(
+            result.verification,
+            DependencyInstallVerification::NotDetected
+        );
     }
 
     /// Test that verified_provider_result correctly sets auth_required state.
@@ -2158,9 +2163,16 @@ mod tests {
             detail: Some("1.0.0".to_string()),
             version: Some("1.0.0".to_string()),
         };
-        let result = verified_provider_result(ProviderCli::Claude, status, "/usr/local/bin/claude".to_string());
+        let result = verified_provider_result(
+            ProviderCli::Claude,
+            status,
+            "/usr/local/bin/claude".to_string(),
+        );
         assert!(result.success);
-        assert_eq!(result.verification, DependencyInstallVerification::AuthRequired);
+        assert_eq!(
+            result.verification,
+            DependencyInstallVerification::AuthRequired
+        );
         assert!(result.message.contains("Sign in"));
     }
 
